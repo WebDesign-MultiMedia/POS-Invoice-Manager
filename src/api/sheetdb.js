@@ -1,0 +1,24 @@
+export const SHEETDB_URL = "https://sheetdb.io/api/v1/knvxv3inyom8t";
+
+export async function submitOrder(data) {
+  const res = await fetch(SHEETDB_URL, {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`Response status: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchAllOrders() {
+  const res = await fetch(SHEETDB_URL);
+  return res.json();
+}
+
+export async function getInvoiceById(invoiceId) {
+  const res = await fetch(`${SHEETDB_URL}/search?Id=${encodeURIComponent(invoiceId)}`);
+  const rows = await res.json();
+  return rows && rows.length ? rows[0] : null;
+}

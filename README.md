@@ -10,13 +10,18 @@ A lightweight web app to capture customer orders, generate printable invoices, a
 - Search customers and past orders by phone, name, address, date, or month
 - Printable invoice view (clean print CSS, always fits one page) with a read-only shareable link
 - Optional Google Sheets sync (SheetDB)
-- Mobile Responsive no larger screens
+- Mobile responsive, built as a single-page app
 
 ## Tech
-HTML, Tailwind CSS
+React, React Router, Tailwind CSS, Vite
 
 ## Getting Started
 ```bash
 npm install
-npm run dev    # if using a bundler; otherwise open index.html
+npm run dev       # local dev server
+npm run build     # production build to dist/
+npm run preview   # preview the production build locally
 ```
+
+## Deployment
+Pushing to `main` runs `.github/workflows/deploy.yml`, which builds the app and publishes `dist/` to GitHub Pages. In the repo's Settings → Pages, the source must be set to "GitHub Actions".
