@@ -136,6 +136,7 @@ export default function OrderFormPage() {
               <option value="">Type</option>
               <option value="Delivery">Delivery</option>
               <option value="Pick-up">Pick-up</option>
+              <option value="Catering">Catering</option>
             </select>
           </div>
           <div className="field-group">

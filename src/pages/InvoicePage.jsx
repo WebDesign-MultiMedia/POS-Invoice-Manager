@@ -108,7 +108,15 @@ export default function InvoicePage() {
     wrap.style.perspective = "none";
 
     try {
-      const canvas = await html2canvas(card, { backgroundColor: "#ffffff", scale: 2 });
+      // windowWidth forces html2canvas to lay the card out as if the
+      // browser were this wide, regardless of the actual device — without
+      // it, a phone-width capture renders the card cramped (its sm:
+      // breakpoint padding never kicks in, text is tiny relative to the
+      // image), so the saved image fills the recipient's whole screen
+      // edge-to-edge instead of looking like a normal, easy-to-read
+      // document. This makes every device produce the same well-
+      // proportioned, desktop-quality image.
+      const canvas = await html2canvas(card, { backgroundColor: "#ffffff", scale: 2, windowWidth: 800 });
       const link = document.createElement("a");
       link.download = `invoice-${invoice?.Id || "order"}.png`;
       link.href = canvas.toDataURL("image/png");

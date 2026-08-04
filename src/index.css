@@ -67,13 +67,14 @@
     --surface: 255 255 255;
   }
 
+  /* overflow-x/max-width live only on body (via .page-shell below), not
+     also duplicated on html — per spec, body's overflow propagates to the
+     viewport when html doesn't declare its own, and declaring overflow on
+     BOTH html and body is itself a known contributor to iOS Safari scroll
+     misbehavior (on top of the position:fixed issues documented on
+     .page-shell::before). One source of truth avoids that ambiguity. */
   html {
     scroll-behavior: smooth;
-    /* Decorative floating shapes are deliberately positioned partly off-edge;
-       without this, mobile browsers still allow horizontally scrolling into
-       that empty space even though `.page-shell` clips it on `<body>`. */
-    overflow-x: hidden;
-    max-width: 100%;
   }
   body {
     max-width: 100%;
