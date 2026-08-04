@@ -5,7 +5,7 @@ import html2canvas from "html2canvas";
 import Layout from "../components/Layout.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { getInvoiceById } from "../api/sheetdb.js";
-import { toNumber, formatMoney } from "../lib/format.js";
+import { toNumber, formatMoney, splitItems } from "../lib/format.js";
 
 const PRINT_PAGE = { widthIn: 8.5, heightIn: 11, marginIn: 0.4 };
 
@@ -148,9 +148,8 @@ export default function InvoicePage() {
     setPopupValue("");
   };
 
-  const qty = invoice ? toNumber(invoice.Quantity) || 1 : 1;
   const cost = invoice ? toNumber(invoice.Cost) || 0 : 0;
-  const unitPrice = qty ? cost / qty : cost;
+  const itemList = invoice ? splitItems(invoice.Items) : [];
   const deposit = invoice ? toNumber(invoice.Deposit) : NaN;
   const hasDeposit = !isNaN(deposit) && deposit > 0;
   const totalDue = hasDeposit ? Math.max(cost - deposit, 0) : cost;
@@ -245,17 +244,35 @@ export default function InvoicePage() {
               <tr className="border-b-2 border-brand-navydeep/20 text-left text-brand-navydeep/70">
                 <th className="py-2 pr-2 w-14">Qty</th>
                 <th className="py-2 pr-2">Description</th>
-                <th className="py-2 pr-2 text-right">Unit Price</th>
                 <th className="py-2 text-right">Amount</th>
               </tr>
             </thead>
             <tbody>
               {invoice && (
                 <tr className="border-b border-brand-navydeep/10">
-                  <td className="py-2 pr-2">{invoice.Quantity || 1}</td>
-                  <td className="py-2 pr-2">{invoice.Items || ""}</td>
-                  <td className="py-2 pr-2 text-right">{formatMoney(unitPrice)}</td>
-                  <td className="py-2 text-right font-semibold">{formatMoney(cost)}</td>
+                  <td className="py-2 pr-2 align-top">
+                    {itemList.length > 0 ? (
+                      <ul className="list-none space-y-0.5">
+                        {itemList.map((item, i) => (
+                          <li key={i}>{item.qty}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      invoice.Quantity || 1
+                    )}
+                  </td>
+                  <td className="py-2 pr-2">
+                    {itemList.length > 0 ? (
+                      <ul className="list-disc pl-4 space-y-0.5 marker:text-brand-navydeep/40">
+                        {itemList.map((item, i) => (
+                          <li key={i}>{item.text}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      ""
+                    )}
+                  </td>
+                  <td className="py-2 text-right font-semibold align-top">{formatMoney(cost)}</td>
                 </tr>
               )}
             </tbody>

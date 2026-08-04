@@ -39,3 +39,26 @@ export function parseStoredDate(dateStr) {
 export function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+// The Items textarea is free text, so different orders delimit items
+// differently: some are one comma-separated line ("1/2 lbs Chivo, 1 char
+// Chivo"), others are one per line (sometimes with a trailing comma left
+// over from a comma-separated habit, and/or a leading bullet like
+// "•Carnitas"). Split on newlines when present (a line may legitimately
+// contain its own commas), otherwise fall back to commas, then strip any
+// leading bullet/dash marker and trailing comma so they aren't duplicated.
+// A leading "Nx" (e.g. "2x Ensalada de frutas") is a quantity multiplier,
+// not part of the item name, so it's parsed out into `qty` and stripped
+// from `text`; items without a prefix default to qty 1.
+export function splitItems(itemsStr) {
+  if (!itemsStr) return [];
+  const str = String(itemsStr);
+  const parts = str.includes("\n") ? str.split("\n") : str.split(",");
+  return parts
+    .map((item) => item.trim().replace(/^[•\-*]+\s*/, "").replace(/,\s*$/, ""))
+    .filter(Boolean)
+    .map((item) => {
+      const match = item.match(/^(\d+)\s*[xX]\s*(.+)$/);
+      return match ? { qty: Number(match[1]), text: match[2].trim() } : { qty: 1, text: item };
+    });
+}
