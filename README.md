@@ -3,7 +3,7 @@
 A lightweight web app to capture customer orders, generate printable invoices, and (optionally) sync to Google Sheets via SheetDB.
 
 ## Demo
-- Live: https://webdesign-multimedia.github.io/Customer-Details/
+- Live: https://customer-details-iota.vercel.app/
 
 ## Features
 - Customer order form (delivery/pickup, payment type, items/qty, deposits)
