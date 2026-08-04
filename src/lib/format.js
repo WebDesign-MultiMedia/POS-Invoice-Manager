@@ -16,6 +16,16 @@ export function time12Hour(timeStr) {
   return `${hour}:${minute} ${ampm}`;
 }
 
+// The order form no longer asks staff to type the date/time — it's stamped
+// automatically at submit time, in the same MM/DD/YYYY + 12-hour formats
+// formatDate()/time12Hour() already produce from manual input.
+export function getCurrentDateTime() {
+  const now = new Date();
+  const date = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}/${now.getFullYear()}`;
+  const time = time12Hour(`${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`);
+  return { date, time };
+}
+
 export function toNumber(v) {
   if (v == null) return NaN;
   const cleaned = String(v).replace(/[^0-9.-]/g, "");

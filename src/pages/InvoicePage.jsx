@@ -208,6 +208,9 @@ export default function InvoicePage() {
                 <span className="font-semibold text-brand-navydeep/70">Date</span> <span>{invoice?.Date ?? ""}</span>
               </p>
               <p>
+                <span className="font-semibold text-brand-navydeep/70">Time</span> <span>{invoice?.Time ?? ""}</span>
+              </p>
+              <p>
                 <span className="font-semibold text-brand-navydeep/70">Order Type</span> <span>{invoice?.PickupDelivery || "—"}</span>
               </p>
               {popupOpen && (

@@ -24,6 +24,13 @@
     --brand-pink: 1 146 219;
     --surface: 255 255 255;
     --page-bg: 255 255 255;
+    /* Tells the browser which palette to render its OWN native widgets
+       with (date/time picker text, number-input spin arrows, etc.) — this
+       is separate from the `color` CSS property, which those native parts
+       don't fully obey. Without it, Safari kept drawing the date/time
+       inputs' text in its default dark color, which was invisible against
+       our dark-mode input background. */
+    color-scheme: light;
   }
 
   .dark {
@@ -43,6 +50,7 @@
     --brand-pink: 129 140 248;
     --surface: 17 20 26;
     --page-bg: 0 0 0;
+    color-scheme: dark;
   }
 
   /* The printed invoice represents physical paper, so it always renders
@@ -114,17 +122,31 @@
     transition: background-color 200ms ease;
   }
 
-  /* The animated mesh gradient lives on a fixed, viewport-sized pseudo-element
-     instead of directly on body's background. Animating `background-position`
-     forces the browser to repaint that whole layer every frame; on body it
-     was scaled to the full scrollable page height (very tall on the order
-     form), which is expensive enough on mobile GPUs to visibly stutter
-     scrolling. Pinning it to the viewport keeps the repaint area small and
-     constant regardless of page length. */
+  /* The animated mesh gradient lives on a pseudo-element bounded to one
+     viewport tall instead of directly on body's background. Animating
+     `background-position` forces the browser to repaint that whole layer
+     every frame; on body it was scaled to the full scrollable page height
+     (very tall on the order form), expensive enough on mobile GPUs to
+     visibly stutter scrolling. Bounding the height keeps the repaint area
+     small regardless of page length.
+     This is intentionally `position: absolute`, NOT `fixed` — a `fixed`,
+     full-viewport (`inset: 0`) element here previously caused a severe
+     real-device bug on iOS Safari where the page would repeatedly snap
+     back toward the top instead of scrolling down (confirmed via frame-by-
+     frame analysis of a user-recorded screen capture: scroll position was
+     resetting on a near-metronomic ~0.5s cycle). `position: fixed` full-
+     screen backgrounds fighting scroll/rubber-banding is a long-standing
+     class of iOS Safari bug; `absolute` scrolls normally with the document
+     and avoids it, at the minor cost of the gradient not extending past
+     the first viewport-height of very long pages. */
   .page-shell::before {
     content: "";
-    position: fixed;
-    inset: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100vh;
+    height: 100svh;
     z-index: -1;
     background-image:
       radial-gradient(circle at 15% 20%, rgb(var(--brand-gold) / 0.06), transparent 45%),

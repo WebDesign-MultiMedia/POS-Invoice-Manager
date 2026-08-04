@@ -4,11 +4,9 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { submitOrder } from "../api/sheetdb.js";
-import { formatDate, time12Hour } from "../lib/format.js";
+import { getCurrentDateTime } from "../lib/format.js";
 
 const INITIAL_FORM = {
-  Date: "",
-  Time: "",
   Name: "",
   Contact: "",
   Address: "",
@@ -45,9 +43,10 @@ export default function OrderFormPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const { date, time } = getCurrentDateTime();
     const data = {
-      Date: formatDate(form.Date),
-      Time: time12Hour(form.Time),
+      Date: date,
+      Time: time,
       Name: form.Name,
       Contact: form.Contact,
       Address: form.Address,
@@ -105,21 +104,6 @@ export default function OrderFormPage() {
         <div className="flex items-center gap-2 mb-6 justify-center">
           <i className="fa-solid fa-utensils text-brand-gold text-xl"></i>
           <h2 className="text-xl sm:text-2xl font-semibold text-brand-navy">Customer Order</h2>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-          <div className="field-group">
-            <label htmlFor="Date" className="field-label">
-              <i className="fa-solid fa-calendar-days"></i> Date
-            </label>
-            <input type="date" name="Date" id="Date" className={fieldClass(form.Date, validated)} value={form.Date} onChange={setField("Date")} />
-          </div>
-          <div className="field-group">
-            <label htmlFor="Time" className="field-label">
-              <i className="fa-solid fa-clock"></i> Time
-            </label>
-            <input type="time" name="Time" id="Time" className={fieldClass(form.Time, validated)} value={form.Time} onChange={setField("Time")} />
-          </div>
         </div>
 
         <div className="grid sm:grid-cols-3 gap-4 mb-5">
