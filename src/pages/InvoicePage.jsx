@@ -255,40 +255,39 @@ export default function InvoicePage() {
           </div>
 
           <div className="pt-6">
-            <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Bill To</p>
-            <p className="font-form text-xl">{invoice?.Name ?? ""}</p>
-            <p className="text-sm italic text-brand-navydeep/80">
-              <i className="fa-solid fa-location-dot text-brand-coral"></i> {invoice?.Address ?? ""}
-            </p>
-            <p className="text-sm italic text-brand-navydeep/80">
-              <i className="fa-solid fa-phone text-brand-teal"></i> {invoice?.Contact ?? ""}
-            </p>
+            <div className="rounded-xl bg-brand-canvas/60 border border-brand-navydeep/10 px-4 py-3">
+              <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Bill To</p>
+              <p className="font-form text-xl">{invoice?.Name ?? ""}</p>
+              <p className="text-sm italic text-brand-navydeep/80">
+                <i className="fa-solid fa-location-dot text-brand-coral"></i> {invoice?.Address ?? ""}
+              </p>
+              <p className="text-sm italic text-brand-navydeep/80">
+                <i className="fa-solid fa-phone text-brand-teal"></i> {invoice?.Contact ?? ""}
+              </p>
+            </div>
           </div>
 
           <table className="w-full mt-6 text-sm">
             <thead>
               <tr className="border-b-2 border-brand-navydeep/20 text-left text-brand-navydeep/70">
                 <th className="py-2 pr-2 w-14">Qty</th>
-                <th className="py-2 pr-2">Description</th>
-                <th className="py-2 text-right">Amount</th>
+                <th className="py-2">Description</th>
               </tr>
             </thead>
             <tbody>
               {invoice && itemList.length > 0 && (
                 <>
                   {itemList.map((item, i) => (
-                    <tr key={i} className={i === itemList.length - 1 ? "border-b border-brand-navydeep/10" : ""}>
-                      <td className="py-1 pr-2 align-top">{item.qty}</td>
-                      <td className="py-1 pr-2">
+                    <tr
+                      key={i}
+                      className={`${i === itemList.length - 1 ? "border-b border-brand-navydeep/10" : ""} ${i % 2 === 1 ? "bg-brand-canvas/40" : ""}`}
+                    >
+                      <td className="py-1.5 pr-2 align-top">{item.qty}</td>
+                      <td className="py-1.5">
                         <ul className="list-disc pl-4 marker:text-brand-navydeep/40">
                           <li>{item.text}</li>
                         </ul>
                       </td>
-                      {i === 0 && (
-                        <td className="py-1 text-right font-semibold align-top" rowSpan={itemList.length}>
-                          {formatMoney(cost)}
-                        </td>
-                      )}
                     </tr>
                   ))}
                 </>
@@ -296,14 +295,13 @@ export default function InvoicePage() {
               {invoice && itemList.length === 0 && (
                 <tr className="border-b border-brand-navydeep/10">
                   <td className="py-2 pr-2 align-top">{invoice.Quantity || 1}</td>
-                  <td className="py-2 pr-2"></td>
-                  <td className="py-2 text-right font-semibold align-top">{formatMoney(cost)}</td>
+                  <td className="py-2"></td>
                 </tr>
               )}
             </tbody>
           </table>
 
-          <div className="flex justify-end mt-2">
+          <div className="flex justify-end mt-4">
             <div className="w-full sm:w-72 text-sm">
               {invoice && (
                 <>
@@ -317,7 +315,7 @@ export default function InvoicePage() {
                       <span>-{formatMoney(deposit)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between py-2 mt-1 border-t-2 border-brand-navydeep/20 font-bold text-base text-brand-navydeep">
+                  <div className="flex justify-between items-center mt-2 py-2.5 px-3 rounded-lg bg-brand-gold/10 font-bold text-base text-brand-navy">
                     <span>{hasDeposit ? "Balance Due" : "Total Due"}</span>
                     <span>{formatMoney(totalDue)}</span>
                   </div>
