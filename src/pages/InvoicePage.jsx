@@ -116,7 +116,7 @@ export default function InvoicePage() {
       // edge-to-edge instead of looking like a normal, easy-to-read
       // document. This makes every device produce the same well-
       // proportioned, desktop-quality image.
-      const canvas = await html2canvas(card, { backgroundColor: "#ffffff", scale: 2, windowWidth: 800 });
+      const canvas = await html2canvas(card, { backgroundColor: "#ffffff", scale: 2, windowWidth: 900 });
       const link = document.createElement("a");
       link.download = `invoice-${invoice?.Id || "order"}.png`;
       link.href = canvas.toDataURL("image/png");
@@ -190,7 +190,7 @@ export default function InvoicePage() {
         </p>
       )}
 
-      <div ref={wrapRef} className="tilt-wrap w-full max-w-2xl stagger-in">
+      <div ref={wrapRef} className="tilt-wrap w-full max-w-3xl stagger-in">
         <div ref={cardRef} className="paper-card animate-unfold text-brand-navydeep p-8 sm:p-12 overflow-hidden">
           <div className="flex justify-between items-start gap-4 flex-wrap pb-6 border-b-2 border-brand-navydeep/10">
             <div className="flex items-center gap-3">
