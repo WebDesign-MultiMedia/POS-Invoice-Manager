@@ -67,14 +67,18 @@
     --surface: 255 255 255;
   }
 
-  /* overflow-x/max-width live only on body (via .page-shell below), not
-     also duplicated on html — per spec, body's overflow propagates to the
-     viewport when html doesn't declare its own, and declaring overflow on
-     BOTH html and body is itself a known contributor to iOS Safari scroll
-     misbehavior (on top of the position:fixed issues documented on
-     .page-shell::before). One source of truth avoids that ambiguity. */
   html {
     scroll-behavior: smooth;
+    /* This was briefly removed (kept only on body/.page-shell below),
+       reasoning that body's overflow should propagate to the viewport
+       per spec — but real-device testing showed that isn't reliable
+       enough here: the decorative blobs (positioned partly off-edge by
+       design) let the page scroll horizontally on a real phone, revealing
+       empty space past the content on the right. Declaring it on both
+       html and body is belt-and-suspenders, not spec-elegant, but it's
+       the version that's actually confirmed to hold on a real device. */
+    overflow-x: hidden;
+    max-width: 100%;
   }
   body {
     max-width: 100%;
