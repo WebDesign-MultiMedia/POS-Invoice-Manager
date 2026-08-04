@@ -1,8 +1,11 @@
+import ThemeToggle from "./ThemeToggle.jsx";
+
 // Shared page chrome: the floating decorative blobs + the centered <main>
 // wrapper repeated (with only colors/spacing varying) across all 4 pages.
 export default function Layout({ blobs = [], children, mainClassName = "" }) {
   return (
     <>
+      <ThemeToggle />
       {blobs.map((cls, i) => (
         <div key={i} className={`blob ${cls}`}></div>
       ))}

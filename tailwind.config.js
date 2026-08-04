@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: "class",
   content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
     extend: {
@@ -11,22 +12,29 @@ export default {
         form3: ["Open Sans", "sans-serif"],
       },
       colors: {
+        // Bound to CSS custom properties (defined in src/index.css for
+        // `:root` and overridden under `.dark`) instead of literal hex, so
+        // every utility built from these tokens — and every custom
+        // component-layer rule using theme("colors.brand.x") — repaints
+        // automatically when the dark-mode toggle flips the `dark` class on
+        // <html>, with no per-usage edits needed.
         brand: {
-          navy: "#001A50",
-          navydeep: "#202838",
-          navylight: "#0149D9",
-          canvas: "#F3F7FF",
-          muted: "#2E384D",
-          gold: "#0055FF",
-          goldlight: "#01D3D3",
-          coral: "#2E6BE5",
-          error: "#E23744",
-          teal: "#0288CB",
-          cream: "#F7FAFF",
-          terracotta: "#2E6BE5",
-          cactus: "#2EA8E5",
-          pink: "#0192DB",
+          navy: "rgb(var(--brand-navy) / <alpha-value>)",
+          navydeep: "rgb(var(--brand-navydeep) / <alpha-value>)",
+          navylight: "rgb(var(--brand-navylight) / <alpha-value>)",
+          canvas: "rgb(var(--brand-canvas) / <alpha-value>)",
+          muted: "rgb(var(--brand-muted) / <alpha-value>)",
+          gold: "rgb(var(--brand-gold) / <alpha-value>)",
+          goldlight: "rgb(var(--brand-goldlight) / <alpha-value>)",
+          coral: "rgb(var(--brand-coral) / <alpha-value>)",
+          error: "rgb(var(--brand-error) / <alpha-value>)",
+          teal: "rgb(var(--brand-teal) / <alpha-value>)",
+          cream: "rgb(var(--brand-cream) / <alpha-value>)",
+          terracotta: "rgb(var(--brand-terracotta) / <alpha-value>)",
+          cactus: "rgb(var(--brand-cactus) / <alpha-value>)",
+          pink: "rgb(var(--brand-pink) / <alpha-value>)",
         },
+        surface: "rgb(var(--surface) / <alpha-value>)",
       },
       boxShadow: {
         "depth-sm": "0 2px 8px -2px rgba(0,26,80,0.14), 0 1px 2px rgba(0,26,80,0.08)",

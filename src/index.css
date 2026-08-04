@@ -3,6 +3,62 @@
 @tailwind utilities;
 
 @layer base {
+  /* RGB triplets (not hex) so Tailwind's `rgb(var(--x) / <alpha-value>)`
+     color tokens in tailwind.config.js can apply per-utility opacity
+     modifiers (e.g. text-brand-navydeep/70). Dark values lean on black
+     surfaces with #78a5db (120 165 219) as the accent that replaces gold. */
+  :root {
+    --brand-navy: 0 26 80;
+    --brand-navydeep: 32 40 56;
+    --brand-navylight: 1 73 217;
+    --brand-canvas: 243 247 255;
+    --brand-muted: 46 56 77;
+    --brand-gold: 0 85 255;
+    --brand-goldlight: 1 211 211;
+    --brand-coral: 46 107 229;
+    --brand-error: 226 55 68;
+    --brand-teal: 2 136 203;
+    --brand-cream: 247 250 255;
+    --brand-terracotta: 46 107 229;
+    --brand-cactus: 46 168 229;
+    --brand-pink: 1 146 219;
+    --surface: 255 255 255;
+    --page-bg: 255 255 255;
+  }
+
+  .dark {
+    --brand-navy: 120 165 219;
+    --brand-navydeep: 226 232 240;
+    --brand-navylight: 91 140 199;
+    --brand-canvas: 17 20 26;
+    --brand-muted: 148 163 184;
+    --brand-gold: 120 165 219;
+    --brand-goldlight: 173 199 230;
+    --brand-coral: 96 165 250;
+    --brand-error: 248 113 113;
+    --brand-teal: 56 189 248;
+    --brand-cream: 17 20 26;
+    --brand-terracotta: 96 165 250;
+    --brand-cactus: 125 211 252;
+    --brand-pink: 129 140 248;
+    --surface: 17 20 26;
+    --page-bg: 0 0 0;
+  }
+
+  /* The printed invoice represents physical paper, so it always renders
+     light/dark-ink regardless of the site theme — pin every brand token
+     it relies on back to the light palette even inside `.dark`. */
+  .paper-card {
+    --brand-navy: 0 26 80;
+    --brand-navydeep: 32 40 56;
+    --brand-muted: 46 56 77;
+    --brand-teal: 2 136 203;
+    --brand-coral: 46 107 229;
+    --brand-terracotta: 46 107 229;
+    --brand-cream: 247 250 255;
+    --surface: 255 255 255;
+  }
+
   html {
     scroll-behavior: smooth;
     /* Decorative floating shapes are deliberately positioned partly off-edge;
@@ -54,7 +110,8 @@
     min-height: 100vh;
     min-height: 100svh;
     overflow-x: hidden;
-    background-color: #ffffff;
+    background-color: rgb(var(--page-bg));
+    transition: background-color 200ms ease;
   }
 
   /* The animated mesh gradient lives on a fixed, viewport-sized pseudo-element
@@ -70,10 +127,10 @@
     inset: 0;
     z-index: -1;
     background-image:
-      radial-gradient(circle at 15% 20%, rgba(0, 85, 255, 0.06), transparent 45%),
-      radial-gradient(circle at 85% 15%, rgba(1, 211, 211, 0.07), transparent 45%),
-      radial-gradient(circle at 50% 90%, rgba(46, 107, 229, 0.05), transparent 55%),
-      radial-gradient(circle at 10% 80%, rgba(2, 136, 203, 0.06), transparent 50%);
+      radial-gradient(circle at 15% 20%, rgb(var(--brand-gold) / 0.06), transparent 45%),
+      radial-gradient(circle at 85% 15%, rgb(var(--brand-goldlight) / 0.07), transparent 45%),
+      radial-gradient(circle at 50% 90%, rgb(var(--brand-coral) / 0.05), transparent 55%),
+      radial-gradient(circle at 10% 80%, rgb(var(--brand-teal) / 0.06), transparent 50%);
     background-size: 160% 160%, 160% 160%, 160% 160%, 160% 160%;
     animation: meshShift 18s ease-in-out infinite;
   }
@@ -102,21 +159,23 @@
   .glass-card {
     position: relative;
     z-index: 10;
-    background: #ffffff;
-    border: 1px solid rgba(0, 26, 80, 0.08);
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--brand-navydeep) / 0.08);
     border-radius: 1.75rem;
     box-shadow: theme("boxShadow.depth-lg");
+    transition: background-color 200ms ease, border-color 200ms ease;
   }
 
   .glass-panel {
-    background: #ffffff;
-    border: 1px solid rgba(0, 26, 80, 0.08);
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--brand-navydeep) / 0.08);
     border-radius: 1.25rem;
+    transition: background-color 200ms ease, border-color 200ms ease;
   }
 
   .paper-card {
     position: relative;
-    background: linear-gradient(180deg, #ffffff, theme("colors.brand.cream"));
+    background: linear-gradient(180deg, rgb(var(--surface)), theme("colors.brand.cream"));
     border-radius: 1.5rem;
     box-shadow: theme("boxShadow.paper");
   }
@@ -130,7 +189,7 @@
     height: 100%;
     top: 10px;
     border-radius: 1.5rem;
-    background: rgba(255, 255, 255, 0.7);
+    background: rgb(var(--surface) / 0.7);
     z-index: -1;
   }
   .paper-card::before {
@@ -142,7 +201,7 @@
     right: 3%;
     top: 5px;
     transform: rotate(1deg);
-    background: rgba(255, 255, 255, 0.85);
+    background: rgb(var(--surface) / 0.85);
     box-shadow: 0 10px 24px -16px rgba(0, 0, 0, 0.2);
   }
 
@@ -178,16 +237,16 @@
   }
   .input-3d {
     width: 100%;
-    background: #ffffff;
-    border: 1.5px solid rgba(0, 26, 80, 0.14);
+    background: rgb(var(--surface));
+    border: 1.5px solid rgb(var(--brand-navydeep) / 0.14);
     border-radius: 0.9rem;
     padding: 0.65rem 0.9rem;
     color: theme("colors.brand.navydeep");
     box-shadow: none;
-    transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+    transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background-color 200ms ease;
   }
   .input-3d::placeholder {
-    color: rgba(46, 56, 77, 0.4);
+    color: rgb(var(--brand-muted) / 0.4);
   }
   .input-3d:focus {
     outline: none;
@@ -197,7 +256,7 @@
   }
   .input-3d.field-error {
     border-color: theme("colors.brand.error");
-    box-shadow: 0 0 0 1px rgba(226, 55, 68, 0.4);
+    box-shadow: 0 0 0 1px rgb(var(--brand-error) / 0.4);
   }
   .input-3d.field-valid {
     border-color: theme("colors.brand.teal");
@@ -236,14 +295,24 @@
     width: 3.75rem;
     height: 3.75rem;
     border-radius: 9999px;
-    background: #ffffff;
+    background: rgb(var(--surface));
     color: theme("colors.brand.navydeep");
     box-shadow: theme("boxShadow.depth-sm");
     transform-style: preserve-3d;
-    transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+    transition: transform 150ms ease-out, box-shadow 150ms ease-out, background-color 200ms ease;
   }
   .fab:hover {
     box-shadow: theme("boxShadow.depth-lg");
+  }
+
+  /* Navy-tinted shadows (boxShadow.depth-*) are invisible against a black
+     dark-mode page background, so give the elevated surfaces a
+     black/white-glow shadow instead when dark mode is active. */
+  .dark .glass-card,
+  .dark .glass-panel,
+  .dark .fab,
+  .dark .tilt:hover {
+    box-shadow: 0 10px 30px -8px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.05);
   }
 
   /* ---------- Text ---------- */
