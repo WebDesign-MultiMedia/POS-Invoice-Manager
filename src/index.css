@@ -206,17 +206,31 @@
   }
 
   /* ---------- 3D tilt ---------- */
-  .tilt-wrap {
-    perspective: 1200px;
-  }
   .tilt {
-    transform-style: preserve-3d;
-    transform: rotateX(var(--ry, 0deg)) rotateY(var(--rx, 0deg)) translateZ(0);
-    transition: transform 120ms ease-out, box-shadow 200ms ease-out;
-    will-change: transform;
+    transition: box-shadow 200ms ease-out;
   }
-  .tilt:hover {
-    box-shadow: theme("boxShadow.depth-lg");
+
+  /* Tilt-on-hover only gets JS listeners on hover-capable/fine-pointer
+     devices (see useTilt.js) — touch devices never fire mousemove. But the
+     underlying 3D transform context (perspective + preserve-3d) was still
+     being applied everywhere, and on iOS Safari a preserve-3d subtree that
+     spans most of the viewport (like the whole order form) is a known
+     trigger for broken/bouncing scroll. Scoping the 3D properties to the
+     same media query removes that trigger on touch devices entirely, with
+     no visual change on desktop. */
+  @media (hover: hover) and (pointer: fine) {
+    .tilt-wrap {
+      perspective: 1200px;
+    }
+    .tilt {
+      transform-style: preserve-3d;
+      transform: rotateX(var(--ry, 0deg)) rotateY(var(--rx, 0deg)) translateZ(0);
+      transition: transform 120ms ease-out, box-shadow 200ms ease-out;
+      will-change: transform;
+    }
+    .tilt:hover {
+      box-shadow: theme("boxShadow.depth-lg");
+    }
   }
 
   /* ---------- Inputs ---------- */
@@ -224,6 +238,13 @@
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+    /* Grid/flex items default to min-width: auto, so on narrow phones a
+       native control's intrinsic size (esp. <input type="date">/"time",
+       which render a fixed-width calendar/clock widget) can refuse to
+       shrink to its track's width and bleed into the next field instead —
+       this is what makes the form fields overlap on mobile. min-width: 0
+       lets them shrink to the actual grid column width instead. */
+    min-width: 0;
   }
   .field-label {
     display: flex;
@@ -237,6 +258,7 @@
   }
   .input-3d {
     width: 100%;
+    min-width: 0;
     background: rgb(var(--surface));
     border: 1.5px solid rgb(var(--brand-navydeep) / 0.14);
     border-radius: 0.9rem;
