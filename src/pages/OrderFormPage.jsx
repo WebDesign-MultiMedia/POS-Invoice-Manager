@@ -107,7 +107,7 @@ export default function OrderFormPage() {
           <h2 className="text-xl sm:text-2xl font-semibold text-brand-navy">Customer Order</h2>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
           <div className="field-group">
             <label htmlFor="Date" className="field-label">
               <i className="fa-solid fa-calendar-days"></i> Date
