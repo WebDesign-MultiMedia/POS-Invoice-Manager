@@ -280,10 +280,9 @@ export default function InvoicePage() {
                     <tr key={i} className={i === itemList.length - 1 ? "border-b border-brand-navydeep/10" : ""}>
                       <td className="py-1 pr-2 align-top">{item.qty}</td>
                       <td className="py-1 pr-2">
-                        <span className="text-brand-navydeep/40" aria-hidden="true">
-                          &bull;
-                        </span>{" "}
-                        {item.text}
+                        <ul className="list-disc pl-4 marker:text-brand-navydeep/40">
+                          <li>{item.text}</li>
+                        </ul>
                       </td>
                       {i === 0 && (
                         <td className="py-1 text-right font-semibold align-top" rowSpan={itemList.length}>
