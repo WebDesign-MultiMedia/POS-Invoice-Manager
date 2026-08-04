@@ -72,3 +72,12 @@ export function splitItems(itemsStr) {
       return match ? { qty: Number(match[1]), text: match[2].trim() } : { qty: 1, text: item };
     });
 }
+
+// The order form no longer asks staff to type an aggregate Quantity — it's
+// derived from the Items list itself (summing each line's parsed qty, so a
+// "2x Ensalada de frutas" line counts as 2) at submit time.
+export function getTotalQuantity(itemsStr) {
+  const items = splitItems(itemsStr);
+  const total = items.reduce((sum, item) => sum + item.qty, 0);
+  return total || 1;
+}

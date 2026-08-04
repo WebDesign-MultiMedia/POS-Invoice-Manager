@@ -6,12 +6,14 @@ import Layout from "../components/Layout.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { getInvoiceById } from "../api/sheetdb.js";
 import { toNumber, formatMoney, splitItems } from "../lib/format.js";
+import { generateShareToken, isValidShareToken } from "../lib/shareToken.js";
 
 const PRINT_PAGE = { widthIn: 8.5, heightIn: 11, marginIn: 0.4 };
 
 export default function InvoicePage() {
   const [searchParams] = useSearchParams();
   const preselectedId = searchParams.get("id");
+  const shareToken = searchParams.get("token");
   const isShareView = searchParams.get("share") === "1";
 
   const [invoice, setInvoice] = useState(null);
@@ -35,9 +37,21 @@ export default function InvoicePage() {
   };
 
   useEffect(() => {
-    if (preselectedId) loadInvoice(preselectedId);
+    if (!preselectedId) return;
+    if (isShareView) {
+      // Share links must present a token that matches this invoice id — a
+      // bare ?id=X&share=1 (the old link shape) no longer loads anything,
+      // since typing a different id in the address bar is exactly the
+      // access-control hole this closes.
+      isValidShareToken(preselectedId, shareToken).then((valid) => {
+        if (valid) loadInvoice(preselectedId);
+        else console.warn("Invalid or missing share token for invoice:", preselectedId);
+      });
+    } else {
+      loadInvoice(preselectedId);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preselectedId]);
+  }, [preselectedId, isShareView, shareToken]);
 
   // PRINT — scale the invoice down (if needed) so it always prints on a single
   // page, no matter how much content it holds. `transform: scale()` alone only
@@ -135,7 +149,8 @@ export default function InvoicePage() {
       return;
     }
 
-    const shareUrl = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(invoiceId)}&share=1`;
+    const token = await generateShareToken(invoiceId);
+    const shareUrl = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(invoiceId)}&token=${token}&share=1`;
 
     try {
       await navigator.clipboard.writeText(shareUrl);
@@ -259,30 +274,30 @@ export default function InvoicePage() {
               </tr>
             </thead>
             <tbody>
-              {invoice && (
+              {invoice && itemList.length > 0 && (
+                <>
+                  {itemList.map((item, i) => (
+                    <tr key={i} className={i === itemList.length - 1 ? "border-b border-brand-navydeep/10" : ""}>
+                      <td className="py-1 pr-2 align-top">{item.qty}</td>
+                      <td className="py-1 pr-2">
+                        <span className="text-brand-navydeep/40" aria-hidden="true">
+                          &bull;
+                        </span>{" "}
+                        {item.text}
+                      </td>
+                      {i === 0 && (
+                        <td className="py-1 text-right font-semibold align-top" rowSpan={itemList.length}>
+                          {formatMoney(cost)}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </>
+              )}
+              {invoice && itemList.length === 0 && (
                 <tr className="border-b border-brand-navydeep/10">
-                  <td className="py-2 pr-2 align-top">
-                    {itemList.length > 0 ? (
-                      <ul className="list-none space-y-0.5">
-                        {itemList.map((item, i) => (
-                          <li key={i}>{item.qty}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      invoice.Quantity || 1
-                    )}
-                  </td>
-                  <td className="py-2 pr-2">
-                    {itemList.length > 0 ? (
-                      <ul className="list-disc pl-4 space-y-0.5 marker:text-brand-navydeep/40">
-                        {itemList.map((item, i) => (
-                          <li key={i}>{item.text}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      ""
-                    )}
-                  </td>
+                  <td className="py-2 pr-2 align-top">{invoice.Quantity || 1}</td>
+                  <td className="py-2 pr-2"></td>
                   <td className="py-2 text-right font-semibold align-top">{formatMoney(cost)}</td>
                 </tr>
               )}

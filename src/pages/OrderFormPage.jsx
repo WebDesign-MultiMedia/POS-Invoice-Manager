@@ -4,7 +4,7 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { submitOrder } from "../api/sheetdb.js";
-import { getCurrentDateTime } from "../lib/format.js";
+import { getCurrentDateTime, getTotalQuantity } from "../lib/format.js";
 
 const INITIAL_FORM = {
   Name: "",
@@ -15,7 +15,6 @@ const INITIAL_FORM = {
   Payment: "",
   Deposit: "",
   Items: "",
-  Quantity: "1",
 };
 
 const ALERT_BASE = {
@@ -52,7 +51,7 @@ export default function OrderFormPage() {
       Address: form.Address,
       PickupDelivery: form.PickupDelivery,
       Items: form.Items,
-      Quantity: form.Quantity,
+      Quantity: getTotalQuantity(form.Items),
       Cost: form.Cost,
       Deposit: form.Deposit,
       Payment: form.Payment,
@@ -163,36 +162,19 @@ export default function OrderFormPage() {
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-4 mb-8">
-          <div className="field-group sm:col-span-2">
-            <label htmlFor="Items" className="field-label">
-              <i className="fa-solid fa-clipboard-list"></i> Items
-            </label>
-            <textarea
-              name="Items"
-              id="Items"
-              rows="3"
-              placeholder="Customer order"
-              className={`${fieldClass(form.Items, validated)} resize-none`}
-              value={form.Items}
-              onChange={setField("Items")}
-            ></textarea>
-          </div>
-          <div className="field-group">
-            <label htmlFor="Quantity" className="field-label">
-              <i className="fa-solid fa-hashtag"></i> Quantity
-            </label>
-            <input
-              type="number"
-              name="Quantity"
-              id="Quantity"
-              min="1"
-              max="10"
-              className={fieldClass(form.Quantity, validated)}
-              value={form.Quantity}
-              onChange={setField("Quantity")}
-            />
-          </div>
+        <div className="field-group mb-8">
+          <label htmlFor="Items" className="field-label">
+            <i className="fa-solid fa-clipboard-list"></i> Items
+          </label>
+          <textarea
+            name="Items"
+            id="Items"
+            rows="3"
+            placeholder="Customer order"
+            className={`${fieldClass(form.Items, validated)} resize-none`}
+            value={form.Items}
+            onChange={setField("Items")}
+          ></textarea>
         </div>
 
         <div className="flex justify-center">
