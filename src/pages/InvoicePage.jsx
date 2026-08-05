@@ -8,8 +8,6 @@ import { getInvoiceById } from "../api/sheetdb.js";
 import { toNumber, formatMoney, splitItems } from "../lib/format.js";
 import { generateShareToken, isValidShareToken } from "../lib/shareToken.js";
 
-const PRINT_PAGE = { widthIn: 8.5, heightIn: 11, marginIn: 0.4 };
-
 export default function InvoicePage() {
   const [searchParams] = useSearchParams();
   const preselectedId = searchParams.get("id");
@@ -53,56 +51,17 @@ export default function InvoicePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preselectedId, isShareView, shareToken]);
 
-  // PRINT — scale the invoice down (if needed) so it always prints on a single
-  // page, no matter how much content it holds. `transform: scale()` alone only
-  // changes how the card *looks*; the browser still reserves the card's full
-  // unscaled height in the page flow (which is what print pagination measures),
-  // so the wrapper is also resized to the scaled-down box the card is shrunk
-  // into. Runs on beforeprint/afterprint so it applies whether print is
-  // triggered by the toolbar button, Ctrl/Cmd+P, or the browser menu.
-  useEffect(() => {
-    function fitInvoiceToOnePage() {
-      const wrap = wrapRef.current;
-      const card = cardRef.current;
-      if (!wrap || !card) return;
-
-      card.style.animation = "none";
-      card.style.transform = "none";
-      wrap.style.width = "";
-      wrap.style.height = "";
-
-      const cardWidth = card.offsetWidth;
-      const cardHeight = card.offsetHeight;
-      const usableWidthPx = (PRINT_PAGE.widthIn - PRINT_PAGE.marginIn * 2) * 96;
-      const usableHeightPx = (PRINT_PAGE.heightIn - PRINT_PAGE.marginIn * 2) * 96;
-      const scale = Math.min(usableWidthPx / cardWidth, usableHeightPx / cardHeight, 1);
-
-      card.style.transformOrigin = "top left";
-      card.style.transform = `scale(${scale})`;
-      wrap.style.width = `${cardWidth * scale}px`;
-      wrap.style.height = `${cardHeight * scale}px`;
+  // Font Awesome's icon glyphs (the location pin, phone, etc.) sometimes
+  // haven't finished loading the very first time a page prints, which prints
+  // them as blank space instead of the icon — waiting on document.fonts.ready
+  // avoids that race.
+  const handlePrint = () => {
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(() => window.print());
+    } else {
+      window.print();
     }
-
-    function restoreInvoiceScale() {
-      const wrap = wrapRef.current;
-      const card = cardRef.current;
-      if (!wrap || !card) return;
-      card.style.animation = "";
-      card.style.transform = "";
-      card.style.transformOrigin = "";
-      wrap.style.width = "";
-      wrap.style.height = "";
-    }
-
-    window.addEventListener("beforeprint", fitInvoiceToOnePage);
-    window.addEventListener("afterprint", restoreInvoiceScale);
-    return () => {
-      window.removeEventListener("beforeprint", fitInvoiceToOnePage);
-      window.removeEventListener("afterprint", restoreInvoiceScale);
-    };
-  }, []);
-
-  const handlePrint = () => window.print();
+  };
 
   // SAVE AS IMAGE — html2canvas renders CSS 3D transforms/perspective very
   // poorly (gradient/clipped text in particular can come out as a solid,
@@ -236,6 +195,11 @@ export default function InvoicePage() {
               <p>
                 <span className="font-semibold text-brand-navydeep/70">Order Type</span> <span>{invoice?.PickupDelivery || "—"}</span>
               </p>
+              {invoice?.DueDate && (
+                <p>
+                  <span className="font-semibold text-brand-navydeep/70">Due Date</span> <span>{invoice.DueDate}</span>
+                </p>
+              )}
               {popupOpen && (
                 <div className="no-print absolute z-20 top-full mt-2 left-1/2 -translate-x-1/2 glass-card !bg-white/95 p-3 flex flex-col gap-2 items-center shadow-depth-md">
                   <input
@@ -255,39 +219,40 @@ export default function InvoicePage() {
           </div>
 
           <div className="pt-6">
-            <div className="rounded-xl bg-brand-canvas/60 border border-brand-navydeep/10 px-4 py-3">
-              <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Bill To</p>
-              <p className="font-form text-xl">{invoice?.Name ?? ""}</p>
-              <p className="text-sm italic text-brand-navydeep/80">
-                <i className="fa-solid fa-location-dot text-brand-coral"></i> {invoice?.Address ?? ""}
-              </p>
-              <p className="text-sm italic text-brand-navydeep/80">
-                <i className="fa-solid fa-phone text-brand-teal"></i> {invoice?.Contact ?? ""}
-              </p>
-            </div>
+            <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Bill To</p>
+            <p className="font-form text-xl">{invoice?.Name ?? ""}</p>
+            <p className="text-sm italic text-brand-navydeep/80">
+              <i className="fa-solid fa-location-dot text-brand-coral"></i> {invoice?.Address ?? ""}
+            </p>
+            <p className="text-sm italic text-brand-navydeep/80">
+              <i className="fa-solid fa-phone text-brand-teal"></i> {invoice?.Contact ?? ""}
+            </p>
           </div>
 
           <table className="w-full mt-6 text-sm">
             <thead>
               <tr className="border-b-2 border-brand-navydeep/20 text-left text-brand-navydeep/70">
                 <th className="py-2 pr-2 w-14">Qty</th>
-                <th className="py-2">Description</th>
+                <th className="py-2 pr-2">Description</th>
+                <th className="py-2 text-right">Amount</th>
               </tr>
             </thead>
             <tbody>
               {invoice && itemList.length > 0 && (
                 <>
                   {itemList.map((item, i) => (
-                    <tr
-                      key={i}
-                      className={`${i === itemList.length - 1 ? "border-b border-brand-navydeep/10" : ""} ${i % 2 === 1 ? "bg-brand-canvas/40" : ""}`}
-                    >
-                      <td className="py-1.5 pr-2 align-top">{item.qty}</td>
-                      <td className="py-1.5">
+                    <tr key={i} className={i === itemList.length - 1 ? "border-b border-brand-navydeep/10" : ""}>
+                      <td className="py-1 pr-2 align-top">{item.qty}</td>
+                      <td className="py-1 pr-2">
                         <ul className="list-disc pl-4 marker:text-brand-navydeep/40">
                           <li>{item.text}</li>
                         </ul>
                       </td>
+                      {i === 0 && (
+                        <td className="py-1 text-right font-semibold align-top" rowSpan={itemList.length}>
+                          {formatMoney(cost)}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </>
@@ -295,14 +260,21 @@ export default function InvoicePage() {
               {invoice && itemList.length === 0 && (
                 <tr className="border-b border-brand-navydeep/10">
                   <td className="py-2 pr-2 align-top">{invoice.Quantity || 1}</td>
-                  <td className="py-2"></td>
+                  <td className="py-2 pr-2"></td>
+                  <td className="py-2 text-right font-semibold align-top">{formatMoney(cost)}</td>
                 </tr>
               )}
             </tbody>
           </table>
 
-          <div className="flex justify-end mt-4">
-            <div className="w-full sm:w-72 text-sm">
+          <div className="flex flex-wrap items-start gap-6 mt-2">
+            {invoice?.Notes && (
+              <div className="flex-1 min-w-[160px] text-sm">
+                <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Notes</p>
+                <p className="text-brand-navydeep/80 whitespace-pre-line">{invoice.Notes}</p>
+              </div>
+            )}
+            <div className="w-full sm:w-72 text-sm ml-auto">
               {invoice && (
                 <>
                   <div className="flex justify-between py-1 text-brand-navydeep/70">
@@ -315,7 +287,7 @@ export default function InvoicePage() {
                       <span>-{formatMoney(deposit)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center mt-2 py-2.5 px-3 rounded-lg bg-brand-gold/10 font-bold text-base text-brand-navy">
+                  <div className="flex justify-between py-2 mt-1 border-t-2 border-brand-navydeep/20 font-bold text-base text-brand-navydeep">
                     <span>{hasDeposit ? "Balance Due" : "Total Due"}</span>
                     <span>{formatMoney(totalDue)}</span>
                   </div>

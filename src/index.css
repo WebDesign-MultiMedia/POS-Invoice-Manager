@@ -400,6 +400,12 @@
   body {
     background: white !important;
     height: auto !important;
+    /* Without this, the page's own scrollbar (if content happens to be
+       taller than the browser window at the moment printing kicks off) gets
+       captured as a stray vertical bar down the right edge of the printed
+       page/PDF — overflow: hidden here means there's nothing to scroll, so
+       nothing to draw a scrollbar for. */
+    overflow: hidden !important;
   }
   .page-shell {
     min-height: 0 !important;
@@ -413,13 +419,35 @@
     padding: 0 !important;
     display: block !important;
   }
+  /* main's horizontal centering (flex + items-center) only exists on
+     screen — display: block above drops it, so without its own centering
+     the invoice card sits flush against the left margin instead of in the
+     middle of the page. */
+  .tilt-wrap {
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  /* Long item lists now print across multiple pages (at full, readable
+     size) instead of being shrunk to fit one page — break-inside: avoid
+     keeps a single item's qty/description/amount together on one page
+     rather than splitting a row across the page break. <thead> repeating
+     on every page the table spans is the browser's default table-printing
+     behavior already, not something added here. */
+  tr {
+    break-inside: avoid;
+  }
   /* The stacked-paper shadow layers are decorative only; they'd render as
      stray offset boxes once the invoice is scaled/paginated for print. */
   .paper-card::before,
   .paper-card::after {
     content: none !important;
   }
-  #invoiceCard {
+  /* .paper-card's own box-shadow (the "paper" drop shadow) is also purely
+     decorative on screen — on the printed page it just reads as a stray
+     border/shadow around the invoice instead of it filling the page
+     cleanly. (This used to target #invoiceCard, an id that doesn't exist
+     anywhere in the markup, so it never actually matched anything.) */
+  .paper-card {
     box-shadow: none !important;
   }
 }

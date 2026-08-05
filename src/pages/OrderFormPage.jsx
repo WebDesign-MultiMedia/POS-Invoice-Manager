@@ -4,7 +4,7 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { submitOrder } from "../api/sheetdb.js";
-import { getCurrentDateTime, getTotalQuantity } from "../lib/format.js";
+import { getCurrentDateTime, getTotalQuantity, formatDate } from "../lib/format.js";
 
 const INITIAL_FORM = {
   Name: "",
@@ -15,6 +15,8 @@ const INITIAL_FORM = {
   Payment: "",
   Deposit: "",
   Items: "",
+  DueDate: "",
+  Notes: "",
 };
 
 const ALERT_BASE = {
@@ -55,9 +57,13 @@ export default function OrderFormPage() {
       Cost: form.Cost,
       Deposit: form.Deposit,
       Payment: form.Payment,
+      DueDate: form.DueDate ? formatDate(form.DueDate) : "",
+      Notes: form.Notes,
     };
 
-    const hasBlank = Object.values(data).some((v) => !v);
+    // DueDate and Notes are optional, so they're excluded from the required-fields check.
+    const { DueDate: _dueDate, Notes: _notes, ...requiredData } = data;
+    const hasBlank = Object.values(requiredData).some((v) => !v);
 
     if (hasBlank) {
       setValidated(true);
@@ -162,6 +168,13 @@ export default function OrderFormPage() {
           </div>
         </div>
 
+        <div className="field-group mb-5">
+          <label htmlFor="DueDate" className="field-label">
+            <i className="fa-solid fa-calendar-days"></i> Due Date <span className="normal-case text-brand-muted/50">(optional — catering/future orders)</span>
+          </label>
+          <input type="date" name="DueDate" id="DueDate" className="input-3d" value={form.DueDate} onChange={setField("DueDate")} />
+        </div>
+
         <div className="field-group mb-8">
           <label htmlFor="Items" className="field-label">
             <i className="fa-solid fa-clipboard-list"></i> Items
@@ -174,6 +187,21 @@ export default function OrderFormPage() {
             className={`${fieldClass(form.Items, validated)} resize-none`}
             value={form.Items}
             onChange={setField("Items")}
+          ></textarea>
+        </div>
+
+        <div className="field-group mb-8">
+          <label htmlFor="Notes" className="field-label">
+            <i className="fa-solid fa-note-sticky"></i> Notes <span className="normal-case text-brand-muted/50">(optional)</span>
+          </label>
+          <textarea
+            name="Notes"
+            id="Notes"
+            rows="2"
+            placeholder="Anything else worth noting about this order"
+            className="input-3d resize-none"
+            value={form.Notes}
+            onChange={setField("Notes")}
           ></textarea>
         </div>
 
