@@ -1,0 +1,44 @@
+import http from "node:http";
+import createPaymentIntent from "../api/create-payment-intent.js";
+
+// Local stand-in for Vercel's serverless runtime (see vite.config.js's proxy)
+// so `api/create-payment-intent.js` can be exercised with `npm run dev`
+// instead of requiring `vercel dev`'s account login. Run with:
+//   node --env-file=.env.local scripts/dev-api-server.js
+
+const PORT = 3001;
+
+function withVercelShims(res) {
+  res.status = (code) => {
+    res.statusCode = code;
+    return res;
+  };
+  res.json = (body) => {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(body));
+  };
+  return res;
+}
+
+const server = http.createServer(async (req, res) => {
+  if (req.url !== "/api/create-payment-intent") {
+    res.writeHead(404).end();
+    return;
+  }
+
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      req.body = body ? JSON.parse(body) : {};
+    } catch {
+      res.writeHead(400).end(JSON.stringify({ error: "Invalid JSON" }));
+      return;
+    }
+    await createPaymentIntent(req, withVercelShims(res));
+  });
+});
+
+server.listen(PORT, () => {
+  console.log(`Local /api dev server on http://localhost:${PORT}`);
+});

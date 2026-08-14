@@ -25,5 +25,5 @@ export default function NavFab({ to, href, title, icon, colorClass, glowClass, e
 }
 
 export function NavRow({ children, className = "" }) {
-  return <section className={`flex justify-center gap-6 sm:gap-10 stagger-in ${className}`.trim()}>{children}</section>;
+  return <section className={`flex flex-wrap justify-center gap-6 sm:gap-10 stagger-in ${className}`.trim()}>{children}</section>;
 }

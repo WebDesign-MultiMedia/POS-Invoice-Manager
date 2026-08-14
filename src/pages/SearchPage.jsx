@@ -83,6 +83,7 @@ export default function SearchPage() {
         <NavFab to="/" title="Order form" icon="fa-house" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
         <NavFab to="/invoice" title="View invoice" icon="fa-file-invoice-dollar" colorClass="text-brand-terracotta" glowClass="shadow-glow-terracotta" />
         <NavFab to="/updates" title="What's new" icon="fa-wand-magic-sparkles" colorClass="text-brand-pink" glowClass="shadow-glow-pink" />
+        <NavFab to="/pay" title="Pay with Card" icon="fa-credit-card" colorClass="text-brand-cactus" glowClass="shadow-glow-teal" />
       </NavRow>
 
       <TiltCard maxDeg={3} wrapClassName="w-full max-w-lg stagger-in" className="glass-card p-5 flex flex-col sm:flex-row gap-3 sm:items-end">

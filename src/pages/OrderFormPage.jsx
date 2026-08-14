@@ -96,6 +96,7 @@ export default function OrderFormPage() {
       <NavFab to="/search" title="Search orders" icon="fa-magnifying-glass" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
       <NavFab to="/invoice" title="View invoice" icon="fa-file-invoice-dollar" colorClass="text-brand-terracotta" glowClass="shadow-glow-terracotta" />
       <NavFab to="/updates" title="What's new" icon="fa-wand-magic-sparkles" colorClass="text-brand-pink" glowClass="shadow-glow-pink" />
+      <NavFab to="/pay" title="Pay with Card" icon="fa-credit-card" colorClass="text-brand-cactus" glowClass="shadow-glow-teal" />
     </>
   );
 
