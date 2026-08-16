@@ -57,6 +57,7 @@ export default function CardPaymentForm({ baseAmountCents, invoiceId, email, des
       }
 
       onPaid({
+        id: data.id,
         funding: data.funding,
         baseAmountCents: data.baseAmountCents,
         surchargeCents: data.surchargeCents,
@@ -85,8 +86,8 @@ export default function CardPaymentForm({ baseAmountCents, invoiceId, email, des
       </div>
 
       <p className="text-xs text-brand-muted/80 leading-relaxed">
-        <i className="fa-solid fa-circle-info text-brand-teal"></i> A 3.0% Card Processing Fee applies to credit
-        cards, as permitted by card network rules. Debit cards are never charged a fee.
+        <i className="fa-solid fa-circle-info text-brand-teal"></i> A Card Processing Fee of up to 3.0% applies to
+        credit cards, as permitted by card network rules. Debit cards are never charged a fee.
       </p>
 
       <button type="submit" className="btn-3d justify-center" disabled={!stripe || !cardComplete || submitting}>

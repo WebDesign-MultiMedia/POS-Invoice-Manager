@@ -6,10 +6,27 @@
 // reports. Kept as a plain, framework-free module so both the browser
 // bundle (live preview) and the Vercel function (authoritative charge) can
 // import the exact same math.
-export const CREDIT_SURCHARGE_RATE = 0.03;
+export const CREDIT_SURCHARGE_CAP_RATE = 0.03;
+
+// Stripe's standard US rate for online/manually-keyed cards.
+const STRIPE_PERCENT_RATE = 0.029;
+const STRIPE_FLAT_CENTS = 30;
 
 export function calcSurcharge(baseAmountCents, funding) {
   const base = Math.max(0, Math.round(Number(baseAmountCents) || 0));
-  const surchargeCents = funding === "credit" ? Math.round(base * CREDIT_SURCHARGE_RATE) : 0;
+  if (funding !== "credit" || base <= 0) {
+    return { surchargeCents: 0, totalCents: base };
+  }
+
+  // Dynamic pass-through: the fee that, after Stripe's own cut, nets exactly
+  // `base` back to the merchant. But covering Stripe's true cost isn't a
+  // valid reason to exceed the network's 3% cap — on small tickets the
+  // pass-through amount alone (dominated by Stripe's flat $0.30) blows past
+  // 3%, so it's clamped to whichever is lower.
+  const passThroughGrandTotal = (base + STRIPE_FLAT_CENTS) / (1 - STRIPE_PERCENT_RATE);
+  const passThroughFeeCents = passThroughGrandTotal - base;
+  const cappedFeeCents = base * CREDIT_SURCHARGE_CAP_RATE;
+  const surchargeCents = Math.round(Math.min(passThroughFeeCents, cappedFeeCents));
+
   return { surchargeCents, totalCents: base + surchargeCents };
 }

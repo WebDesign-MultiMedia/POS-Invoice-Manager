@@ -22,3 +22,19 @@ export async function getInvoiceById(invoiceId) {
   const rows = await res.json();
   return rows && rows.length ? rows[0] : null;
 }
+
+// Logs every completed card charge to the "CardPayments" tab of the same
+// Google Sheet (SheetDB routes to a specific tab via ?sheet=). Fire-and-log:
+// callers swallow the error so a sheet hiccup never blocks showing the
+// customer their already-successful receipt.
+export async function recordCardPayment(data) {
+  const res = await fetch(`${SHEETDB_URL}?sheet=CardPayments`, {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`Response status: ${res.status}`);
+  }
+  return res.json();
+}

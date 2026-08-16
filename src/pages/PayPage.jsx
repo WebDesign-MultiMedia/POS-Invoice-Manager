@@ -5,8 +5,8 @@ import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
 import CardPaymentForm from "../components/CardPaymentForm.jsx";
-import { getInvoiceById } from "../api/sheetdb.js";
-import { toNumber, formatMoney } from "../lib/format.js";
+import { getInvoiceById, recordCardPayment } from "../api/sheetdb.js";
+import { toNumber, formatMoney, getCurrentDateTime } from "../lib/format.js";
 import { getStripe } from "../lib/stripeClient.js";
 import { getStoredTheme } from "../lib/theme.js";
 
@@ -29,6 +29,7 @@ export default function PayPage() {
   const [loadingInvoice, setLoadingInvoice] = useState(false);
 
   const [amountInput, setAmountInput] = useState("");
+  const [customerName, setCustomerName] = useState("");
   const [note, setNote] = useState("");
 
   const [email, setEmail] = useState("");
@@ -82,8 +83,33 @@ export default function PayPage() {
   const totalDue = mode === "invoice" ? invoiceTotalDue : customAmount;
   const baseAmountCents = Math.round(totalDue * 100);
   const readyToCharge = mode === "invoice" ? !!invoice : customAmount > 0;
-  const payLabel = mode === "invoice" ? invoice?.Name || "" : note;
+  const payLabel = mode === "invoice" ? invoice?.Name || "" : customerName;
   const payInvoiceId = mode === "invoice" ? invoice?.Id : undefined;
+
+  // Logs every completed charge to the "CardPayments" sheet tab before
+  // showing the receipt. Sheet logging is best-effort: a failure here must
+  // never block the customer from seeing their (already successful) receipt.
+  const handlePaid = async (result) => {
+    const { date, time } = getCurrentDateTime();
+    try {
+      await recordCardPayment({
+        Date: date,
+        Time: time,
+        Amount: (result.baseAmountCents / 100).toFixed(2),
+        Fee: (result.surchargeCents / 100).toFixed(2),
+        Total: (result.totalCents / 100).toFixed(2),
+        Funding: result.funding,
+        PaymentIntentId: result.id || "",
+        Name: mode === "invoice" ? invoice?.Name || "" : customerName,
+        Email: email,
+        InvoiceId: payInvoiceId || "",
+        Note: mode === "amount" ? note : "",
+      });
+    } catch (err) {
+      console.error("recordCardPayment failed:", err.message);
+    }
+    setReceipt(result);
+  };
 
   return (
     <Layout blobs={["bg-brand-teal w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-gold w-80 h-80 top-1/2 -left-16 animate-float"]}>
@@ -138,12 +164,24 @@ export default function PayPage() {
             </div>
             <div className="field-group">
               <span className="field-label">
-                <i className="fa-solid fa-note-sticky"></i> Customer / note (optional)
+                <i className="fa-solid fa-user"></i> Customer name (optional)
               </span>
               <input
                 type="text"
                 className="input-3d"
-                placeholder="e.g. Maria — street vending"
+                placeholder="e.g. Maria"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+              />
+            </div>
+            <div className="field-group">
+              <span className="field-label">
+                <i className="fa-solid fa-note-sticky"></i> Note (optional)
+              </span>
+              <input
+                type="text"
+                className="input-3d"
+                placeholder="e.g. street vending"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
               />
@@ -191,8 +229,8 @@ export default function PayPage() {
                 <span className="font-semibold">{formatMoney(totalDue)}</span>
               </div>
               <p className="text-xs text-brand-navydeep/60 mt-1">
-                Final total (including a 3.0% Card Processing Fee for credit cards — debit cards are exempt) is
-                confirmed after your card is verified.
+                Final total (including a Card Processing Fee of up to 3.0% for credit cards — debit cards are
+                exempt) is confirmed after your card is verified.
               </p>
             </div>
 
@@ -216,7 +254,7 @@ export default function PayPage() {
                 email={email}
                 description={mode === "amount" ? note : undefined}
                 theme={theme}
-                onPaid={setReceipt}
+                onPaid={handlePaid}
               />
             </Elements>
           </div>
@@ -234,7 +272,10 @@ export default function PayPage() {
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-brand-navydeep/70">
-                  Card Processing Fee{receipt.funding === "credit" ? " (3.0%)" : " (Exempt)"}
+                  Card Processing Fee
+                  {receipt.surchargeCents > 0
+                    ? ` (${((receipt.surchargeCents / receipt.baseAmountCents) * 100).toFixed(1)}%)`
+                    : " (Exempt)"}
                 </span>
                 <span>{formatMoney(receipt.surchargeCents / 100)}</span>
               </div>
@@ -253,6 +294,7 @@ export default function PayPage() {
                 onClick={() => {
                   setReceipt(null);
                   setAmountInput("");
+                  setCustomerName("");
                   setNote("");
                 }}
               >

@@ -42,11 +42,13 @@ export default async function handler(req, res) {
         base_amount_cents: String(baseAmountCents),
         surcharge_cents: String(surchargeCents),
         card_processing_fee: `$${(surchargeCents / 100).toFixed(2)}`,
-        fee_percentage: funding === "credit" ? "3.0%" : "0.0%",
+        fee_percentage: surchargeCents > 0 ? `${((surchargeCents / baseAmountCents) * 100).toFixed(1)}%` : "0.0%",
+        fee_calculation_method: surchargeCents > 0 ? "dynamic_pass_through_capped_3pct" : "exempt",
       },
     });
 
     return res.status(200).json({
+      id: paymentIntent.id,
       clientSecret: paymentIntent.client_secret,
       status: paymentIntent.status,
       funding: funding || "unknown",
