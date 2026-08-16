@@ -41,6 +41,8 @@ export default async function handler(req, res) {
         invoice_no: invoiceId || "",
         base_amount_cents: String(baseAmountCents),
         surcharge_cents: String(surchargeCents),
+        card_processing_fee: `$${(surchargeCents / 100).toFixed(2)}`,
+        fee_percentage: funding === "credit" ? "3.0%" : "0.0%",
       },
     });
 

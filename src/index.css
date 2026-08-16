@@ -78,9 +78,18 @@
        html and body is belt-and-suspenders, not spec-elegant, but it's
        the version that's actually confirmed to hold on a real device. */
     overflow-x: hidden;
+    overflow-y: auto;
     max-width: 100%;
   }
   body {
+    /* overflow-x: hidden below (needed to clip the off-edge decorative
+       blobs, see note above) implicitly promotes overflow-y to `auto`
+       per the CSS spec's overflow-x/-y coupling rule — that gave body
+       its OWN scroll container stacked on top of html's, i.e. two
+       scrollbars. Pin overflow-y: hidden explicitly so only html scrolls;
+       body never needs to scroll itself since it isn't height-constrained. */
+    overflow-x: hidden;
+    overflow-y: hidden;
     max-width: 100%;
   }
   /* Belt-and-suspenders for the format-detection meta tag: some iOS Safari

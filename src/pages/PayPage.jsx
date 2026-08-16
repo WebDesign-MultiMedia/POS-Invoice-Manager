@@ -191,7 +191,8 @@ export default function PayPage() {
                 <span className="font-semibold">{formatMoney(totalDue)}</span>
               </div>
               <p className="text-xs text-brand-navydeep/60 mt-1">
-                Final total (including any credit-card surcharge) is confirmed after your card is verified.
+                Final total (including a 3.0% Card Processing Fee for credit cards — debit cards are exempt) is
+                confirmed after your card is verified.
               </p>
             </div>
 
@@ -232,7 +233,9 @@ export default function PayPage() {
                 <span>{formatMoney(receipt.baseAmountCents / 100)}</span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-brand-navydeep/70">Card surcharge{receipt.funding === "credit" ? " (3%)" : ""}</span>
+                <span className="text-brand-navydeep/70">
+                  Card Processing Fee{receipt.funding === "credit" ? " (3.0%)" : " (Exempt)"}
+                </span>
                 <span>{formatMoney(receipt.surchargeCents / 100)}</span>
               </div>
               <div className="flex justify-between py-2 mt-1 border-t border-brand-navydeep/20 font-bold">

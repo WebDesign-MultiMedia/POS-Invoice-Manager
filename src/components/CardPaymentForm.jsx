@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import Swal from "sweetalert2";
+import { formatMoney } from "../lib/format.js";
 
 // Stripe Elements render in a sandboxed iframe that can't see this app's
 // CSS variables, so its text colors are hardcoded per theme instead of
@@ -84,8 +85,8 @@ export default function CardPaymentForm({ baseAmountCents, invoiceId, email, des
       </div>
 
       <p className="text-xs text-brand-muted/80 leading-relaxed">
-        <i className="fa-solid fa-circle-info text-brand-teal"></i> A 3% card surcharge applies to credit cards, as
-        permitted by card network rules. Debit cards are never surcharged.
+        <i className="fa-solid fa-circle-info text-brand-teal"></i> A 3.0% Card Processing Fee applies to credit
+        cards, as permitted by card network rules. Debit cards are never charged a fee.
       </p>
 
       <button type="submit" className="btn-3d justify-center" disabled={!stripe || !cardComplete || submitting}>
@@ -95,7 +96,7 @@ export default function CardPaymentForm({ baseAmountCents, invoiceId, email, des
           </>
         ) : (
           <>
-            <i className="fa-solid fa-lock"></i> Pay securely
+            <i className="fa-solid fa-lock"></i> Pay {formatMoney(baseAmountCents / 100)}
           </>
         )}
       </button>
