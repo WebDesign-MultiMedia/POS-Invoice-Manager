@@ -1,5 +1,6 @@
 import http from "node:http";
 import createPaymentIntent from "../api/create-payment-intent.js";
+import receiptUrl from "../api/receipt-url.js";
 
 // Local stand-in for Vercel's serverless runtime (see vite.config.js's proxy)
 // so `api/create-payment-intent.js` can be exercised with `npm run dev`
@@ -21,6 +22,11 @@ function withVercelShims(res) {
 }
 
 const server = http.createServer(async (req, res) => {
+  if (req.url.startsWith("/api/receipt-url")) {
+    await receiptUrl(req, withVercelShims(res));
+    return;
+  }
+
   if (req.url !== "/api/create-payment-intent") {
     res.writeHead(404).end();
     return;

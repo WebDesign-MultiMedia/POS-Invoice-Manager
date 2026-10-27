@@ -4,7 +4,7 @@ import Swal from "sweetalert2";
 import html2canvas from "html2canvas";
 import Layout from "../components/Layout.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
-import { getInvoiceById } from "../api/sheetdb.js";
+import { getInvoiceById, getCardPaymentsForInvoice } from "../api/sheetdb.js";
 import { toNumber, formatMoney, splitItems } from "../lib/format.js";
 import { generateShareToken, isValidShareToken } from "../lib/shareToken.js";
 
@@ -15,6 +15,7 @@ export default function InvoicePage() {
   const isShareView = searchParams.get("share") === "1";
 
   const [invoice, setInvoice] = useState(null);
+  const [cardPayments, setCardPayments] = useState([]);
   const [popupOpen, setPopupOpen] = useState(false);
   const [popupValue, setPopupValue] = useState("");
 
@@ -29,6 +30,14 @@ export default function InvoicePage() {
         return;
       }
       setInvoice(row);
+      // Best-effort: if this lookup fails the invoice still shows, just
+      // without the card payment lines.
+      try {
+        setCardPayments(await getCardPaymentsForInvoice(row.Id));
+      } catch (err) {
+        console.error("Error loading card payments:", err);
+        setCardPayments([]);
+      }
     } catch (err) {
       console.error("Error loading invoice:", err);
     }
@@ -134,7 +143,11 @@ export default function InvoicePage() {
   const itemList = invoice ? splitItems(invoice.Items) : [];
   const deposit = invoice ? toNumber(invoice.Deposit) : NaN;
   const hasDeposit = !isNaN(deposit) && deposit > 0;
-  const totalDue = hasDeposit ? Math.max(cost - deposit, 0) : cost;
+  // Card payments reduce the balance by their base Amount; the processing
+  // fee was paid on top and never counts toward the order.
+  const cardPaid = cardPayments.reduce((sum, p) => sum + (toNumber(p.Amount) || 0), 0);
+  const hasPayments = hasDeposit || cardPayments.length > 0;
+  const totalDue = Math.max(cost - (hasDeposit ? deposit : 0) - cardPaid, 0);
 
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -left-10 animate-float-slow no-print", "bg-brand-pink w-80 h-80 top-1/2 -right-16 animate-float no-print"]}>
@@ -288,8 +301,26 @@ export default function InvoicePage() {
                       <span>-{formatMoney(deposit)}</span>
                     </div>
                   )}
+                  {cardPayments.map((p) => {
+                    const fee = toNumber(p.Fee) || 0;
+                    return (
+                      <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-1 text-brand-navydeep/70">
+                        <div className="flex justify-between">
+                          <span>
+                            {p.Funding === "debit" ? "Debit" : "Credit"} card payment{p.Card ? ` (${p.Card})` : ""} · {p.Date}
+                          </span>
+                          <span>-{formatMoney(p.Amount)}</span>
+                        </div>
+                        <p className="text-xs text-brand-navydeep/60">
+                          {fee > 0
+                            ? `Charged ${formatMoney(p.Total)} (incl. ${formatMoney(fee)} card processing fee)`
+                            : `Charged ${formatMoney(p.Total)} (no card fee)`}
+                        </p>
+                      </div>
+                    );
+                  })}
                   <div className="flex justify-between py-2 mt-1 border-t-2 border-brand-navydeep/20 font-bold text-base text-brand-navydeep">
-                    <span>{hasDeposit ? "Balance Due" : "Total Due"}</span>
+                    <span>{hasPayments ? "Balance Due" : "Total Due"}</span>
                     <span>{formatMoney(totalDue)}</span>
                   </div>
                 </>

@@ -53,6 +53,27 @@
     color-scheme: dark;
   }
 
+  /* Gray theme: the light palette (no .dark) re-tinted to neutral slate —
+     gray page, light-gray cards, slate accents/buttons. Text tokens stay
+     dark for contrast. */
+  .theme-gray {
+    --brand-navy: 30 41 59;
+    --brand-navydeep: 31 41 55;
+    --brand-navylight: 51 65 85;
+    --brand-canvas: 229 231 235;
+    --brand-muted: 55 65 81;
+    --brand-gold: 71 85 105;
+    --brand-goldlight: 148 163 184;
+    --brand-coral: 100 116 139;
+    --brand-teal: 71 85 105;
+    --brand-cream: 243 244 246;
+    --brand-terracotta: 100 116 139;
+    --brand-cactus: 100 116 139;
+    --brand-pink: 100 116 139;
+    --surface: 243 244 246;
+    --page-bg: 209 213 219;
+  }
+
   /* The printed invoice represents physical paper, so it always renders
      light/dark-ink regardless of the site theme — pin every brand token
      it relies on back to the light palette even inside `.dark`. */

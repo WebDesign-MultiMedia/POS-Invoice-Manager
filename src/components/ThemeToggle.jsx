@@ -1,4 +1,12 @@
 import { useTheme } from "../hooks/useTheme.js";
+import { nextTheme } from "../lib/theme.js";
+
+// Icon/label describe the theme the NEXT tap switches to.
+const NEXT_THEME_UI = {
+  light: { icon: "fa-sun", label: "Switch to white theme" },
+  gray: { icon: "fa-circle-half-stroke", label: "Switch to gray theme" },
+  dark: { icon: "fa-moon", label: "Switch to black theme" },
+};
 
 // Intentionally `absolute`, NOT `fixed` — position: fixed elements have
 // repeatedly caused real iOS Safari scroll-bounce bugs on this site (see
@@ -7,17 +15,17 @@ import { useTheme } from "../hooks/useTheme.js";
 // at the top of every page, which is enough.
 export default function ThemeToggle() {
   const { theme, toggle } = useTheme();
-  const isDark = theme === "dark";
+  const { icon, label } = NEXT_THEME_UI[nextTheme(theme)];
 
   return (
     <button
       type="button"
       onClick={toggle}
-      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      title={label}
+      aria-label={label}
       className="no-print fab absolute top-4 right-4 z-50 hover:shadow-glow-gold"
     >
-      <i className={`fa-solid ${isDark ? "fa-sun" : "fa-moon"} text-xl text-brand-gold`}></i>
+      <i className={`fa-solid ${icon} text-xl text-brand-gold`}></i>
     </button>
   );
 }

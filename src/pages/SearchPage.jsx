@@ -4,8 +4,9 @@ import { Link } from "react-router-dom";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
-import { fetchAllOrders } from "../api/sheetdb.js";
-import { formatDate, parseStoredDate, escapeRegex } from "../lib/format.js";
+import { fetchAllOrders, fetchAllCardPayments } from "../api/sheetdb.js";
+import { formatDate, formatMoney, parseStoredDate, escapeRegex } from "../lib/format.js";
+import { parseCardPaymentOrder } from "../lib/menu.js";
 
 const SEARCH_FIELDS = {
   Contact: { label: "Phone number", icon: "fa-phone", type: "text", placeholder: "e.g. 555-0100" },
@@ -14,6 +15,10 @@ const SEARCH_FIELDS = {
   Date: { label: "Order date", icon: "fa-calendar-days", type: "date", placeholder: "" },
   Month: { label: "Order month", icon: "fa-calendar", type: "month", placeholder: "" },
   Year: { label: "Order year", icon: "fa-calendar-week", type: "number", placeholder: "e.g. 2026" },
+  // Searches the CardPayments tab instead of orders: matches the InvoiceId
+  // column, which holds CP-… ids for walk-up sales and the order number for
+  // invoice payments. Partial matches work, e.g. "210354".
+  OrderId: { label: "Order ID", icon: "fa-receipt", type: "text", placeholder: "e.g. CP-261026-210354", source: "cardPayments" },
 };
 
 function filterOrders(data, field, query) {
@@ -35,14 +40,22 @@ function filterOrders(data, field, query) {
     });
   }
   const regex = new RegExp(escapeRegex(query), "i");
-  return data.filter((row) => regex.test(row[field] || ""));
+  const column = field === "OrderId" ? "InvoiceId" : field;
+  return data.filter((row) => regex.test(row[column] || ""));
 }
 
+// Receipt links aren't stored in the sheet: View Receipt points at
+// /api/receipt-url, which looks the receipt up from Stripe by
+// PaymentIntentId and redirects — so every logged payment, old ones
+// included, has a working receipt link.
 export default function SearchPage() {
   const [field, setFieldName] = useState("Contact");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | error
   const [results, setResults] = useState(null);
+  // Which sheet `results` came from, so the right card renders even if the
+  // dropdown changes after a search.
+  const [resultSource, setResultSource] = useState("orders");
 
   const config = SEARCH_FIELDS[field];
 
@@ -62,8 +75,10 @@ export default function SearchPage() {
 
     setStatus("loading");
     try {
-      const data = await fetchAllOrders();
+      const source = config.source || "orders";
+      const data = source === "cardPayments" ? await fetchAllCardPayments() : await fetchAllOrders();
       setResults(filterOrders(data, field, effectiveQuery));
+      setResultSource(source);
       setStatus("idle");
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -77,7 +92,7 @@ export default function SearchPage() {
 
   return (
     <Layout blobs={["bg-brand-teal w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-terracotta w-64 h-64 top-1/2 -left-16 animate-float"]}>
-      <PageHeader title="Search Orders" subtitle="By phone, name, address, date, month, or year" />
+      <PageHeader title="Search Orders" subtitle="By phone, name, address, date, month, year, or order ID" />
 
       <NavRow className="mb-8">
         <NavFab to="/" title="Order form" icon="fa-house" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
@@ -98,6 +113,7 @@ export default function SearchPage() {
             <option value="Date">Date</option>
             <option value="Month">Month</option>
             <option value="Year">Year</option>
+            <option value="OrderId">Order ID</option>
           </select>
         </div>
         <div className="flex-1 field-group">
@@ -137,12 +153,114 @@ export default function SearchPage() {
         {status === "idle" && results !== null && results.length === 0 && (
           <div className="col-span-full flex flex-col items-center gap-2 py-10 text-brand-muted/80 stagger-in">
             <i className="fa-solid fa-folder-open text-3xl text-brand-muted/50"></i>
-            <p>No matching orders found</p>
+            <p>{resultSource === "cardPayments" ? "No matching card payments found" : "No matching orders found"}</p>
           </div>
         )}
 
         {status === "idle" &&
           results !== null &&
+          resultSource === "cardPayments" &&
+          results.map((payment, i) => (
+            <TiltCard key={payment.PaymentIntentId || i} maxDeg={4} className="glass-card p-5 stagger-in" delayMs={i * 70}>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="text-brand-navy font-semibold break-all">
+                  <i className="fa-solid fa-receipt"></i> {payment.InvoiceId || "No Order ID"}
+                </span>
+                <span className="text-sm text-brand-muted/70 whitespace-nowrap">
+                  <i className="fa-solid fa-calendar-days"></i> {payment.Date} {payment.Time}
+                </span>
+              </div>
+              <div className="space-y-1.5 text-sm text-brand-navydeep">
+                {payment.Name && (
+                  <p>
+                    <i className="fa-solid fa-user text-brand-gold w-5"></i> {payment.Name}
+                  </p>
+                )}
+                {payment.Phone && (
+                  <p>
+                    <i className="fa-solid fa-phone text-brand-teal w-5"></i> {payment.Phone}
+                  </p>
+                )}
+                {payment.Email && (
+                  <p className="break-all">
+                    <i className="fa-solid fa-envelope text-brand-teal w-5"></i> {payment.Email}
+                  </p>
+                )}
+              </div>
+              {(() => {
+                const { items, note } = parseCardPaymentOrder(payment);
+                if (!items.length && !note) return null;
+                return (
+                  <div className="mt-3 text-sm text-brand-navydeep">
+                    {items.length > 0 && (
+                      <>
+                        <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">
+                          <i className="fa-solid fa-clipboard-list"></i> Items
+                        </p>
+                        <ul className="divide-y divide-brand-navydeep/10">
+                          {items.map((item, idx) => (
+                            <li key={idx} className="flex justify-between gap-3 py-1">
+                              <span>{item.label}</span>
+                              <span className="whitespace-nowrap">{item.price != null ? formatMoney(item.price) : "—"}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    {note && (
+                      <p className="mt-2 text-brand-navydeep/80">
+                        <span className="font-semibold">Note:</span> {note}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+              <div className="mt-4 pt-3 border-t border-brand-navydeep/10 text-sm space-y-1">
+                <div className="flex justify-between text-brand-navydeep/70">
+                  <span>Amount</span>
+                  <span>{formatMoney(payment.Amount)}</span>
+                </div>
+                <div className="flex justify-between text-brand-navydeep/70">
+                  <span>Card fee</span>
+                  <span>{formatMoney(payment.Fee)}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs uppercase tracking-wide text-brand-muted/70">
+                    <i className="fa-solid fa-credit-card"></i> {payment.Card ? `${payment.Card} · ` : ""}
+                    {payment.Funding === "debit" ? "Debit" : "Credit"}
+                  </span>
+                  <span className="text-lg font-bold text-brand-navy">{formatMoney(payment.Total)}</span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 mt-4">
+                {/* Plain-number ids are invoice payments, so their order invoice exists. */}
+                {/^\d+$/.test(payment.InvoiceId || "") && (
+                  <Link
+                    to={`/invoice?id=${encodeURIComponent(payment.InvoiceId)}`}
+                    target="_blank"
+                    rel="noopener"
+                    className="btn-3d w-full justify-center !py-2 text-sm"
+                  >
+                    <i className="fa-solid fa-file-invoice-dollar"></i> View Invoice
+                  </Link>
+                )}
+                {/^pi_[A-Za-z0-9]+$/.test(payment.PaymentIntentId || "") && (
+                  <a
+                    href={`/api/receipt-url?pi=${encodeURIComponent(payment.PaymentIntentId)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-3d w-full justify-center !py-2 text-sm"
+                  >
+                    <i className="fa-solid fa-receipt"></i> View Receipt
+                  </a>
+                )}
+              </div>
+            </TiltCard>
+          ))}
+
+        {status === "idle" &&
+          results !== null &&
+          resultSource === "orders" &&
           results.map((order, i) => (
             <TiltCard key={order.Id ?? i} maxDeg={4} className="glass-card p-5 stagger-in" delayMs={i * 70}>
               <div className="flex items-center justify-between mb-3">

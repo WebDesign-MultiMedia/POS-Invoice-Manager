@@ -17,7 +17,7 @@ const CARD_ELEMENT_STYLE = {
   },
 };
 
-export default function CardPaymentForm({ baseAmountCents, invoiceId, email, description, theme, onPaid }) {
+export default function CardPaymentForm({ baseAmountCents, invoiceId, email, description, note, theme, onPaid }) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -40,7 +40,7 @@ export default function CardPaymentForm({ baseAmountCents, invoiceId, email, des
       const res = await fetch("/api/create-payment-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentMethodId: paymentMethod.id, baseAmountCents, invoiceId, email, description }),
+        body: JSON.stringify({ paymentMethodId: paymentMethod.id, baseAmountCents, invoiceId, email, description, note }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Payment failed");
@@ -59,9 +59,12 @@ export default function CardPaymentForm({ baseAmountCents, invoiceId, email, des
       onPaid({
         id: data.id,
         funding: data.funding,
+        cardBrand: data.cardBrand,
+        cardLast4: data.cardLast4,
         baseAmountCents: data.baseAmountCents,
         surchargeCents: data.surchargeCents,
         totalCents: data.totalCents,
+        receiptUrl: data.receiptUrl,
       });
     } catch (err) {
       Swal.fire({ title: "Payment failed", text: err.message, icon: "error", theme: "dark" });

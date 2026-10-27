@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { paymentMethodId, baseAmountCents, invoiceId, email, description } = req.body || {};
+  const { paymentMethodId, baseAmountCents, invoiceId, email, description, note } = req.body || {};
 
   if (!paymentMethodId || !Number.isFinite(baseAmountCents) || baseAmountCents <= 0) {
     return res.status(400).json({ error: "Missing or invalid payment details" });
@@ -28,6 +28,17 @@ export default async function handler(req, res) {
 
     const { surchargeCents, totalCents } = calcSurcharge(baseAmountCents, funding);
 
+    // The fee is only known here, after the funding lookup, so its receipt
+    // line is added server-side. Card rules require the surcharge to be
+    // itemized on the customer's receipt. Order: items, fee, then the note,
+    // set apart by a blank line (Stripe's receipt keeps it).
+    const feeLine =
+      surchargeCents > 0
+        ? `Card Processing Fee (${((surchargeCents / baseAmountCents) * 100).toFixed(1)}%) — $${(surchargeCents / 100).toFixed(2)}`
+        : "";
+    const noteLine = typeof note === "string" && note.trim() ? `Note: ${note.trim()}` : "";
+    const receiptDescription = [[description, feeLine].filter(Boolean).join("\n"), noteLine].filter(Boolean).join("\n\n");
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: totalCents,
       currency: "usd",
@@ -35,7 +46,9 @@ export default async function handler(req, res) {
       payment_method_types: ["card"],
       confirm: true,
       receipt_email: email || undefined,
-      description: description || undefined,
+      description: receiptDescription || undefined,
+      // Expanded so the receipt link can be handed back for texting.
+      expand: ["latest_charge"],
       metadata: {
         card_funding: funding || "unknown",
         invoice_no: invoiceId || "",
@@ -52,9 +65,15 @@ export default async function handler(req, res) {
       clientSecret: paymentIntent.client_secret,
       status: paymentIntent.status,
       funding: funding || "unknown",
+      // Brand + last 4 only — the full card number never reaches this app.
+      cardBrand: paymentMethod.card?.brand || "",
+      cardLast4: paymentMethod.card?.last4 || "",
       baseAmountCents,
       surchargeCents,
       totalCents,
+      // Stripe-hosted, unguessable URL; null if the charge needed 3D Secure
+      // (no charge exists yet at this point in that flow).
+      receiptUrl: paymentIntent.latest_charge?.receipt_url || null,
     });
   } catch (err) {
     console.error("create-payment-intent error:", err);

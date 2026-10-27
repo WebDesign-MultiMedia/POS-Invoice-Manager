@@ -32,6 +32,15 @@ export function toNumber(v) {
   return Number(cleaned);
 }
 
+// "Visa •••• 4242" from Stripe's brand id + last4. Blank when unknown
+// (e.g. rows logged before the Card column existed).
+const CARD_BRAND_NAMES = { amex: "Amex", diners: "Diners", discover: "Discover", jcb: "JCB", mastercard: "Mastercard", unionpay: "UnionPay", visa: "Visa" };
+export function formatCardLabel(brand, last4) {
+  if (!last4) return "";
+  const name = CARD_BRAND_NAMES[brand] || (brand ? brand[0].toUpperCase() + brand.slice(1) : "Card");
+  return `${name} •••• ${last4}`;
+}
+
 export function formatMoney(v) {
   const n = toNumber(v);
   if (isNaN(n)) return "";

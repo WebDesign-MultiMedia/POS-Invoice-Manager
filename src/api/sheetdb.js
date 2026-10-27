@@ -38,3 +38,22 @@ export async function recordCardPayment(data) {
   }
   return res.json();
 }
+
+// Card payments logged against an order (InvoiceId = the order's Id), so
+// the invoice can show them and the balance due accounts for them.
+export async function getCardPaymentsForInvoice(invoiceId) {
+  const res = await fetch(`${SHEETDB_URL}/search?InvoiceId=${encodeURIComponent(invoiceId)}&sheet=CardPayments`);
+  if (!res.ok) {
+    throw new Error(`Response status: ${res.status}`);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function fetchAllCardPayments() {
+  const res = await fetch(`${SHEETDB_URL}?sheet=CardPayments`);
+  if (!res.ok) {
+    throw new Error(`Response status: ${res.status}`);
+  }
+  return res.json();
+}
