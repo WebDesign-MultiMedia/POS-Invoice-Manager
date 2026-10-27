@@ -1,5 +1,5 @@
 {
-  "name": "customer-order-tracker",
+  "name": "pos-invoice-manager",
   "private": true,
   "type": "module",
   "scripts": {

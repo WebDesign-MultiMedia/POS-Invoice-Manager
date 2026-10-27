@@ -1,9 +1,9 @@
-# Customer Details (Orders + Invoices)
+# POS-Invoice-Manager (Orders + Invoices)
 
 A lightweight web app to capture customer orders, generate printable invoices, and (optionally) sync to Google Sheets via SheetDB.
 
 ## Demo
-- Live: https://customer-details-iota.vercel.app/
+- Live: https://pos-invoice-manager.vercel.app/
 
 ## Features
 - Customer order form (delivery/pickup, payment type, items/qty, deposits)

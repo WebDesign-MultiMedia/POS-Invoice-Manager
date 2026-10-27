@@ -63,7 +63,7 @@ export default function UpdatesPage() {
             <i className="fa-solid fa-wand-magic-sparkles"></i> What's New
           </>
         }
-        subtitle="Order Tracker Updates"
+        subtitle="POS-Invoice-Manager Updates"
       />
 
       <NavRow className="mb-8">
