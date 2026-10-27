@@ -1,9 +1,21 @@
-export const SHEETDB_URL = "https://sheetdb.io/api/v1/knvxv3inyom8t";
+// All sheet reads/writes go through the app's own /api/sheets function
+// (api/sheets.js), which holds the SheetDB id and credentials server-side.
+// The browser never sees the SheetDB URL.
+const SHEETS_API = "/api/sheets";
 
-export async function submitOrder(data) {
-  const res = await fetch(SHEETDB_URL, {
+async function readSheet(action, params = {}) {
+  const query = new URLSearchParams({ action, ...params });
+  const res = await fetch(`${SHEETS_API}?${query}`);
+  if (!res.ok) {
+    throw new Error(`Response status: ${res.status}`);
+  }
+  return res.json();
+}
+
+async function writeSheet(action, data) {
+  const res = await fetch(SHEETS_API, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify({ action, data }),
     headers: { "Content-Type": "application/json" },
   });
   if (!res.ok) {
@@ -12,48 +24,33 @@ export async function submitOrder(data) {
   return res.json();
 }
 
-export async function fetchAllOrders() {
-  const res = await fetch(SHEETDB_URL);
-  return res.json();
+export function submitOrder(data) {
+  return writeSheet("createOrder", data);
+}
+
+export function fetchAllOrders() {
+  return readSheet("orders");
 }
 
 export async function getInvoiceById(invoiceId) {
-  const res = await fetch(`${SHEETDB_URL}/search?Id=${encodeURIComponent(invoiceId)}`);
-  const rows = await res.json();
+  const rows = await readSheet("order", { id: invoiceId });
   return rows && rows.length ? rows[0] : null;
 }
 
 // Logs every completed card charge to the "CardPayments" tab of the same
-// Google Sheet (SheetDB routes to a specific tab via ?sheet=). Fire-and-log:
-// callers swallow the error so a sheet hiccup never blocks showing the
-// customer their already-successful receipt.
-export async function recordCardPayment(data) {
-  const res = await fetch(`${SHEETDB_URL}?sheet=CardPayments`, {
-    method: "POST",
-    body: JSON.stringify(data),
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!res.ok) {
-    throw new Error(`Response status: ${res.status}`);
-  }
-  return res.json();
+// Google Sheet. Fire-and-log: callers swallow the error so a sheet hiccup
+// never blocks showing the customer their already-successful receipt.
+export function recordCardPayment(data) {
+  return writeSheet("recordCardPayment", data);
 }
 
 // Card payments logged against an order (InvoiceId = the order's Id), so
 // the invoice can show them and the balance due accounts for them.
 export async function getCardPaymentsForInvoice(invoiceId) {
-  const res = await fetch(`${SHEETDB_URL}/search?InvoiceId=${encodeURIComponent(invoiceId)}&sheet=CardPayments`);
-  if (!res.ok) {
-    throw new Error(`Response status: ${res.status}`);
-  }
-  const rows = await res.json();
+  const rows = await readSheet("cardPaymentsFor", { invoiceId });
   return Array.isArray(rows) ? rows : [];
 }
 
-export async function fetchAllCardPayments() {
-  const res = await fetch(`${SHEETDB_URL}?sheet=CardPayments`);
-  if (!res.ok) {
-    throw new Error(`Response status: ${res.status}`);
-  }
-  return res.json();
+export function fetchAllCardPayments() {
+  return readSheet("cardPayments");
 }
