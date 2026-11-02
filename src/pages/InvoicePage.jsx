@@ -361,6 +361,22 @@ export default function InvoicePage() {
             </span>
           </div>
 
+          {/* Promo texts only go to customers who opt in on the website's
+              sign-up page, so the invoice points them there rather than the
+              POS adding anyone to the list. */}
+          <a
+            href="https://buffetluciasfiestamexicana.com/sms-consent/"
+            className="flex items-center justify-center gap-4 mt-6 mx-auto max-w-sm rounded-xl border border-dashed border-brand-teal/50 p-3 text-left"
+          >
+            <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-16 h-16 shrink-0" />
+            <span className="text-xs text-brand-navydeep/80">
+              <span className="block font-semibold text-brand-teal">
+                <i className="fa-solid fa-mobile-screen-button"></i> ¡Recibe nuestras ofertas por texto!
+              </span>
+              Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
+            </span>
+          </a>
+
           <div className="relative -mx-8 sm:-mx-12 -mb-8 sm:-mb-12 mt-8 h-36 sm:h-44 overflow-hidden select-none pointer-events-none">
             <svg viewBox="0 0 800 220" preserveAspectRatio="xMidYMax slice" className="w-full h-full">
               <g fill="#001A50" fillOpacity="0.12">

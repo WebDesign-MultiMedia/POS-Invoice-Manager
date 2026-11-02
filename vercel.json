@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "api/send-broadcast.js": { "maxDuration": 300 }
+  },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
