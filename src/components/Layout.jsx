@@ -1,4 +1,24 @@
 import ThemeToggle from "./ThemeToggle.jsx";
+import { useAuth } from "../lib/auth.jsx";
+
+// Top-left, opposite the theme toggle. Absolute (not fixed) for the same
+// iOS reason as ThemeToggle. Hidden on customers' shared invoice links,
+// since they aren't logged in.
+function LogoutButton() {
+  const { user, logout } = useAuth();
+  if (!user) return null;
+  return (
+    <button
+      type="button"
+      onClick={logout}
+      title={`Log out (${user})`}
+      aria-label="Log out"
+      className="no-print fab absolute top-4 left-4 z-50 hover:shadow-glow-gold"
+    >
+      <i className="fa-solid fa-right-from-bracket text-xl text-brand-gold"></i>
+    </button>
+  );
+}
 
 // Shared page chrome: the floating decorative blobs + the centered <main>
 // wrapper repeated (with only colors/spacing varying) across all 4 pages.
@@ -6,6 +26,7 @@ export default function Layout({ blobs = [], children, mainClassName = "" }) {
   return (
     <>
       <ThemeToggle />
+      <LogoutButton />
       {blobs.map((cls, i) => (
         <div key={i} className={`blob ${cls}`}></div>
       ))}

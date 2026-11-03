@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Swal from "sweetalert2";
+import { reportIfLoggedOut } from "../lib/auth.jsx";
 
 // Manager-only: texts a weekend special / announcement to everyone who
 // signed up for specials on the website, via api/send-broadcast.js. The password is
@@ -14,6 +15,7 @@ async function postBroadcast(password, body) {
     headers: { "Content-Type": "application/json", "X-Broadcast-Password": password },
     body: JSON.stringify(body),
   });
+  reportIfLoggedOut(res);
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || `Response status: ${res.status}`);
   return payload;

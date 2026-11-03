@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import Swal from "sweetalert2";
 import { formatMoney } from "../lib/format.js";
+import { reportIfLoggedOut } from "../lib/auth.jsx";
 
 // Stripe Elements render in a sandboxed iframe that can't see this app's
 // CSS variables, so its text colors are hardcoded per theme instead of
@@ -42,6 +43,7 @@ export default function CardPaymentForm({ baseAmountCents, invoiceId, email, des
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentMethodId: paymentMethod.id, baseAmountCents, invoiceId, email, description, note }),
       });
+      reportIfLoggedOut(res);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Payment failed");
 

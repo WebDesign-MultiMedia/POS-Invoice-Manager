@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { calcSurcharge } from "../src/lib/surcharge.js";
+import { requireStaff } from "./_lib/auth.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -13,9 +14,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Staff-only: an open charge endpoint lets fraudsters test stolen cards.
+  if (!requireStaff(req, res)) return;
+
   const { paymentMethodId, baseAmountCents, invoiceId, email, description, note } = req.body || {};
 
-  if (!paymentMethodId || !Number.isFinite(baseAmountCents) || baseAmountCents <= 0) {
+  if (typeof paymentMethodId !== "string" || !Number.isInteger(baseAmountCents) || baseAmountCents <= 0) {
     return res.status(400).json({ error: "Missing or invalid payment details" });
   }
 

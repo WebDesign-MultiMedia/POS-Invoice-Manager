@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import twilio from "twilio";
+import { requireStaff } from "./_lib/auth.js";
 
 // Vercel serverless function: texts a promo/announcement to every customer
 // who opted in to specials on the website's /sms-consent/ form. Twilio
@@ -89,6 +90,9 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  // Staff login first, then the separate manager password below.
+  if (!requireStaff(req, res)) return;
 
   const sender = process.env.TWILIO_MESSAGING_SERVICE_SID || process.env.TWILIO_PHONE_NUMBER;
   if (!process.env.BROADCAST_PASSWORD || !process.env.SHEETDB_ID || !process.env.SIGNUP_SIGNING_KEY || !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !sender) {

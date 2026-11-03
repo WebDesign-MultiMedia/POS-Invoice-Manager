@@ -4,9 +4,8 @@ import Swal from "sweetalert2";
 import html2canvas from "html2canvas";
 import Layout from "../components/Layout.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
-import { getInvoiceById, getCardPaymentsForInvoice } from "../api/sheetdb.js";
+import { getInvoiceById, getCardPaymentsForInvoice, getShareToken, getSharedInvoice } from "../api/sheetdb.js";
 import { toNumber, formatMoney, splitItems } from "../lib/format.js";
-import { generateShareToken, isValidShareToken } from "../lib/shareToken.js";
 
 export default function InvoicePage() {
   const [searchParams] = useSearchParams();
@@ -46,14 +45,18 @@ export default function InvoicePage() {
   useEffect(() => {
     if (!preselectedId) return;
     if (isShareView) {
-      // Share links must present a token that matches this invoice id — a
-      // bare ?id=X&share=1 (the old link shape) no longer loads anything,
-      // since typing a different id in the address bar is exactly the
-      // access-control hole this closes.
-      isValidShareToken(preselectedId, shareToken).then((valid) => {
-        if (valid) loadInvoice(preselectedId);
-        else console.warn("Invalid or missing share token for invoice:", preselectedId);
-      });
+      // Customer links carry a server-signed token for this one invoice;
+      // the server refuses the request if the id or token was changed.
+      getSharedInvoice(preselectedId, shareToken)
+        .then((shared) => {
+          if (!shared) {
+            console.warn("Invalid or missing share token for invoice:", preselectedId);
+            return;
+          }
+          setInvoice(shared.invoice);
+          setCardPayments(shared.cardPayments || []);
+        })
+        .catch((err) => console.error("Error loading shared invoice:", err));
     } else {
       loadInvoice(preselectedId);
     }
@@ -117,7 +120,13 @@ export default function InvoicePage() {
       return;
     }
 
-    const token = await generateShareToken(invoiceId);
+    let token;
+    try {
+      token = await getShareToken(invoiceId);
+    } catch {
+      Swal.fire({ title: "Couldn't make a share link", text: "Check your connection and try again.", icon: "error", theme: "dark" });
+      return;
+    }
     const shareUrl = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(invoiceId)}&token=${token}&share=1`;
 
     try {

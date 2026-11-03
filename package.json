@@ -6,6 +6,7 @@
     "dev": "vite",
     "dev:api": "node --env-file=.env.local scripts/dev-api-server.js",
     "build": "vite build",
+    "hash-password": "node scripts/hash-password.js",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { readSession } from "./_lib/auth.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -14,6 +15,9 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  // Receipts show customer contact details, so staff only.
+  if (!readSession(req)) return sendError(res, 401, "Please log in to the POS Invoice Manager first.");
 
   const pi = new URL(req.url, "http://localhost").searchParams.get("pi") || "";
   if (!/^pi_[A-Za-z0-9]+$/.test(pi)) {
