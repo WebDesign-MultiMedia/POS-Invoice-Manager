@@ -4,21 +4,36 @@ import { useAuth } from "../lib/auth.jsx";
 // Staff login screen. Shown in place of whatever page was requested, so
 // after logging in the staff member lands right where they were going.
 //
-// Based on the "POS Invoice Manager" login design (fixed 1440px canvas),
-// rebuilt as a fluid layout so it also works on phones. The design's
-// image assets weren't available, so the shapes are drawn in CSS and the
-// illustrations are Font Awesome icons.
-
-const FEATURES = ["Track & Search Orders", "Generate Invoice", "Card Payments", "Text Announcements"];
-
-// Decorative icons scattered around the edges (the design's illustrations).
+// Desktop (1024px+) follows the "POS Invoice Manager" login design, a
+// 1440×1024 canvas. Every position and size is written in design pixels
+// times --u (see .login-stage in index.css), so the whole composition
+// scales with the window like the mock-up instead of drifting apart.
+//
+// Phones/tablets (under 1024px) follow the separate "iPhone Pro Max" login
+// design (402×874): solid blue, a 2×2 feature grid with small icons, and
+// the form in a navy bottom sheet. Same markup, restyled in index.css; the
+// parts only one layout uses are toggled with .login-desktop-only /
+// .login-mobile-only.
+//
+// Illustrations are the design's own exports (public/imgs/login): top-left
+// corner (x, y), width (w) and height (h) in design pixels. The design's
+// announcement and receipt illustrations weren't supplied, so they're
+// left out rather than substituted.
 const DECOR = [
-  { icon: "fa-file-invoice", className: "top-[33%] left-[6%] text-7xl lg:text-8xl" },
-  { icon: "fa-credit-card", className: "top-[4%] right-[4%] text-7xl lg:text-8xl" },
-  { icon: "fa-mobile-screen-button", className: "top-[74%] left-[13%] text-7xl" },
-  { icon: "fa-cash-register", className: "top-[36%] right-[9%] text-8xl lg:text-9xl" },
-  { icon: "fa-comment-sms", className: "top-[69%] right-[12%] text-7xl lg:text-8xl" },
-  { icon: "fa-receipt", className: "top-[84%] left-[27%] text-6xl" },
+  { x: 140, y: 275, w: 130, h: 167, src: "/imgs/login/invoice.png" },
+  { x: 1113, y: 288, w: 169, h: 141, src: "/imgs/login/payment-card.png" },
+  { x: 156, y: 704, w: 97, h: 152, src: "/imgs/login/phone.png" },
+  { x: 1090, y: 644, w: 248, h: 190, src: "/imgs/login/text-notification.png" },
+];
+
+// Mobile feature grid, in the design's reading order (line breaks are the
+// design's). Icons are drawn larger than the design's ~35px so they're
+// readable; size is set in index.css (.login-features img).
+const FEATURES = [
+  { lines: ["Track & Search", "Orders"], src: "/imgs/login/phone.png" },
+  { lines: ["Generate", "Invoice"], src: "/imgs/login/invoice.png" },
+  { lines: ["Text", "Announcements"], src: "/imgs/login/text-notification.png" },
+  { lines: ["Card", "Payments"], src: "/imgs/login/payment-card.png" },
 ];
 
 export function AuthSplash() {
@@ -35,6 +50,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [capsLock, setCapsLock] = useState(false);
   const identifierRef = useRef(null);
 
@@ -44,6 +60,13 @@ export default function LoginPage() {
     if (window.matchMedia?.("(pointer: fine)").matches) identifierRef.current?.focus();
   }, []);
 
+  // Lets index.css turn off page scrolling on phones while this screen is
+  // up (it fits one screen); removed again once the app takes over.
+  useEffect(() => {
+    document.documentElement.classList.add("login-open");
+    return () => document.documentElement.classList.remove("login-open");
+  }, []);
+
   const handleChange = (field) => (event) => {
     setForm((current) => ({ ...current, [field]: event.target.value }));
     if (error) setError("");
@@ -51,8 +74,14 @@ export default function LoginPage() {
 
   const checkCapsLock = (event) => setCapsLock(Boolean(event.getModifierState?.("CapsLock")));
 
+  const showNotice = (message) => {
+    setError("");
+    setNotice(message);
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
+    setNotice("");
     if (!form.identifier.trim() || !form.password) {
       setError("Enter your email or phone number and password.");
       return;
@@ -70,123 +99,142 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="login-bg login-shell relative flex min-h-[100dvh] flex-col items-center overflow-hidden px-4 pb-14 pt-10 text-white sm:pb-16 sm:pt-16">
-      {/* Background shapes */}
-      <div aria-hidden="true" className="login-polygon absolute left-0 top-0 aspect-[669/617] w-[70vw] max-w-[669px] sm:w-[46vw]" />
-      <div aria-hidden="true" className="absolute -bottom-[140px] -right-[120px] h-[300px] w-[330px] rounded-[50%] bg-[#171e6d] sm:-bottom-[110px] sm:-right-[90px] sm:h-[438px] sm:w-[485px]" />
-      {DECOR.map(({ icon, className }) => (
-        <i key={icon} aria-hidden="true" className={`fa-solid ${icon} login-decor absolute hidden min-[1440px]:block ${className}`}></i>
-      ))}
+    <main className="login-bg login-shell text-white">
+      {/* Background shapes, pinned to the window corners */}
+      <img src="/imgs/login/polygon.png" alt="" aria-hidden="true" className="login-polygon" />
+      <img src="/imgs/login/ellipse.png" alt="" aria-hidden="true" className="login-ellipse" />
 
-      <header className="login-header relative z-10 max-w-5xl text-center">
-        <h1 className="font-login-title text-[2.5rem] leading-tight min-[360px]:text-5xl sm:text-7xl lg:text-8xl">POS Invoice Manager</h1>
-        {/* Phones/tablets: tidy chips (a wrapped "||" list would start lines
-            with a stray separator). Large screens: the design's "||" line. */}
-        <ul className="font-login-sub mt-4 flex flex-wrap justify-center gap-2 text-lg text-neutral-50 sm:mt-6 sm:text-2xl lg:gap-x-3 lg:gap-y-1 lg:text-[40px] lg:leading-tight">
-          {FEATURES.map((feature, i) => (
-            <li key={feature} className="flex items-center gap-x-3 rounded-full bg-white/10 px-3 py-0.5 lg:bg-transparent lg:p-0">
-              {i > 0 && <span aria-hidden="true" className="hidden opacity-70 lg:inline">||</span>}
-              {feature}
-            </li>
-          ))}
-        </ul>
-      </header>
+      <div className="login-stage">
+        {DECOR.map(({ x, y, w, h, src }) => (
+          <img key={src} src={src} alt="" aria-hidden="true" className="login-decor" style={{ "--x": x, "--y": y, "--w": w, "--h": h }} />
+        ))}
 
-      <section aria-labelledby="login-heading" className="login-form relative z-10 mt-10 w-full max-w-[501px] sm:mt-16">
-        <form onSubmit={handleSubmit} noValidate>
-          <h2 id="login-heading" className="font-login-ui mb-6 text-center sm:mb-8 text-3xl font-bold sm:text-[40px]">
+        <header className="login-header text-center">
+          <h1 className="font-login-title">POS Invoice Manager</h1>
+          <p className="font-login-sub login-desktop-only text-neutral-50">
+            Track &amp; Search Orders <span aria-hidden="true">||</span> Generate Invoice
+            <br />
+            Card Payments <span aria-hidden="true">||</span> Text Announcements
+          </p>
+          <ul className="login-features login-mobile-only font-login-sub" aria-label="Features">
+            {FEATURES.map(({ lines, src }) => (
+              <li key={src}>
+                <span>
+                  {lines[0]}
+                  <br />
+                  {lines[1]}
+                </span>
+                <img src={src} alt="" aria-hidden="true" />
+              </li>
+            ))}
+          </ul>
+        </header>
+
+        <section aria-labelledby="login-heading" className="login-card">
+          <h2 id="login-heading" className="font-login-heading">
             USER LOGIN
           </h2>
 
-          {/* Email / phone */}
-          <div className="login-pill relative">
-            <span aria-hidden="true" className="login-badge left-0 sm:-left-[52px]">
-              <i className="fa-solid fa-user"></i>
-            </span>
-            <label htmlFor="identifier" className="sr-only">
-              Email or phone number
-            </label>
-            <input
-              ref={identifierRef}
-              id="identifier"
-              name="identifier"
-              type="text"
-              inputMode="email"
-              autoComplete="username"
-              autoCapitalize="none"
-              spellCheck="false"
-              value={form.identifier}
-              onChange={handleChange("identifier")}
-              placeholder="Email/ Phone Number"
-              enterKeyHint="next"
-              aria-invalid={Boolean(error)}
-              aria-describedby="login-error"
-              className="login-input badge-left"
-            />
-          </div>
+          <form onSubmit={handleSubmit} noValidate className="login-form">
+            {/* Email / phone */}
+            <div className="login-field">
+              <i className="fa-solid fa-user login-field-icon" aria-hidden="true"></i>
+              <label htmlFor="identifier" className="sr-only">
+                Email or phone number
+              </label>
+              <input
+                ref={identifierRef}
+                id="identifier"
+                name="identifier"
+                type="text"
+                inputMode="email"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck="false"
+                value={form.identifier}
+                onChange={handleChange("identifier")}
+                placeholder="Email/ Phone Number"
+                enterKeyHint="next"
+                aria-invalid={Boolean(error)}
+                aria-describedby="login-status"
+                className="login-input"
+              />
+              {/* Mobile design's in-field label; hides once typing starts. */}
+              <span aria-hidden="true" className="login-field-label font-login-mono">
+                Email / Phone #
+              </span>
+            </div>
 
-          {/* Password — the round badge doubles as show/hide */}
-          <div className="login-pill relative mt-6">
-            <label htmlFor="password" className="sr-only">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type={showPassword ? "text" : "password"}
-              autoComplete="current-password"
-              value={form.password}
-              onChange={handleChange("password")}
-              onKeyDown={checkCapsLock}
-              onKeyUp={checkCapsLock}
-              onBlur={() => setCapsLock(false)}
-              placeholder="Password"
-              enterKeyHint="go"
-              aria-invalid={Boolean(error)}
-              aria-describedby="login-error"
-              className="login-input badge-right"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-              aria-pressed={showPassword}
-              className="login-badge right-0 cursor-pointer sm:-right-[19px]"
-            >
-              <i className={`fa-solid ${showPassword ? "fa-lock-open" : "fa-lock"}`}></i>
+            {/* Password — the lock doubles as show/hide */}
+            <div className="login-field">
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                className="login-field-icon login-field-toggle"
+              >
+                <i className={`fa-solid ${showPassword ? "fa-lock-open" : "fa-lock"}`} aria-hidden="true"></i>
+              </button>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={form.password}
+                onChange={handleChange("password")}
+                onKeyDown={checkCapsLock}
+                onKeyUp={checkCapsLock}
+                onBlur={() => setCapsLock(false)}
+                placeholder="Password"
+                enterKeyHint="go"
+                aria-invalid={Boolean(error)}
+                aria-describedby="login-status"
+                className="login-input"
+              />
+              <span aria-hidden="true" className="login-field-label font-login-mono">
+                Password
+              </span>
+            </div>
+
+            <button type="submit" disabled={submitting} className="login-submit font-login-button">
+              {submitting ? <i className="fa-solid fa-circle-notch fa-spin" aria-label="Logging in"></i> : "LOGIN"}
             </button>
-          </div>
 
-          {/* Fixed height so a message appearing doesn't shove the button. */}
-          <div className="login-feedback font-login-ui mt-4 min-h-[3.5rem] text-center">
-            <p id="login-error" role="alert" className="text-base font-semibold text-amber-200 sm:text-lg">
-              {error && (
-                <>
-                  <i className="fa-solid fa-circle-exclamation mr-2" aria-hidden="true"></i>
+            {/* No self sign-up or demo login: either would let anyone read
+                every customer's details. Accounts are added by the manager. */}
+            <div className="login-secondary font-login-small">
+              <button type="button" className="login-btn-create" onClick={() => showNotice("Accounts are set up by the manager — ask them.")}>
+                <span className="login-desktop-only">Create an Account</span>
+                <span className="login-mobile-only">Signup</span>
+              </button>
+              <button type="button" className="login-btn-demo" onClick={() => showNotice("No demo login — customer data is private.")}>
+                Demo
+              </button>
+            </div>
+
+            {/* Fixed height so a message appearing doesn't shift the card. */}
+            <div id="login-status" className="login-status font-login-small" aria-live="polite">
+              {error ? (
+                <p role="alert" className="font-semibold text-amber-200">
+                  <i className="fa-solid fa-circle-exclamation mr-1.5" aria-hidden="true"></i>
                   {error}
-                </>
+                </p>
+              ) : (
+                notice && <p>{notice}</p>
               )}
-            </p>
-            {capsLock && (
-              <p className="mt-1 text-sm font-medium text-white/90">
-                <i className="fa-solid fa-arrow-up mr-1.5" aria-hidden="true"></i>Caps Lock is on
-              </p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="font-login-ui mt-2 h-[64px] w-full rounded-full bg-white text-3xl font-extrabold tracking-wide text-[#2447d6] shadow-[0_10px_30px_-8px_rgba(10,20,90,0.6)] transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70 disabled:opacity-70 sm:h-[78px] sm:text-4xl"
-          >
-            {submitting ? <i className="fa-solid fa-circle-notch fa-spin" aria-label="Logging in"></i> : "LOGIN"}
-          </button>
-        </form>
-
-        {/* No self sign-up: anyone who could create an account could read
-            every customer's details. Accounts are added by the manager. */}
-        <p className="font-login-ui mt-8 text-center text-base font-bold text-white/95 sm:mt-10 sm:text-2xl">Need an account? Ask the manager.</p>
-      </section>
+              {capsLock && (
+                <p className="text-white/90">
+                  <i className="fa-solid fa-arrow-up mr-1" aria-hidden="true"></i>Caps Lock is on
+                </p>
+              )}
+            </div>
+          </form>
+        </section>
+      </div>
     </main>
   );
 }
