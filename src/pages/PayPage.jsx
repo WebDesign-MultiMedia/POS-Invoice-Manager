@@ -5,11 +5,13 @@ import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
 import CardPaymentForm from "../components/CardPaymentForm.jsx";
+import DemoCardForm from "../components/DemoCardForm.jsx";
 import { getInvoiceById, getCardPaymentsForInvoice, recordCardPayment } from "../api/sheetdb.js";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
 import { getStripe } from "../lib/stripeClient.js";
 import { getTheme } from "../lib/theme.js";
-import { MENU, MENU_ITEMS, qtyStep, formatCartLine } from "../lib/menu.js";
+import { qtyStep, formatCartLine } from "../lib/menu.js";
+import { getBrand, getMenu } from "../lib/brand.js";
 
 // Two entry points into the same card-payment flow:
 //  - "amount": staff types a dollar figure on the spot (pop-up/street
@@ -111,6 +113,11 @@ export default function PayPage() {
   const hasDeposit = !isNaN(deposit) && deposit > 0;
   const invoiceTotalDue = invoice ? Math.max(cost - (hasDeposit ? deposit : 0) - invoiceCardPaid, 0) : 0;
 
+  // The real menu, or the sample café's in demo mode.
+  const brand = getBrand();
+  const MENU = getMenu();
+  const MENU_ITEMS = Object.fromEntries(MENU.flatMap((c) => c.items).map((item) => [item.id, item]));
+
   const changeQty = (id, delta) => {
     setCart((prev) => {
       const qty = Math.max(0, (prev[id] || 0) + delta);
@@ -124,7 +131,9 @@ export default function PayPage() {
   // Once anything is picked from the menu, the cart drives the charge amount
   // and the item list is prepended to the note so it lands in Stripe's
   // description and the CardPayments sheet.
-  const cartEntries = Object.entries(cart).map(([id, qty]) => ({ item: MENU_ITEMS[id], qty }));
+  const cartEntries = Object.entries(cart)
+    .filter(([id]) => MENU_ITEMS[id])
+    .map(([id, qty]) => ({ item: MENU_ITEMS[id], qty }));
   const hasCart = cartEntries.length > 0;
   const cartTotal = cartEntries.reduce((sum, { item, qty }) => sum + item.price * qty, 0);
   // Sheet "Items" column: one priced line per item so later lookups
@@ -179,7 +188,7 @@ export default function PayPage() {
   // "?&body=" is the form both iOS and Android accept.
   const textReceipt = async () => {
     const orderId = payInvoiceId ? ` (Order ID: ${payInvoiceId})` : "";
-    const message = `Thank you from Buffet Lucia Fiesta Mexicana! Here is your receipt${orderId}: ${receipt.receiptUrl}`;
+    const message = `Thank you from ${brand.name}! Here is your receipt${orderId}: ${receipt.receiptUrl}`;
     let copied = false;
     try {
       await navigator.clipboard.writeText(message);
@@ -211,14 +220,17 @@ export default function PayPage() {
         <NavFab to="/invoice" title="View invoice" icon="fa-file-invoice-dollar" colorClass="text-brand-terracotta" glowClass="shadow-glow-terracotta" />
       </NavRow>
 
-      <PageHeader title="Pay with Card" subtitle="Buffet Lucia Fiesta Mexicana" />
+      <PageHeader title="Pay with Card" subtitle={brand.name} />
 
       <div className="w-full max-w-md glass-card p-6 sm:p-8 stagger-in">
-        <div className="h-1.5 w-full rounded-full overflow-hidden flex mb-6">
-          <span className="flex-1 bg-[#006837]"></span>
-          <span className="flex-1 bg-white"></span>
-          <span className="flex-1 bg-[#CE1126]"></span>
-        </div>
+        {/* The restaurant's flag stripe; the sample café doesn't have one. */}
+        {!brand.demo && (
+          <div className="h-1.5 w-full rounded-full overflow-hidden flex mb-6">
+            <span className="flex-1 bg-[#006837]"></span>
+            <span className="flex-1 bg-white"></span>
+            <span className="flex-1 bg-[#CE1126]"></span>
+          </div>
+        )}
 
         {!receipt && (
           <div className="flex glass-panel p-1 mb-6 text-sm font-semibold">
@@ -424,17 +436,21 @@ export default function PayPage() {
               />
             </div>
 
-            <Elements stripe={getStripe()}>
-              <CardPaymentForm
-                baseAmountCents={baseAmountCents}
-                invoiceId={payInvoiceId}
-                email={email}
-                description={mode === "amount" ? receiptDescription : undefined}
-                note={mode === "amount" ? note.trim() : undefined}
-                theme={theme}
-                onPaid={handlePaid}
-              />
-            </Elements>
+            {brand.demo ? (
+              <DemoCardForm baseAmountCents={baseAmountCents} onPaid={handlePaid} />
+            ) : (
+              <Elements stripe={getStripe()}>
+                <CardPaymentForm
+                  baseAmountCents={baseAmountCents}
+                  invoiceId={payInvoiceId}
+                  email={email}
+                  description={mode === "amount" ? receiptDescription : undefined}
+                  note={mode === "amount" ? note.trim() : undefined}
+                  theme={theme}
+                  onPaid={handlePaid}
+                />
+              </Elements>
+            )}
           </div>
         )}
 

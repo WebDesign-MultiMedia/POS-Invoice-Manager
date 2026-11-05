@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { isDemo, startDemo, endDemo } from "./demo.js";
 
 // Staff login state for the whole app. The session itself is an HttpOnly
 // cookie set by api/auth.js, so this only tracks who is logged in;
@@ -25,11 +26,13 @@ async function postAuth(body) {
 }
 
 export function AuthProvider({ children }) {
-  // "loading" until the first session check answers, then "in" or "out".
-  const [status, setStatus] = useState("loading");
-  const [user, setUser] = useState(null);
+  // "loading" until the first session check answers, then "in" or "out" —
+  // or "demo" while someone is trying the app on sample data (lib/demo.js).
+  const [status, setStatus] = useState(() => (isDemo() ? "demo" : "loading"));
+  const [user, setUser] = useState(() => (isDemo() ? "Demo" : null));
 
   useEffect(() => {
+    if (isDemo()) return undefined;
     let cancelled = false;
     fetch("/api/auth")
       .then((res) => (res.ok ? res.json() : null))
@@ -53,17 +56,29 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (identifier, password) => {
     const { user: login } = await postAuth({ action: "login", identifier, password });
+    endDemo();
     setUser(login);
     setStatus("in");
   }, []);
 
   const logout = useCallback(async () => {
-    await postAuth({ action: "logout" }).catch(() => {});
+    if (isDemo()) {
+      endDemo();
+    } else {
+      await postAuth({ action: "logout" }).catch(() => {});
+    }
     setUser(null);
     setStatus("out");
   }, []);
 
-  return <AuthContext.Provider value={{ status, user, login, logout }}>{children}</AuthContext.Provider>;
+  // Demo: no server session at all, just the sample-data mode.
+  const enterDemo = useCallback(() => {
+    startDemo();
+    setUser("Demo");
+    setStatus("demo");
+  }, []);
+
+  return <AuthContext.Provider value={{ status, user, login, logout, enterDemo }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

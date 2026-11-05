@@ -932,10 +932,67 @@
     font-size: clamp(2rem, 9vw, 3rem);
     line-height: 1.15;
   }
-  .login-header p {
+  /* Header: eyebrow pill, title, tagline, feature chips (desktop). */
+  .login-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    color: #fff;
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  /* A small "online" light: this is the live system. */
+  .login-eyebrow-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25), 0 0 10px rgba(74, 222, 128, 0.8);
+  }
+  .login-header h1 {
     margin-top: 12px;
-    font-size: clamp(1rem, 4.5vw, 1.5rem);
-    line-height: 1.35;
+  }
+  .login-tagline {
+    max-width: 34ch;
+    margin: 10px auto 0;
+    color: rgba(255, 255, 255, 0.85);
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.45;
+    text-wrap: balance;
+  }
+  .login-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+  .login-chips li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    color: #fff;
+    font-family: "Inter", system-ui, sans-serif;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .login-chips i {
+    color: #c7d5ff;
   }
   .login-card {
     width: 100%;
@@ -1102,7 +1159,7 @@
     .login-stage {
       flex: 1 1 auto;
       min-height: 0;
-      padding: clamp(16px, calc(14dvh - 58px), 64px) 0 0;
+      padding: clamp(12px, calc(8dvh - 40px), 30px) 0 0;
     }
     .login-header {
       flex: none;
@@ -1111,7 +1168,7 @@
     }
     .login-header h1 {
       max-width: 344px;
-      margin: 0 auto;
+      margin: calc(12 * var(--m)) auto 0;
       font-size: max(24px, min(calc(40 * var(--m)), 10vw));
       line-height: 1.1;
       text-shadow: 0 6px 24px rgba(10, 20, 90, 0.35);
@@ -1431,6 +1488,11 @@
     }
   }
   /* Shorter phones: drop the extras before anything gets cramped. */
+  @media (max-width: 1023px) and (max-height: 799px) {
+    .login-tagline {
+      display: none;
+    }
+  }
   @media (max-width: 1023px) and (max-height: 720px) {
     .login-card-sub {
       display: none;
@@ -1440,6 +1502,9 @@
     .login-divider {
       display: none;
     }
+    .login-eyebrow {
+      display: none;
+    }
     .login-secondary {
       margin-top: 10px;
     }
@@ -1447,6 +1512,7 @@
       padding-top: 12px;
     }
     .login-header h1 {
+      margin-top: 0;
       font-size: max(24px, min(calc(40 * var(--m)), 9vw));
     }
     .login-features {
@@ -1522,22 +1588,38 @@
     }
     .login-header {
       position: absolute;
-      top: calc(93 * var(--u));
+      top: calc(36 * var(--u));
       left: calc(241 * var(--u));
       width: calc(981 * var(--u));
     }
-    .login-header h1 {
-      font-size: calc(48 * var(--u));
-      line-height: normal;
+    .login-eyebrow {
+      gap: calc(10 * var(--u));
+      padding: calc(7 * var(--u)) calc(16 * var(--u));
+      font-size: max(11px, calc(13 * var(--u)));
     }
-    .login-header p {
-      margin: calc(20 * var(--u)) auto 0;
-      /* Monospace is wider than the design's font: 28 design px keeps each
-         line inside the design's 746px width, and nowrap keeps the two
-         lines exactly as written. */
-      font-size: max(16px, calc(28 * var(--u)));
-      line-height: 1.3;
-      white-space: nowrap;
+    .login-eyebrow-dot {
+      width: max(7px, calc(8 * var(--u)));
+      height: max(7px, calc(8 * var(--u)));
+    }
+    .login-header h1 {
+      margin-top: calc(12 * var(--u));
+      font-size: calc(54 * var(--u));
+      line-height: 1.05;
+      text-shadow: 0 calc(8 * var(--u)) calc(30 * var(--u)) rgba(10, 20, 90, 0.35);
+    }
+    .login-tagline {
+      max-width: none;
+      margin-top: calc(10 * var(--u));
+      font-size: max(15px, calc(21 * var(--u)));
+    }
+    .login-chips {
+      gap: calc(12 * var(--u));
+      margin-top: calc(16 * var(--u));
+    }
+    .login-chips li {
+      gap: calc(9 * var(--u));
+      padding: calc(7 * var(--u)) calc(16 * var(--u));
+      font-size: max(13px, calc(16 * var(--u)));
     }
     .login-card {
       position: absolute;
@@ -1604,4 +1686,67 @@ html .bg-brand-gold.text-white {
   main > section:first-child {
     margin-top: 2.75rem;
   }
+}
+
+/* The login screen keeps its own colours whatever app theme was picked
+   before logging out: the page behind it (seen at the very top on phones,
+   in the status-bar area and when the page bounces) matches the login
+   background instead of the theme's. Outside the layers so it beats the
+   theme's page colour. */
+html.login-open,
+html.login-open body {
+  background: #2447d6;
+  color-scheme: light;
+}
+@media (min-width: 1024px) {
+  html.login-open,
+  html.login-open body {
+    background: #2b71f2;
+  }
+}
+html.login-open body::before {
+  display: none;
+}
+
+/* ---------- Inputs never wider than their form ----------
+   On real phones (iOS Safari especially) native date / month / time
+   inputs keep their own built-in minimum width and ignore width: 100%,
+   so they poke out past the edge of the card. Dropping the native
+   appearance makes them size like ordinary text fields; the picker still
+   opens on tap. The other rules make sure no field, select or textarea
+   can grow past its container. */
+.input-3d,
+.input-3d:is(select, textarea) {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+}
+input.input-3d:is([type="date"], [type="month"], [type="time"], [type="datetime-local"], [type="week"]) {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 2.9rem;
+  line-height: 1.5;
+}
+/* iOS lays the chosen date out in its own inner box; let it shrink and
+   follow the field's alignment instead of forcing its own width. */
+input.input-3d::-webkit-date-and-time-value {
+  min-width: 0;
+  min-height: 1.5em;
+  text-align: inherit;
+}
+input.input-3d::-webkit-datetime-edit {
+  min-width: 0;
+}
+/* Grid / flex children holding fields may shrink below their content. */
+.field-group,
+.field-group > * {
+  min-width: 0;
+}
+/* Long labels ("Due Date (optional — …)") wrap as a whole line under the
+   icon and name instead of squeezing into a narrow column. */
+.field-label {
+  flex-wrap: wrap;
+  row-gap: 0.1rem;
 }

@@ -6,6 +6,7 @@ import Layout from "../components/Layout.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { getInvoiceById, getCardPaymentsForInvoice, getShareToken, getSharedInvoice } from "../api/sheetdb.js";
 import { toNumber, formatMoney, splitItems } from "../lib/format.js";
+import { getBrand } from "../lib/brand.js";
 
 export default function InvoicePage() {
   const [searchParams] = useSearchParams();
@@ -43,7 +44,11 @@ export default function InvoicePage() {
   };
 
   useEffect(() => {
-    if (!preselectedId) return;
+    if (!preselectedId) {
+      // Demo: open on a sample order instead of a blank invoice.
+      if (brand.demo) loadInvoice("1001");
+      return;
+    }
     if (isShareView) {
       // Customer links carry a server-signed token for this one invoice;
       // the server refuses the request if the id or token was changed.
@@ -148,6 +153,7 @@ export default function InvoicePage() {
     setPopupValue("");
   };
 
+  const brand = getBrand();
   const cost = invoice ? toNumber(invoice.Cost) || 0 : 0;
   const itemList = invoice ? splitItems(invoice.Items) : [];
   const deposit = invoice ? toNumber(invoice.Deposit) : NaN;
@@ -183,7 +189,7 @@ export default function InvoicePage() {
       )}
       {isShareView && (
         <p className="no-print text-xs uppercase tracking-widest text-brand-navylight/80 mb-6">
-          <i className="fa-solid fa-lock"></i> View only &bull; ask Buffet Lucia Fiesta Mexicana for any changes
+          <i className="fa-solid fa-lock"></i> View only &bull; ask {brand.name} for any changes
         </p>
       )}
 
@@ -191,10 +197,18 @@ export default function InvoicePage() {
         <div ref={cardRef} className="paper-card animate-unfold text-brand-navydeep p-8 sm:p-12 overflow-hidden">
           <div className="flex justify-between items-start gap-4 flex-wrap pb-6 border-b-2 border-brand-navydeep/10">
             <div className="flex items-center gap-3">
-              <img src="/imgs/BLFM-logo.PNG" alt="Buffet Lucia Fiesta Mexicana logo" className="w-16 h-16 object-contain rounded-full ring-2 ring-brand-gold shadow" />
+              {brand.demo ? (
+                <span className="w-16 h-16 rounded-full ring-2 ring-brand-gold shadow flex items-center justify-center bg-brand-cream" aria-hidden="true">
+                  <i className="fa-solid fa-mug-saucer text-2xl text-brand-navy"></i>
+                </span>
+              ) : (
+                <img src="/imgs/BLFM-logo.PNG" alt={`${brand.name} logo`} className="w-16 h-16 object-contain rounded-full ring-2 ring-brand-gold shadow" />
+              )}
               <div>
-                <p className="font-form text-2xl sm:text-3xl leading-tight text-brand-navy">Buffet Lucia Fiesta Mexicana</p>
-                <p className="text-xs uppercase tracking-widest text-brand-navydeep/60">Auténtica Comida Mexicana &bull; Bronx, NY</p>
+                <p className="font-form text-2xl sm:text-3xl leading-tight text-brand-navy">{brand.name}</p>
+                <p className="text-xs uppercase tracking-widest text-brand-navydeep/60">
+                  {brand.shortTagline} &bull; {brand.location}
+                </p>
               </div>
             </div>
             <div className="text-sm text-right space-y-1 relative">
@@ -341,50 +355,63 @@ export default function InvoicePage() {
             <div className="max-w-xs">
               <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Terms &amp; Conditions</p>
               <p className="text-xs text-brand-navydeep/70">
-                El saldo restante se paga al momento de la entrega o recogida. Gracias por su preferencia <i className="fa-solid fa-hand-holding-heart"></i>
+                {brand.demo
+                  ? "Any remaining balance is due at delivery or pick-up. Thank you for your order! "
+                  : "El saldo restante se paga al momento de la entrega o recogida. Gracias por su preferencia "}
+                <i className="fa-solid fa-hand-holding-heart"></i>
               </p>
             </div>
             <div className="text-right">
-              <p className="font-form text-2xl text-brand-teal">Buffet Lucia</p>
-              <p className="text-xs text-brand-navydeep/60 -mt-1">Fiesta Mexicana</p>
+              <p className="font-form text-2xl text-brand-teal">{brand.demo ? "Demo Café" : "Buffet Lucia"}</p>
+              <p className="text-xs text-brand-navydeep/60 -mt-1">{brand.demo ? "Sample restaurant" : "Fiesta Mexicana"}</p>
             </div>
           </div>
 
-          <div className="flex flex-col items-center mt-8 pt-6 border-t border-brand-navydeep/10 text-center">
-            <p className="text-xs text-brand-navydeep/70 max-w-xs">
-              "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
+          {/* Social links, review and SMS sign-up QR codes belong to the real
+              restaurant, so the demo's sample café shows a plain thank-you. */}
+          {brand.demo ? (
+            <p className="mt-8 pt-6 border-t border-brand-navydeep/10 text-center text-xs text-brand-navydeep/70">
+              Thanks for trying the demo — this invoice belongs to a made-up business.
             </p>
-            <span className="flex items-center gap-4 mt-2">
-              <a href="https://www.facebook.com/BuffetLuciasFiestaMExicana">
-                <i className="fa-brands fa-facebook text-2xl text-blue-600 hover:text-blue-400"></i>
-              </a>
-              <a href="https://www.tiktok.com/@buffetluciasftamexicana?is_from_webapp=1&sender_device=pc">
-                <i className="fa-brands fa-tiktok text-2xl text-cyan-600 hover:text-cyan-400"></i>
-              </a>
-              <a href="https://maps.app.goo.gl/BVCYcyCA5nvdb1as9">
-                <i className="fa-solid fa-map-location-dot text-2xl text-green-700 hover:text-green-500"></i>
-              </a>
-              <a href="https://g.page/r/CRSDyjL1S-KyEBM/review">
-                <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-12 h-12" />
-              </a>
-            </span>
-          </div>
+          ) : (
+            <>
+              <div className="flex flex-col items-center mt-8 pt-6 border-t border-brand-navydeep/10 text-center">
+                <p className="text-xs text-brand-navydeep/70 max-w-xs">
+                  "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
+                </p>
+                <span className="flex items-center gap-4 mt-2">
+                  <a href="https://www.facebook.com/BuffetLuciasFiestaMExicana">
+                    <i className="fa-brands fa-facebook text-2xl text-blue-600 hover:text-blue-400"></i>
+                  </a>
+                  <a href="https://www.tiktok.com/@buffetluciasftamexicana?is_from_webapp=1&sender_device=pc">
+                    <i className="fa-brands fa-tiktok text-2xl text-cyan-600 hover:text-cyan-400"></i>
+                  </a>
+                  <a href="https://maps.app.goo.gl/BVCYcyCA5nvdb1as9">
+                    <i className="fa-solid fa-map-location-dot text-2xl text-green-700 hover:text-green-500"></i>
+                  </a>
+                  <a href="https://g.page/r/CRSDyjL1S-KyEBM/review">
+                    <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-12 h-12" />
+                  </a>
+                </span>
+              </div>
 
-          {/* Promo texts only go to customers who opt in on the website's
-              sign-up page, so the invoice points them there rather than the
-              POS adding anyone to the list. */}
-          <a
-            href="https://buffetluciasfiestamexicana.com/sms-consent/"
-            className="flex items-center justify-center gap-4 mt-6 mx-auto max-w-sm rounded-xl border border-dashed border-brand-teal/50 p-3 text-left"
-          >
-            <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-16 h-16 shrink-0" />
-            <span className="text-xs text-brand-navydeep/80">
-              <span className="block font-semibold text-brand-teal">
-                <i className="fa-solid fa-mobile-screen-button"></i> ¡Recibe nuestras ofertas por texto!
-              </span>
-              Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
-            </span>
-          </a>
+              {/* Promo texts only go to customers who opt in on the website's
+                  sign-up page, so the invoice points them there rather than the
+                  POS adding anyone to the list. */}
+              <a
+                href="https://buffetluciasfiestamexicana.com/sms-consent/"
+                className="flex items-center justify-center gap-4 mt-6 mx-auto max-w-sm rounded-xl border border-dashed border-brand-teal/50 p-3 text-left"
+              >
+                <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-16 h-16 shrink-0" />
+                <span className="text-xs text-brand-navydeep/80">
+                  <span className="block font-semibold text-brand-teal">
+                    <i className="fa-solid fa-mobile-screen-button"></i> ¡Recibe nuestras ofertas por texto!
+                  </span>
+                  Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
+                </span>
+              </a>
+            </>
+          )}
 
           <div className="relative -mx-8 sm:-mx-12 -mb-8 sm:-mb-12 mt-8 h-36 sm:h-44 overflow-hidden select-none pointer-events-none">
             <svg viewBox="0 0 800 220" preserveAspectRatio="xMidYMax slice" className="w-full h-full">

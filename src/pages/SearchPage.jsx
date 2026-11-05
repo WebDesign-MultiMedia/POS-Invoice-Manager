@@ -7,6 +7,7 @@ import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { fetchAllOrders, fetchAllCardPayments } from "../api/sheetdb.js";
 import { formatDate, formatMoney, parseStoredDate, escapeRegex } from "../lib/format.js";
 import { parseCardPaymentOrder } from "../lib/menu.js";
+import { isDemo } from "../lib/demo.js";
 
 const SEARCH_FIELDS = {
   Contact: { label: "Phone number", icon: "fa-phone", type: "text", placeholder: "e.g. 555-0100" },
@@ -244,7 +245,8 @@ export default function SearchPage() {
                     <i className="fa-solid fa-file-invoice-dollar"></i> View Invoice
                   </Link>
                 )}
-                {/^pi_[A-Za-z0-9]+$/.test(payment.PaymentIntentId || "") && (
+                {/* Demo payments were never sent to Stripe, so there's no receipt to fetch. */}
+                {!isDemo() && /^pi_[A-Za-z0-9]+$/.test(payment.PaymentIntentId || "") && (
                   <a
                     href={`/api/receipt-url?pi=${encodeURIComponent(payment.PaymentIntentId)}`}
                     target="_blank"

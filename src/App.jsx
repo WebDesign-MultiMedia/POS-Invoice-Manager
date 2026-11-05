@@ -17,7 +17,7 @@ function StaffGate({ children }) {
 
   if (pathname === "/invoice" && searchParams.get("share") === "1") return children;
   if (status === "loading") return <AuthSplash />;
-  if (status !== "in") return <LoginPage />;
+  if (status !== "in" && status !== "demo") return <LoginPage />;
   return children;
 }
 

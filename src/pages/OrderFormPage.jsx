@@ -5,6 +5,7 @@ import TiltCard from "../components/TiltCard.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { submitOrder } from "../api/sheetdb.js";
 import { getCurrentDateTime, getTotalQuantity, formatDate } from "../lib/format.js";
+import { getBrand } from "../lib/brand.js";
 
 const INITIAL_FORM = {
   Name: "",
@@ -71,7 +72,7 @@ export default function OrderFormPage() {
       return;
     }
 
-    Swal.fire({ ...ALERT_BASE, title: "Successfullyy Stored", icon: "success", timer: 1500 });
+    Swal.fire({ ...ALERT_BASE, title: "Successfully Stored", icon: "success", timer: 1500 });
 
     try {
       await submitOrder(data);
@@ -83,8 +84,12 @@ export default function OrderFormPage() {
     setValidated(false);
   };
 
+  const brand = getBrand();
+
   const navLinks = (
     <>
+      {/* The real Google Sheet isn't part of the demo. */}
+      {!brand.demo && (
       <NavFab
         href="https://docs.google.com/spreadsheets/d/1foMCHxncVcHoJQwxRVPxTM3o64zIDyUJZErwtLLu5qo/edit?usp=sharing"
         external
@@ -93,6 +98,7 @@ export default function OrderFormPage() {
         colorClass="text-brand-teal"
         glowClass="shadow-glow-teal"
       />
+      )}
       <NavFab to="/search" title="Search orders" icon="fa-magnifying-glass" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
       <NavFab to="/invoice" title="View invoice" icon="fa-file-invoice-dollar" colorClass="text-brand-terracotta" glowClass="shadow-glow-terracotta" />
       <NavFab to="/updates" title="What's new" icon="fa-wand-magic-sparkles" colorClass="text-brand-pink" glowClass="shadow-glow-pink" />
@@ -103,7 +109,7 @@ export default function OrderFormPage() {
 
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -left-10 animate-float-slow", "bg-brand-cactus w-80 h-80 top-1/3 -right-16 animate-float", "bg-brand-pink w-64 h-64 bottom-0 left-1/4 animate-float-slow"]}>
-      <PageHeader logoSize="w-20 h-20" title="Buffet Lucia Fiesta Mexicana" subtitle="Auténtica Comida Mexicana • POS-Invoice-Manager" />
+      <PageHeader logoSize="w-20 h-20" title={brand.name} subtitle={brand.tagline} />
 
       <NavRow className="mb-8">{navLinks}</NavRow>
 

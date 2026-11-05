@@ -1,15 +1,23 @@
 import { useState } from "react";
 import Swal from "sweetalert2";
 import { reportIfLoggedOut } from "../lib/auth.jsx";
+import { getBrand } from "../lib/brand.js";
 
 // Manager-only: texts a weekend special / announcement to everyone who
 // signed up for specials on the website, via api/send-broadcast.js. The password is
 // checked server-side; it's only held in memory here, never stored.
 const MAX_LENGTH = 480;
-const PREFIX = "Buffet Lucia's Fiesta Mexicana: ";
 const FOOTER = "\n\nReply STOP to unsubscribe.";
 
+// Demo mode: pretend there are 128 subscribers and that every text went out.
+const DEMO_SUBSCRIBERS = 128;
 async function postBroadcast(password, body) {
+  if (getBrand().demo) {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return body.dryRun
+      ? { recipientCount: DEMO_SUBSCRIBERS }
+      : { sent: DEMO_SUBSCRIBERS - 3, optedOut: 3, failed: 0, recipientCount: DEMO_SUBSCRIBERS };
+  }
   const res = await fetch("/api/send-broadcast", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Broadcast-Password": password },
@@ -29,10 +37,12 @@ export default function SMSBroadcast({ className = "" }) {
   const [result, setResult] = useState(null);
 
   const text = message.trim();
+  const brand = getBrand();
+  const PREFIX = brand.smsPrefix;
 
   const handleSend = async () => {
-    if (!password || !text) {
-      Swal.fire({ title: "Enter the password and a message", icon: "warning", theme: "dark", timer: 1400, showConfirmButton: false });
+    if ((!password && !brand.demo) || !text) {
+      Swal.fire({ title: brand.demo ? "Write a message first" : "Enter the password and a message", icon: "warning", theme: "dark", timer: 1400, showConfirmButton: false });
       return;
     }
     setSending(true);
@@ -47,7 +57,7 @@ export default function SMSBroadcast({ className = "" }) {
       }
       const confirm = await Swal.fire({
         title: `Text ${recipientCount} customers?`,
-        text: "This sends right away and can't be undone.",
+        text: brand.demo ? "Demo: nothing is really sent." : "This sends right away and can't be undone.",
         icon: "question",
         theme: "dark",
         showCancelButton: true,
@@ -68,18 +78,21 @@ export default function SMSBroadcast({ className = "" }) {
 
   return (
     <div className={`w-full max-w-md glass-card p-6 sm:p-8 flex flex-col gap-4 ${className}`.trim()}>
-      <div className="field-group">
-        <span className="field-label">
-          <i className="fa-solid fa-lock"></i> Manager password
-        </span>
-        <input
-          type="password"
-          autoComplete="current-password"
-          className="input-3d"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </div>
+      {/* The demo skips the manager password: nothing is really sent. */}
+      {!brand.demo && (
+        <div className="field-group">
+          <span className="field-label">
+            <i className="fa-solid fa-lock"></i> Manager password
+          </span>
+          <input
+            type="password"
+            autoComplete="current-password"
+            className="input-3d"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+      )}
 
       <div className="field-group">
         <span className="field-label">

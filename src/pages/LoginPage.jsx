@@ -30,11 +30,13 @@ const DECOR = [
 // Mobile feature grid, in the design's reading order (line breaks are the
 // design's). Icons are drawn larger than the design's ~35px so they're
 // readable; size is set in index.css (.login-features img).
+// Desktop shows the same four as compact chips (label + icon) under the
+// tagline.
 const FEATURES = [
-  { lines: ["Track & Search", "Orders"], src: "/imgs/login/phone.png" },
-  { lines: ["Generate", "Invoice"], src: "/imgs/login/invoice.png" },
-  { lines: ["Text", "Announcements"], src: "/imgs/login/text-notification.png" },
-  { lines: ["Card", "Payments"], src: "/imgs/login/payment-card.png" },
+  { lines: ["Track & Search", "Orders"], label: "Track & search orders", icon: "fa-magnifying-glass", src: "/imgs/login/phone.png" },
+  { lines: ["Generate", "Invoice"], label: "Generate invoices", icon: "fa-file-invoice-dollar", src: "/imgs/login/invoice.png" },
+  { lines: ["Text", "Announcements"], label: "Text announcements", icon: "fa-bullhorn", src: "/imgs/login/text-notification.png" },
+  { lines: ["Card", "Payments"], label: "Card payments", icon: "fa-credit-card", src: "/imgs/login/payment-card.png" },
 ];
 
 export function AuthSplash() {
@@ -46,7 +48,7 @@ export function AuthSplash() {
 }
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, enterDemo } = useAuth();
   const [form, setForm] = useState({ identifier: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -62,10 +64,19 @@ export default function LoginPage() {
   }, []);
 
   // Lets index.css turn off page scrolling on phones while this screen is
-  // up (it fits one screen); removed again once the app takes over.
+  // up (it fits one screen), and keep the page behind it in the login's
+  // own colours whatever theme was picked; removed once the app takes over.
   useEffect(() => {
     document.documentElement.classList.add("login-open");
-    return () => document.documentElement.classList.remove("login-open");
+    // The browser bar / status bar colour follows this tag on phones; match
+    // the login screen instead of whatever theme was picked before logging out.
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    const previousThemeColor = themeMeta?.getAttribute("content");
+    themeMeta?.setAttribute("content", "#2447d6");
+    return () => {
+      document.documentElement.classList.remove("login-open");
+      if (themeMeta && previousThemeColor) themeMeta.setAttribute("content", previousThemeColor);
+    };
   }, []);
 
   const handleChange = (field) => (event) => {
@@ -111,12 +122,22 @@ export default function LoginPage() {
         ))}
 
         <header className="login-header text-center">
+          {/* Eyebrow → title → one-line promise → features: a clear
+              reading order that says whose screen this is and what it does. */}
+          <span className="login-eyebrow">
+            <span className="login-eyebrow-dot" aria-hidden="true"></span>
+            Staff portal
+          </span>
           <h1 className="font-login-title">POS Invoice Manager</h1>
-          <p className="font-login-sub login-desktop-only text-neutral-50">
-            Track &amp; Search Orders <span aria-hidden="true">||</span> Generate Invoice
-            <br />
-            Card Payments <span aria-hidden="true">||</span> Text Announcements
-          </p>
+          <p className="login-tagline">Orders, invoices, card payments and customer texts — all in one place.</p>
+          <ul className="login-chips login-desktop-only" aria-label="Features">
+            {FEATURES.map(({ label, icon }) => (
+              <li key={label}>
+                <i className={`fa-solid ${icon}`} aria-hidden="true"></i>
+                {label}
+              </li>
+            ))}
+          </ul>
           <ul className="login-features login-mobile-only font-login-sub" aria-label="Features">
             {FEATURES.map(({ lines, src }) => (
               <li key={src}>
@@ -216,8 +237,9 @@ export default function LoginPage() {
               <span>New here?</span>
             </p>
 
-            {/* No self sign-up or demo login: either would let anyone read
-                every customer's details. Accounts are added by the manager. */}
+            {/* No self sign-up: accounts are added by the manager. Demo opens
+                the app on made-up sample data only (lib/demo.js) — it never
+                touches the real orders or the server. */}
             <div className="login-secondary font-login-small">
               <button type="button" className="login-btn-create" onClick={() => showNotice("Accounts are set up by the manager — ask them.")}>
                 <span className="login-desktop-only">Create an Account</span>
@@ -225,7 +247,7 @@ export default function LoginPage() {
                   <i className="fa-solid fa-user-plus" aria-hidden="true"></i> Sign up
                 </span>
               </button>
-              <button type="button" className="login-btn-demo" onClick={() => showNotice("No demo login — customer data is private.")}>
+              <button type="button" className="login-btn-demo" onClick={enterDemo}>
                 <i className="fa-solid fa-play login-mobile-only" aria-hidden="true"></i> Demo
               </button>
             </div>
