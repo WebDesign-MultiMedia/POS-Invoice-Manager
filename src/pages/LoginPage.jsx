@@ -10,8 +10,9 @@ import { useAuth } from "../lib/auth.jsx";
 // scales with the window like the mock-up instead of drifting apart.
 //
 // Phones/tablets (under 1024px) follow the separate "iPhone Pro Max" login
-// design (402×874): solid blue, a 2×2 feature grid with small icons, and
-// the form in a navy bottom sheet. Same markup, restyled in index.css; the
+// design (402×874), modernised: blue backdrop with soft glows, the four
+// features as glass tiles, and the form in a navy bottom sheet with
+// labelled fields. Same markup, restyled in index.css; the
 // parts only one layout uses are toggled with .login-desktop-only /
 // .login-mobile-only.
 //
@@ -134,12 +135,13 @@ export default function LoginPage() {
           <h2 id="login-heading" className="font-login-heading">
             USER LOGIN
           </h2>
+          <p className="login-card-sub login-mobile-only">Sign in to manage orders, invoices &amp; payments.</p>
 
           <form onSubmit={handleSubmit} noValidate className="login-form">
             {/* Email / phone */}
             <div className="login-field">
               <i className="fa-solid fa-user login-field-icon" aria-hidden="true"></i>
-              <label htmlFor="identifier" className="sr-only">
+              <label htmlFor="identifier" className="login-label">
                 Email or phone number
               </label>
               <input
@@ -159,14 +161,13 @@ export default function LoginPage() {
                 aria-describedby="login-status"
                 className="login-input"
               />
-              {/* Mobile design's in-field label; hides once typing starts. */}
-              <span aria-hidden="true" className="login-field-label font-login-mono">
-                Email / Phone #
-              </span>
             </div>
 
-            {/* Password — the lock doubles as show/hide */}
+            {/* Password — on desktop the lock doubles as show/hide; on
+                phones the lock is just an icon and an eye on the right
+                does it. */}
             <div className="login-field">
+              <i className="fa-solid fa-lock login-field-icon login-mobile-only" aria-hidden="true"></i>
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
@@ -174,9 +175,10 @@ export default function LoginPage() {
                 aria-pressed={showPassword}
                 className="login-field-icon login-field-toggle"
               >
-                <i className={`fa-solid ${showPassword ? "fa-lock-open" : "fa-lock"}`} aria-hidden="true"></i>
+                <i className={`fa-solid login-desktop-only ${showPassword ? "fa-lock-open" : "fa-lock"}`} aria-hidden="true"></i>
+                <i className={`fa-solid login-mobile-only ${showPassword ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true"></i>
               </button>
-              <label htmlFor="password" className="sr-only">
+              <label htmlFor="password" className="login-label">
                 Password
               </label>
               <input
@@ -195,24 +197,36 @@ export default function LoginPage() {
                 aria-describedby="login-status"
                 className="login-input"
               />
-              <span aria-hidden="true" className="login-field-label font-login-mono">
-                Password
-              </span>
             </div>
 
             <button type="submit" disabled={submitting} className="login-submit font-login-button">
-              {submitting ? <i className="fa-solid fa-circle-notch fa-spin" aria-label="Logging in"></i> : "LOGIN"}
+              {submitting ? (
+                <i className="fa-solid fa-circle-notch fa-spin" aria-label="Logging in"></i>
+              ) : (
+                <>
+                  <span className="login-desktop-only">LOGIN</span>
+                  <span className="login-mobile-only">
+                    Log in <i className="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                  </span>
+                </>
+              )}
             </button>
+
+            <p className="login-divider login-mobile-only">
+              <span>New here?</span>
+            </p>
 
             {/* No self sign-up or demo login: either would let anyone read
                 every customer's details. Accounts are added by the manager. */}
             <div className="login-secondary font-login-small">
               <button type="button" className="login-btn-create" onClick={() => showNotice("Accounts are set up by the manager — ask them.")}>
                 <span className="login-desktop-only">Create an Account</span>
-                <span className="login-mobile-only">Signup</span>
+                <span className="login-mobile-only">
+                  <i className="fa-solid fa-user-plus" aria-hidden="true"></i> Sign up
+                </span>
               </button>
               <button type="button" className="login-btn-demo" onClick={() => showNotice("No demo login — customer data is private.")}>
-                Demo
+                <i className="fa-solid fa-play login-mobile-only" aria-hidden="true"></i> Demo
               </button>
             </div>
 
