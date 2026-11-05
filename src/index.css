@@ -74,6 +74,68 @@
     --page-bg: 209 213 219;
   }
 
+  /* Blue theme (the default): the login screen's look across the app —
+     #2447d6 page, navy #00007d panels, white text, light periwinkle
+     accents, with the login's red/olive echoed in coral/cactus. Applied
+     together with .dark, so dark-only rules (color-scheme etc.) still hold. */
+  .theme-blue {
+    --brand-navy: 255 255 255;
+    --brand-navydeep: 255 255 255;
+    --brand-navylight: 61 99 255;
+    --brand-canvas: 0 0 125;
+    --brand-muted: 206 216 255;
+    --brand-gold: 157 180 255;
+    --brand-goldlight: 255 255 255;
+    --brand-coral: 255 155 140;
+    --brand-error: 252 211 77;
+    --brand-teal: 125 211 252;
+    --brand-cream: 0 0 125;
+    --brand-terracotta: 186 200 255;
+    --brand-cactus: 226 226 120;
+    --brand-pink: 196 181 253;
+    --surface: 0 0 125;
+    --page-bg: 36 71 214;
+  }
+
+  /* Dark green and dark red: same idea as blue — white text, light tinted
+     accents — on a deep green / deep red page with darker panels. */
+  .theme-green {
+    --brand-navy: 255 255 255;
+    --brand-navydeep: 255 255 255;
+    --brand-navylight: 31 157 99;
+    --brand-canvas: 6 51 31;
+    --brand-muted: 200 240 215;
+    --brand-gold: 134 225 170;
+    --brand-goldlight: 255 255 255;
+    --brand-coral: 255 165 145;
+    --brand-error: 252 211 77;
+    --brand-teal: 125 211 252;
+    --brand-cream: 6 51 31;
+    --brand-terracotta: 190 240 205;
+    --brand-cactus: 226 226 120;
+    --brand-pink: 196 181 253;
+    --surface: 6 51 31;
+    --page-bg: 15 81 50;
+  }
+  .theme-red {
+    --brand-navy: 255 255 255;
+    --brand-navydeep: 255 255 255;
+    --brand-navylight: 217 58 58;
+    --brand-canvas: 61 7 7;
+    --brand-muted: 255 215 215;
+    --brand-gold: 255 170 160;
+    --brand-goldlight: 255 255 255;
+    --brand-coral: 255 200 150;
+    --brand-error: 252 211 77;
+    --brand-teal: 125 211 252;
+    --brand-cream: 61 7 7;
+    --brand-terracotta: 255 200 200;
+    --brand-cactus: 226 226 120;
+    --brand-pink: 251 182 206;
+    --surface: 61 7 7;
+    --page-bg: 122 18 18;
+  }
+
   /* The printed invoice represents physical paper, so it always renders
      light/dark-ink regardless of the site theme — pin every brand token
      it relies on back to the light palette even inside `.dark`. */
@@ -86,6 +148,185 @@
     --brand-terracotta: 46 107 229;
     --brand-cream: 247 250 255;
     --surface: 255 255 255;
+  }
+
+  /* --ui-* : colours for the shared login-style surfaces (see "Shared look
+     for every theme" in the components layer). White theme on :root. */
+  :root {
+    --ui-glow-top: rgba(0, 85, 255, 0.1);
+    --ui-glow-side: rgba(1, 211, 211, 0.1);
+    --ui-glow-low: rgba(0, 85, 255, 0.06);
+    --ui-page-fade: rgba(0, 85, 255, 0.05);
+    --ui-card-bg: #ffffff;
+    --ui-card-glow: rgba(0, 85, 255, 0.07);
+    --ui-card-border: rgba(32, 40, 56, 0.1);
+    --ui-card-highlight: rgba(255, 255, 255, 0.9);
+    --ui-card-shadow: 0 24px 50px -24px rgba(0, 26, 80, 0.3);
+    --ui-fab-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(240, 245, 255, 0.8));
+    --ui-fab-bg-hover: linear-gradient(145deg, #ffffff, rgba(232, 240, 255, 0.95));
+    --ui-fab-border: rgba(32, 40, 56, 0.1);
+    --ui-fab-shadow: 0 10px 24px -14px rgba(0, 26, 80, 0.45);
+    --ui-label: rgba(46, 56, 77, 0.8);
+    --ui-input-bg: #f7faff;
+    --ui-input-bg-focus: #ffffff;
+    --ui-input-border: rgba(32, 40, 56, 0.14);
+    --ui-input-text: #202838;
+    --ui-placeholder: rgba(46, 56, 77, 0.45);
+    --ui-option-bg: #ffffff;
+    --ui-focus: #0055ff;
+    --ui-focus-ring: rgba(0, 85, 255, 0.18);
+    --ui-btn-from: #2b71f2;
+    --ui-btn-to: #0049e0;
+    --ui-btn-glow: rgba(0, 85, 255, 0.55);
+    --ui-btn-edge: rgba(255, 255, 255, 0);
+    --ui-title: #001a50;
+    --ui-title-shadow: none;
+  }
+  .theme-gray {
+    --ui-glow-top: rgba(255, 255, 255, 0.45);
+    --ui-glow-side: rgba(148, 163, 184, 0.35);
+    --ui-glow-low: rgba(71, 85, 105, 0.12);
+    --ui-page-fade: rgba(71, 85, 105, 0.12);
+    --ui-card-bg: #f3f4f6;
+    --ui-card-glow: rgba(255, 255, 255, 0.7);
+    --ui-card-border: rgba(31, 41, 55, 0.12);
+    --ui-card-shadow: 0 24px 50px -24px rgba(31, 41, 55, 0.4);
+    --ui-fab-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.75), rgba(243, 244, 246, 0.5));
+    --ui-fab-bg-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(243, 244, 246, 0.7));
+    --ui-fab-border: rgba(31, 41, 55, 0.14);
+    --ui-fab-shadow: 0 10px 24px -14px rgba(31, 41, 55, 0.5);
+    --ui-label: rgba(55, 65, 81, 0.85);
+    --ui-input-bg: #ffffff;
+    --ui-input-border: rgba(31, 41, 55, 0.16);
+    --ui-input-text: #1f2937;
+    --ui-placeholder: rgba(55, 65, 81, 0.45);
+    --ui-focus: #475569;
+    --ui-focus-ring: rgba(71, 85, 105, 0.22);
+    --ui-btn-from: #64748b;
+    --ui-btn-to: #334155;
+    --ui-btn-glow: rgba(51, 65, 85, 0.6);
+    --ui-title: #1e293b;
+  }
+  .dark {
+    --ui-glow-top: rgba(120, 165, 219, 0.16);
+    --ui-glow-side: rgba(91, 140, 199, 0.18);
+    --ui-glow-low: rgba(120, 165, 219, 0.08);
+    --ui-page-fade: rgba(17, 20, 26, 0.9);
+    --ui-card-bg: #11141a;
+    --ui-card-glow: rgba(120, 165, 219, 0.14);
+    --ui-card-border: rgba(255, 255, 255, 0.12);
+    --ui-card-highlight: rgba(255, 255, 255, 0.06);
+    --ui-card-shadow: 0 24px 50px -20px rgba(0, 0, 0, 0.8);
+    --ui-fab-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+    --ui-fab-bg-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.07));
+    --ui-fab-border: rgba(255, 255, 255, 0.16);
+    --ui-fab-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.9);
+    --ui-label: rgba(255, 255, 255, 0.7);
+    --ui-input-bg: rgba(255, 255, 255, 0.05);
+    --ui-input-bg-focus: rgba(255, 255, 255, 0.08);
+    --ui-input-border: rgba(255, 255, 255, 0.14);
+    --ui-input-text: #e2e8f0;
+    --ui-placeholder: rgba(226, 232, 240, 0.4);
+    --ui-option-bg: #11141a;
+    --ui-focus: #78a5db;
+    --ui-focus-ring: rgba(120, 165, 219, 0.28);
+    --ui-btn-from: #5b8cc7;
+    --ui-btn-to: #2f5d99;
+    --ui-btn-glow: rgba(91, 140, 199, 0.6);
+    --ui-btn-edge: rgba(255, 255, 255, 0.12);
+    --ui-title: #ffffff;
+    --ui-title-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  }
+  .theme-blue {
+    --ui-glow-top: rgba(255, 255, 255, 0.22);
+    --ui-glow-side: rgba(84, 132, 255, 0.55);
+    --ui-glow-low: rgba(16, 23, 139, 0.45);
+    --ui-page-fade: rgba(16, 23, 139, 0.55);
+    --ui-card-bg: #00007d;
+    --ui-card-glow: rgba(84, 132, 255, 0.28);
+    --ui-card-border: rgba(255, 255, 255, 0.3);
+    --ui-card-highlight: rgba(255, 255, 255, 0.12);
+    --ui-card-shadow: 0 24px 50px -20px rgba(5, 10, 70, 0.7);
+    --ui-fab-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.06));
+    --ui-fab-bg-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.1));
+    --ui-fab-border: rgba(255, 255, 255, 0.25);
+    --ui-fab-shadow: 0 10px 24px -14px rgba(10, 20, 90, 0.8);
+    --ui-label: rgba(255, 255, 255, 0.75);
+    --ui-input-bg: rgba(255, 255, 255, 0.07);
+    --ui-input-bg-focus: rgba(255, 255, 255, 0.1);
+    --ui-input-border: rgba(255, 255, 255, 0.22);
+    --ui-input-text: #ffffff;
+    --ui-placeholder: rgba(255, 255, 255, 0.4);
+    --ui-option-bg: #00007d;
+    --ui-focus: #7d9bff;
+    --ui-focus-ring: rgba(84, 132, 255, 0.3);
+    --ui-btn-from: #3d63ff;
+    --ui-btn-to: #2447d6;
+    --ui-btn-glow: rgba(61, 99, 255, 0.85);
+    --ui-btn-edge: rgba(255, 255, 255, 0.18);
+    --ui-title: #ffffff;
+    --ui-title-shadow: 0 6px 24px rgba(10, 20, 90, 0.35);
+  }
+
+  .theme-green {
+    --ui-glow-top: rgba(255, 255, 255, 0.16);
+    --ui-glow-side: rgba(52, 199, 120, 0.35);
+    --ui-glow-low: rgba(2, 30, 18, 0.55);
+    --ui-page-fade: rgba(2, 30, 18, 0.6);
+    --ui-card-bg: #06331f;
+    --ui-card-glow: rgba(52, 199, 120, 0.22);
+    --ui-card-border: rgba(255, 255, 255, 0.24);
+    --ui-card-highlight: rgba(255, 255, 255, 0.1);
+    --ui-card-shadow: 0 24px 50px -20px rgba(1, 20, 10, 0.8);
+    --ui-fab-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+    --ui-fab-bg-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.09));
+    --ui-fab-border: rgba(255, 255, 255, 0.22);
+    --ui-fab-shadow: 0 10px 24px -14px rgba(1, 20, 10, 0.9);
+    --ui-label: rgba(255, 255, 255, 0.75);
+    --ui-input-bg: rgba(255, 255, 255, 0.07);
+    --ui-input-bg-focus: rgba(255, 255, 255, 0.1);
+    --ui-input-border: rgba(255, 255, 255, 0.2);
+    --ui-input-text: #ffffff;
+    --ui-placeholder: rgba(255, 255, 255, 0.4);
+    --ui-option-bg: #06331f;
+    --ui-focus: #6ee7a8;
+    --ui-focus-ring: rgba(52, 199, 120, 0.3);
+    --ui-btn-from: #22a86a;
+    --ui-btn-to: #0f6b42;
+    --ui-btn-glow: rgba(34, 168, 106, 0.7);
+    --ui-btn-edge: rgba(255, 255, 255, 0.16);
+    --ui-title: #ffffff;
+    --ui-title-shadow: 0 6px 24px rgba(1, 20, 10, 0.5);
+  }
+  .theme-red {
+    --ui-glow-top: rgba(255, 255, 255, 0.16);
+    --ui-glow-side: rgba(239, 68, 68, 0.35);
+    --ui-glow-low: rgba(40, 3, 3, 0.55);
+    --ui-page-fade: rgba(40, 3, 3, 0.6);
+    --ui-card-bg: #3d0707;
+    --ui-card-glow: rgba(239, 68, 68, 0.22);
+    --ui-card-border: rgba(255, 255, 255, 0.24);
+    --ui-card-highlight: rgba(255, 255, 255, 0.1);
+    --ui-card-shadow: 0 24px 50px -20px rgba(30, 2, 2, 0.8);
+    --ui-fab-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+    --ui-fab-bg-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.09));
+    --ui-fab-border: rgba(255, 255, 255, 0.22);
+    --ui-fab-shadow: 0 10px 24px -14px rgba(30, 2, 2, 0.9);
+    --ui-label: rgba(255, 255, 255, 0.75);
+    --ui-input-bg: rgba(255, 255, 255, 0.07);
+    --ui-input-bg-focus: rgba(255, 255, 255, 0.1);
+    --ui-input-border: rgba(255, 255, 255, 0.2);
+    --ui-input-text: #ffffff;
+    --ui-placeholder: rgba(255, 255, 255, 0.4);
+    --ui-option-bg: #3d0707;
+    --ui-focus: #fca5a5;
+    --ui-focus-ring: rgba(239, 68, 68, 0.3);
+    --ui-btn-from: #e04848;
+    --ui-btn-to: #9b1c1c;
+    --ui-btn-glow: rgba(224, 72, 72, 0.7);
+    --ui-btn-edge: rgba(255, 255, 255, 0.16);
+    --ui-title: #ffffff;
+    --ui-title-shadow: 0 6px 24px rgba(30, 2, 2, 0.5);
   }
 
   html {
@@ -409,6 +650,99 @@
     background-clip: text;
     color: transparent;
     animation: shimmer 4s linear infinite;
+  }
+
+  /* ---------- Shared look for every theme ----------
+     The login screen's design (glow backdrop, panels with a hairline edge
+     and top glow, frosted round buttons, translucent labelled inputs,
+     gradient buttons, Geostar titles) applies in every theme; only the
+     colours change, via the --ui-* variables set per theme in the base
+     layer. :root raises specificity over the older .dark rules above. */
+  :root .page-shell::before {
+    background-image:
+      radial-gradient(120% 60% at 50% -10%, var(--ui-glow-top) 0%, transparent 60%),
+      radial-gradient(70% 45% at 100% 35%, var(--ui-glow-side) 0%, transparent 70%),
+      radial-gradient(60% 40% at 0% 55%, var(--ui-glow-low) 0%, transparent 70%);
+    background-size: 100% 100%;
+    animation: none;
+  }
+  :root .page-shell {
+    background-image: linear-gradient(180deg, transparent 0%, var(--ui-page-fade) 100%);
+  }
+  :root .blob {
+    opacity: 0.1;
+  }
+  :root .glass-card {
+    background: radial-gradient(90% 60% at 50% 0%, var(--ui-card-glow) 0%, transparent 70%), var(--ui-card-bg);
+    border: 1px solid var(--ui-card-border);
+    border-radius: 28px;
+    box-shadow: var(--ui-card-shadow), inset 0 1px 0 var(--ui-card-highlight);
+  }
+  :root .glass-panel,
+  :root .fab {
+    background: var(--ui-fab-bg);
+    border: 1px solid var(--ui-fab-border);
+    box-shadow: inset 0 1px 0 var(--ui-card-highlight), var(--ui-fab-shadow);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+  :root .fab:hover,
+  :root .glass-panel:hover {
+    background: var(--ui-fab-bg-hover);
+  }
+  :root .tilt:hover {
+    box-shadow: var(--ui-card-shadow);
+  }
+  :root .field-label {
+    color: var(--ui-label);
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 1;
+  }
+  :root .input-3d {
+    background: var(--ui-input-bg);
+    border: 1px solid var(--ui-input-border);
+    border-radius: 14px;
+    color: var(--ui-input-text);
+  }
+  :root .input-3d::placeholder {
+    color: var(--ui-placeholder);
+  }
+  :root .input-3d:focus {
+    border-color: var(--ui-focus);
+    background: var(--ui-input-bg-focus);
+    box-shadow: 0 0 0 4px var(--ui-focus-ring);
+    transform: none;
+  }
+  /* Native dropdown lists don't inherit the translucent field. */
+  :root select.input-3d option {
+    background: var(--ui-option-bg);
+    color: var(--ui-input-text);
+  }
+  :root .input-3d.field-error {
+    border-color: rgb(var(--brand-error));
+    box-shadow: 0 0 0 1px rgb(var(--brand-error) / 0.45);
+  }
+  :root .input-3d.field-valid {
+    border-color: rgb(var(--brand-teal) / 0.7);
+  }
+  :root .btn-3d {
+    border-radius: 14px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--ui-btn-from) 0%, var(--ui-btn-to) 100%);
+    box-shadow: 0 12px 28px -10px var(--ui-btn-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 0 1px var(--ui-btn-edge);
+  }
+  :root .btn-3d:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 14px 32px -10px var(--ui-btn-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 0 1px var(--ui-btn-edge);
+  }
+  :root .shimmer-text {
+    font-family: "Geostar Fill", "Inter", system-ui, sans-serif;
+    font-weight: 400;
+    background: none;
+    color: var(--ui-title);
+    animation: none;
+    text-shadow: var(--ui-title-shadow);
   }
 
   /* ---------- Entrance stagger helper ---------- */
@@ -1240,5 +1574,34 @@
   }
   html.login-open body {
     overscroll-behavior: none;
+  }
+}
+
+/* Inter for the app chrome in every theme, as on the login screen
+   (outside the layers so it beats body's font utility class). The invoice
+   paper keeps its own fonts. */
+html body {
+  font-family: "Inter", system-ui, sans-serif;
+}
+html .paper-card {
+  font-family: "Open Sans", sans-serif;
+}
+/* The receipt-number lookup popup sits on the light invoice paper. */
+html .paper-card .glass-card {
+  background: rgba(255, 255, 255, 0.97);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+/* Selected tabs / steppers drawn as solid accent with white text (Pay
+   page): drawn like the primary button, so they read in every theme. */
+html .bg-brand-gold.text-white {
+  background: linear-gradient(135deg, var(--ui-btn-from) 0%, var(--ui-btn-to) 100%);
+  box-shadow: 0 6px 16px -8px var(--ui-btn-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+/* On phones, a nav row at the very top of a page (Pay, Invoice, Text
+   Customers) would sit under the corner log-out / theme buttons; start
+   it below them. */
+@media (max-width: 639px) {
+  main > section:first-child {
+    margin-top: 2.75rem;
   }
 }

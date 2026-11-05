@@ -16,7 +16,14 @@ const CARD_ELEMENT_STYLE = {
     base: { fontSize: "16px", color: "#F1F5F9", "::placeholder": { color: "#64748B" } },
     invalid: { color: "#f87171" },
   },
+  blue: {
+    base: { fontSize: "16px", color: "#FFFFFF", "::placeholder": { color: "rgba(255,255,255,0.45)" } },
+    invalid: { color: "#fcd34d" },
+  },
 };
+// Dark green and dark red use the same white-on-dark card text as blue.
+CARD_ELEMENT_STYLE.green = CARD_ELEMENT_STYLE.blue;
+CARD_ELEMENT_STYLE.red = CARD_ELEMENT_STYLE.blue;
 
 export default function CardPaymentForm({ baseAmountCents, invoiceId, email, description, note, theme, onPaid }) {
   const stripe = useStripe();

@@ -3,6 +3,9 @@ import { nextTheme } from "../lib/theme.js";
 
 // Icon/label describe the theme the NEXT tap switches to.
 const NEXT_THEME_UI = {
+  blue: { icon: "fa-droplet", label: "Switch to blue theme" },
+  green: { icon: "fa-leaf", label: "Switch to dark green theme" },
+  red: { icon: "fa-pepper-hot", label: "Switch to dark red theme" },
   light: { icon: "fa-sun", label: "Switch to white theme" },
   gray: { icon: "fa-circle-half-stroke", label: "Switch to gray theme" },
   dark: { icon: "fa-moon", label: "Switch to black theme" },

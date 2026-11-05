@@ -41,8 +41,11 @@ export function PageHeader({ logoSize = "w-16 h-16", title, subtitle, marginBott
   return (
     <div className={`flex flex-col items-center ${marginBottom} stagger-in`}>
       <img src="/imgs/BLFM-logo.PNG" alt="logo" className={`${logoSize} object-contain drop-shadow-lg`} />
-      <h1 className="font-headings text-2xl sm:text-3xl shimmer-text text-center mt-2">{title}</h1>
-      <p className="text-brand-muted/80 text-sm tracking-widest uppercase">{subtitle}</p>
+      <h1 className="font-headings text-2xl sm:text-3xl leading-snug shimmer-text text-center mt-2">{title}</h1>
+      <p className="text-brand-muted/80 text-sm leading-relaxed tracking-widest uppercase text-center mt-2 max-w-md px-2 text-balance">
+        {/* Keep a "•" separator on the end of the line it follows, never starting the next one. */}
+        {typeof subtitle === "string" ? subtitle.replace(/ • /g, "\u00a0• ") : subtitle}
+      </p>
     </div>
   );
 }
