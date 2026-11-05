@@ -12,6 +12,7 @@ import { getStripe } from "../lib/stripeClient.js";
 import { getTheme } from "../lib/theme.js";
 import { qtyStep, formatCartLine } from "../lib/menu.js";
 import { getBrand, getMenu } from "../lib/brand.js";
+import { copyText } from "../lib/clipboard.js";
 
 // Two entry points into the same card-payment flow:
 //  - "amount": staff types a dollar figure on the spot (pop-up/street
@@ -189,13 +190,8 @@ export default function PayPage() {
   const textReceipt = async () => {
     const orderId = payInvoiceId ? ` (Order ID: ${payInvoiceId})` : "";
     const message = `Thank you from ${brand.name}! Here is your receipt${orderId}: ${receipt.receiptUrl}`;
-    let copied = false;
-    try {
-      await navigator.clipboard.writeText(message);
-      copied = true;
-    } catch {
-      // Clipboard can be blocked; the prefilled message still has the link.
-    }
+    // Clipboard can be blocked or stall; the prefilled message still has the link.
+    const copied = await copyText(message);
     // Laptops may have no texting app for sms: (e.g. Windows), so they get
     // told the message is on the clipboard. Phones jump straight to Messages.
     if (copied && !window.matchMedia("(pointer: coarse)").matches) {

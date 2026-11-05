@@ -757,6 +757,31 @@
     size: 8.5in 11in;
     margin: 0.4in;
   }
+  /* The invoice fades/unfolds in on screen, starting from opacity: 0.
+     Some browsers (Safari on iPhone/iPad in particular) restart CSS
+     animations when building the print copy and capture that first,
+     invisible frame — which printed a blank white page. Printing never
+     animates, and everything is pinned fully visible and unmoved. */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .stagger-in,
+  .animate-unfold,
+  .paper-card,
+  .tilt-wrap {
+    opacity: 1 !important;
+    translate: none !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  /* Print the invoice's real colours (light paper, coloured headings). */
+  .paper-card {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .no-print {
     display: none !important;
   }

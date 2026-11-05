@@ -7,6 +7,7 @@ import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { getInvoiceById, getCardPaymentsForInvoice, getShareToken, getSharedInvoice } from "../api/sheetdb.js";
 import { toNumber, formatMoney, splitItems } from "../lib/format.js";
 import { getBrand } from "../lib/brand.js";
+import { copyText } from "../lib/clipboard.js";
 
 export default function InvoicePage() {
   const [searchParams] = useSearchParams();
@@ -27,6 +28,7 @@ export default function InvoicePage() {
       const row = await getInvoiceById(invoiceId);
       if (!row) {
         console.warn("No invoice found for Id:", invoiceId);
+        Swal.fire({ title: "Invoice not found", text: `No order matches #${invoiceId}`, icon: "warning", theme: "dark", timer: 2200, showConfirmButton: false });
         return;
       }
       setInvoice(row);
@@ -40,6 +42,7 @@ export default function InvoicePage() {
       }
     } catch (err) {
       console.error("Error loading invoice:", err);
+      Swal.fire({ title: "Couldn't load the invoice", text: "Check your connection and try again.", icon: "error", theme: "dark" });
     }
   };
 
@@ -134,11 +137,13 @@ export default function InvoicePage() {
     }
     const shareUrl = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(invoiceId)}&token=${token}&share=1`;
 
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      Swal.fire({ title: "Read-only link copied!", text: shareUrl, icon: "success", theme: "dark", timer: 2200, showConfirmButton: false });
-    } catch {
-      Swal.fire({ title: "Copy this link", text: shareUrl, icon: "info", theme: "dark" });
+    // In the demo the link only works in this browser (the sample data
+    // lives here), so say so instead of implying a customer could open it.
+    const demoNote = getBrand().demo ? " (Demo: this link only opens in this browser.)" : "";
+    if (await copyText(shareUrl)) {
+      Swal.fire({ title: "Read-only link copied!", text: shareUrl + demoNote, icon: "success", theme: "dark", timer: 2600, showConfirmButton: false });
+    } else {
+      Swal.fire({ title: "Copy this link", text: shareUrl + demoNote, icon: "info", theme: "dark" });
     }
   };
 
