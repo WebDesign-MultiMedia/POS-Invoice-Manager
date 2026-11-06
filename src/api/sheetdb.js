@@ -4,18 +4,21 @@
 // getSharedInvoice needs a staff login (the session cookie).
 import { reportIfLoggedOut } from "../lib/auth.jsx";
 import { isDemo, demoApi } from "../lib/demo.js";
+import { apiErrorFrom } from "../lib/errors.js";
 
 // In demo mode every call below is answered from the browser's sample data
 // (src/lib/demo.js) and never reaches the server.
 
 const SHEETS_API = "/api/sheets";
 
+// Failures throw an ApiError (lib/errors.js) carrying the HTTP status, so
+// pages can turn them into a friendly message with friendlyMessage().
 async function readSheet(action, params = {}) {
   const query = new URLSearchParams({ action, ...params });
   const res = await fetch(`${SHEETS_API}?${query}`);
   if (!res.ok) {
     reportIfLoggedOut(res);
-    throw new Error(`Response status: ${res.status}`);
+    throw await apiErrorFrom(res);
   }
   return res.json();
 }
@@ -28,7 +31,7 @@ async function writeSheet(action, data) {
   });
   if (!res.ok) {
     reportIfLoggedOut(res);
-    throw new Error(`Response status: ${res.status}`);
+    throw await apiErrorFrom(res);
   }
   return res.json();
 }
@@ -85,6 +88,6 @@ export async function getSharedInvoice(invoiceId, token) {
   const query = new URLSearchParams({ action: "sharedInvoice", id: invoiceId, token: token || "" });
   const res = await fetch(`${SHEETS_API}?${query}`);
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`Response status: ${res.status}`);
+  if (!res.ok) throw await apiErrorFrom(res);
   return res.json();
 }

@@ -13,6 +13,8 @@ import { getTheme } from "../lib/theme.js";
 import { qtyStep, formatCartLine } from "../lib/menu.js";
 import { getBrand, getMenu } from "../lib/brand.js";
 import { copyText } from "../lib/clipboard.js";
+import { friendlyMessage } from "../lib/errors.js";
+import { invoiceBalance, cartTotal as sumCart, toCents } from "../lib/totals.js";
 
 // Two entry points into the same card-payment flow:
 //  - "amount": staff types a dollar figure on the spot (pop-up/street
@@ -47,8 +49,8 @@ export default function PayPage() {
   const [mode, setMode] = useState(preselectedId ? "invoice" : "amount");
 
   const [invoice, setInvoice] = useState(null);
-  // Sum of earlier card payments' base Amount on this invoice.
-  const [invoiceCardPaid, setInvoiceCardPaid] = useState(0);
+  // Earlier card payments on this invoice; their base Amount comes off the balance.
+  const [invoicePayments, setInvoicePayments] = useState([]);
   const [lookupValue, setLookupValue] = useState(preselectedId || "");
   const [loadingInvoice, setLoadingInvoice] = useState(false);
 
@@ -80,11 +82,12 @@ export default function PayPage() {
       // full balance while earlier card payments are still loading. If this
       // fails, the catch below blocks the charge rather than risk a double one.
       const payments = await getCardPaymentsForInvoice(row.Id);
-      setInvoiceCardPaid(payments.reduce((sum, p) => sum + (toNumber(p.Amount) || 0), 0));
+      setInvoicePayments(payments);
       setInvoice(row);
       setReceipt(null);
     } catch (err) {
-      Swal.fire({ title: "Couldn't load invoice", text: err.message, icon: "error", theme: "dark" });
+      console.error("loadInvoice failed:", err);
+      Swal.fire({ title: "Couldn't load invoice", text: friendlyMessage(err, "The invoice couldn't be loaded."), icon: "error", theme: "dark" });
     } finally {
       setLoadingInvoice(false);
     }
@@ -92,7 +95,6 @@ export default function PayPage() {
 
   useEffect(() => {
     if (preselectedId) loadInvoice(preselectedId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preselectedId]);
 
   // ThemeToggle flips the `dark` class straight on <html> (see lib/theme.js),
@@ -109,10 +111,7 @@ export default function PayPage() {
     setReceipt(null);
   };
 
-  const cost = invoice ? toNumber(invoice.Cost) || 0 : 0;
-  const deposit = invoice ? toNumber(invoice.Deposit) : NaN;
-  const hasDeposit = !isNaN(deposit) && deposit > 0;
-  const invoiceTotalDue = invoice ? Math.max(cost - (hasDeposit ? deposit : 0) - invoiceCardPaid, 0) : 0;
+  const invoiceTotalDue = invoice ? invoiceBalance(invoice, invoicePayments).balanceDue : 0;
 
   // The real menu, or the sample café's in demo mode.
   const brand = getBrand();
@@ -136,7 +135,7 @@ export default function PayPage() {
     .filter(([id]) => MENU_ITEMS[id])
     .map(([id, qty]) => ({ item: MENU_ITEMS[id], qty }));
   const hasCart = cartEntries.length > 0;
-  const cartTotal = cartEntries.reduce((sum, { item, qty }) => sum + item.price * qty, 0);
+  const cartTotal = sumCart(cart, MENU_ITEMS);
   // Sheet "Items" column: one priced line per item so later lookups
   // (Search → Order ID) show what was actually charged even after menu
   // prices change. Parsed by parseCardPaymentOrder() in lib/menu.js — keep
@@ -151,7 +150,8 @@ export default function PayPage() {
 
   const customAmount = hasCart ? cartTotal : toNumber(amountInput) || 0;
   const totalDue = mode === "invoice" ? invoiceTotalDue : customAmount;
-  const baseAmountCents = Math.round(totalDue * 100);
+  // The exact cents sent to the server; the Pay button shows this same number.
+  const baseAmountCents = toCents(totalDue);
   const readyToCharge = mode === "invoice" ? !!invoice && invoiceTotalDue > 0 : customAmount > 0;
   const payLabel = mode === "invoice" ? invoice?.Name || "" : customerName;
   const payInvoiceId = mode === "invoice" ? invoice?.Id : cardPaymentId;
@@ -179,7 +179,15 @@ export default function PayPage() {
         Note: mode === "amount" ? note.trim() : "",
       });
     } catch (err) {
-      console.error("recordCardPayment failed:", err.message);
+      // The charge already went through, so the receipt still shows; staff
+      // just need to know the sheet is missing this row.
+      console.error("recordCardPayment failed:", err);
+      Swal.fire({
+        title: "Paid, but not added to the sheet",
+        text: `The card payment went through. Write down Order ID ${payInvoiceId || ""} and add it to the sheet later.`,
+        icon: "warning",
+        theme: "dark",
+      });
     }
     setReceipt(result);
   };
@@ -231,13 +239,17 @@ export default function PayPage() {
         {!receipt && (
           <div className="flex glass-panel p-1 mb-6 text-sm font-semibold">
             <button
-              className={`flex-1 py-2 rounded-xl transition-colors ${mode === "amount" ? "bg-brand-gold text-white" : "text-brand-navydeep/70"}`}
+              type="button"
+              aria-pressed={mode === "amount"}
+              className={`flex-1 py-2 rounded-xl transition-colors ${mode === "amount" ? "bg-brand-gold text-white" : "text-brand-navydeep/80"}`}
               onClick={() => switchMode("amount")}
             >
               Charge Amount
             </button>
             <button
-              className={`flex-1 py-2 rounded-xl transition-colors ${mode === "invoice" ? "bg-brand-gold text-white" : "text-brand-navydeep/70"}`}
+              type="button"
+              aria-pressed={mode === "invoice"}
+              className={`flex-1 py-2 rounded-xl transition-colors ${mode === "invoice" ? "bg-brand-gold text-white" : "text-brand-navydeep/80"}`}
               onClick={() => switchMode("invoice")}
             >
               Pay Invoice
@@ -265,7 +277,7 @@ export default function PayPage() {
                           >
                             <button type="button" className="text-left" onClick={() => changeQty(item.id, qtyStep(item))}>
                               <span className="block font-semibold leading-tight">{item.name}</span>
-                              <span className="text-xs text-brand-navydeep/70">
+                              <span className="text-xs text-brand-navydeep/80">
                                 {formatMoney(item.price)}
                                 {item.unit === "lb" ? " / lb" : ""}
                               </span>
@@ -304,7 +316,7 @@ export default function PayPage() {
               {hasCart && (
                 <div className="flex justify-between items-center mt-2 text-sm">
                   <span className="font-semibold">Items total: {formatMoney(cartTotal)}</span>
-                  <button type="button" className="text-xs text-brand-navydeep/60 underline" onClick={() => setCart({})}>
+                  <button type="button" className="text-xs text-brand-navydeep/75 underline" onClick={() => setCart({})}>
                     Clear items
                   </button>
                 </div>
@@ -312,40 +324,43 @@ export default function PayPage() {
             </div>
             {!hasCart && (
               <div className="field-group">
-                <span className="field-label">
-                  <i className="fa-solid fa-dollar-sign"></i> Or enter amount to charge
-                </span>
+                <label htmlFor="pay-amount" className="field-label">
+                  <i className="fa-solid fa-dollar-sign" aria-hidden="true"></i> Or enter amount to charge
+                </label>
                 <input
                   type="number"
                   inputMode="decimal"
                   min="0"
                   step="0.01"
                   className="input-3d text-lg"
-                  placeholder="0.00"
+                  id="pay-amount"
+                placeholder="0.00"
                   value={amountInput}
                   onChange={(e) => setAmountInput(e.target.value)}
                 />
               </div>
             )}
             <div className="field-group">
-              <span className="field-label">
-                <i className="fa-solid fa-user"></i> Customer name (optional)
-              </span>
+              <label htmlFor="pay-name" className="field-label">
+                <i className="fa-solid fa-user" aria-hidden="true"></i> Customer name (optional)
+              </label>
               <input
                 type="text"
                 className="input-3d"
+                id="pay-name"
                 placeholder="e.g. Maria"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
               />
             </div>
             <div className="field-group">
-              <span className="field-label">
-                <i className="fa-solid fa-note-sticky"></i> Note (optional)
-              </span>
+              <label htmlFor="pay-note" className="field-label">
+                <i className="fa-solid fa-note-sticky" aria-hidden="true"></i> Note (optional)
+              </label>
               <input
                 type="text"
                 className="input-3d"
+                id="pay-note"
                 placeholder="e.g. street vending"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -357,19 +372,20 @@ export default function PayPage() {
         {!receipt && mode === "invoice" && !invoice && (
           <div className="flex flex-col gap-4">
             <div className="field-group">
-              <span className="field-label">
-                <i className="fa-solid fa-hashtag"></i> Invoice / Receipt #
-              </span>
+              <label htmlFor="pay-invoice" className="field-label">
+                <i className="fa-solid fa-hashtag" aria-hidden="true"></i> Invoice / Receipt #
+              </label>
               <input
                 type="text"
                 className="input-3d"
+                id="pay-invoice"
                 placeholder="e.g. 1042"
                 value={lookupValue}
                 onChange={(e) => setLookupValue(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && loadInvoice(lookupValue)}
+                onKeyDown={(e) => e.key === "Enter" && !loadingInvoice && loadInvoice(lookupValue)}
               />
             </div>
-            <button className="btn-3d justify-center" onClick={() => loadInvoice(lookupValue)} disabled={loadingInvoice}>
+            <button type="button" className="btn-3d justify-center disabled:opacity-60" onClick={() => loadInvoice(lookupValue)} disabled={loadingInvoice} aria-busy={loadingInvoice}>
               {loadingInvoice ? "Looking up…" : "Find invoice"}
             </button>
           </div>
@@ -379,13 +395,13 @@ export default function PayPage() {
           <div className="flex flex-col gap-2">
             <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Paying for</p>
             <p className="font-form text-lg">{invoice.Name}</p>
-            <p className="text-sm text-brand-navydeep/70 mb-2">Receipt #{invoice.Id}</p>
+            <p className="text-sm text-brand-navydeep/80 mb-2">Receipt #{invoice.Id}</p>
             {invoiceTotalDue <= 0 && (
               <p className="glass-panel p-3 text-sm font-semibold text-emerald-600">
                 <i className="fa-solid fa-circle-check"></i> This invoice is already paid in full.
               </p>
             )}
-            <button className="text-xs text-brand-navydeep/60 underline self-start" onClick={() => setInvoice(null)}>
+            <button className="text-xs text-brand-navydeep/75 underline self-start" onClick={() => setInvoice(null)}>
               Not the right invoice? Look up another
             </button>
           </div>
@@ -395,22 +411,23 @@ export default function PayPage() {
           <div className="flex flex-col gap-6 mt-6">
             <div className="glass-panel p-4 text-sm">
               <div className="flex justify-between py-1">
-                <span className="text-brand-navydeep/70">Amount due</span>
+                <span className="text-brand-navydeep/80">Amount due</span>
                 <span className="font-semibold">{formatMoney(totalDue)}</span>
               </div>
-              <p className="text-xs text-brand-navydeep/60 mt-1">
+              <p className="text-xs text-brand-navydeep/75 mt-1">
                 Final total (including a Card Processing Fee of up to 3.0% for credit cards — debit cards are
                 exempt) is confirmed after your card is verified.
               </p>
             </div>
 
             <div className="field-group">
-              <span className="field-label">
-                <i className="fa-solid fa-envelope"></i> Email for receipt (optional)
-              </span>
+              <label htmlFor="pay-email" className="field-label">
+                <i className="fa-solid fa-envelope" aria-hidden="true"></i> Email for receipt (optional)
+              </label>
               <input
                 type="email"
                 className="input-3d"
+                id="pay-email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -418,14 +435,15 @@ export default function PayPage() {
             </div>
 
             <div className="field-group">
-              <span className="field-label">
-                <i className="fa-solid fa-mobile-screen"></i> Phone for text receipt (optional)
-              </span>
+              <label htmlFor="pay-phone" className="field-label">
+                <i className="fa-solid fa-mobile-screen" aria-hidden="true"></i> Phone for text receipt (optional)
+              </label>
               <input
                 type="tel"
                 inputMode="tel"
                 autoComplete="off"
                 className="input-3d"
+                id="pay-phone"
                 placeholder="e.g. 347-555-0100"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -454,15 +472,15 @@ export default function PayPage() {
           <div className="flex flex-col items-center gap-3 text-center">
             <i className="fa-solid fa-circle-check text-4xl text-emerald-600"></i>
             <p className="font-form text-xl">Payment successful</p>
-            {payLabel && <p className="text-sm text-brand-navydeep/70">{payLabel}</p>}
-            {payInvoiceId && <p className="text-xs text-brand-navydeep/60">Order ID: {payInvoiceId}</p>}
+            {payLabel && <p className="text-sm text-brand-navydeep/80">{payLabel}</p>}
+            {payInvoiceId && <p className="text-xs text-brand-navydeep/75">Order ID: {payInvoiceId}</p>}
             <div className="glass-panel p-4 text-sm w-full text-left">
               <div className="flex justify-between py-1">
-                <span className="text-brand-navydeep/70">Subtotal</span>
+                <span className="text-brand-navydeep/80">Subtotal</span>
                 <span>{formatMoney(receipt.baseAmountCents / 100)}</span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-brand-navydeep/70">
+                <span className="text-brand-navydeep/80">
                   Card Processing Fee
                   {receipt.surchargeCents > 0
                     ? ` (${((receipt.surchargeCents / receipt.baseAmountCents) * 100).toFixed(1)}%)`
@@ -475,7 +493,7 @@ export default function PayPage() {
                 <span>{formatMoney(receipt.totalCents / 100)}</span>
               </div>
               {receipt.cardLast4 && (
-                <div className="flex justify-between pt-1 text-xs text-brand-navydeep/60">
+                <div className="flex justify-between pt-1 text-xs text-brand-navydeep/75">
                   <span>Paid with</span>
                   <span>
                     {formatCardLabel(receipt.cardBrand, receipt.cardLast4)} · {receipt.funding === "debit" ? "Debit" : "Credit"}

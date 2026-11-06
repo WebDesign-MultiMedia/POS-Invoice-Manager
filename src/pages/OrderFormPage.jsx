@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
@@ -6,6 +6,8 @@ import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { submitOrder } from "../api/sheetdb.js";
 import { getCurrentDateTime, getTotalQuantity, formatDate } from "../lib/format.js";
 import { getBrand } from "../lib/brand.js";
+import { isDemo } from "../lib/demo.js";
+import { friendlyMessage } from "../lib/errors.js";
 
 const INITIAL_FORM = {
   Name: "",
@@ -31,19 +33,56 @@ const ALERT_BASE = {
   `,
 };
 
+// A half-typed order is kept in sessionStorage (this tab only) until it's
+// saved, so it survives a session timeout, the login screen, or a reload.
+// Demo drafts use their own key so sample data never shows up after a real
+// login.
+const draftKey = () => (isDemo() ? "pim-order-draft-demo" : "pim-order-draft");
+
+function loadDraft() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(draftKey()));
+    if (saved && typeof saved === "object") return { ...INITIAL_FORM, ...saved };
+  } catch {
+    // Storage blocked or corrupt draft: start empty.
+  }
+  return null;
+}
+
+function saveDraft(form) {
+  try {
+    const isEmpty = Object.values(form).every((v) => !String(v).trim());
+    if (isEmpty) sessionStorage.removeItem(draftKey());
+    else sessionStorage.setItem(draftKey(), JSON.stringify(form));
+  } catch {
+    // Storage blocked: the form still works, just without a draft.
+  }
+}
+
 function fieldClass(value, validated) {
   if (!validated) return "input-3d text-center";
   return value.trim() ? "input-3d text-center field-valid" : "input-3d text-center field-error";
 }
 
 export default function OrderFormPage() {
-  const [form, setForm] = useState(INITIAL_FORM);
+  const [initialDraft] = useState(loadDraft);
+  const [form, setForm] = useState(initialDraft || INITIAL_FORM);
   const [validated, setValidated] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [restored, setRestored] = useState(Boolean(initialDraft));
+  // A ref as well as state: two quick taps can land before React re-renders
+  // the disabled button, and the ref stops the second one immediately.
+  const savingRef = useRef(false);
+
+  useEffect(() => {
+    saveDraft(form);
+  }, [form]);
 
   const setField = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (savingRef.current) return;
 
     const { date, time } = getCurrentDateTime();
     const data = {
@@ -72,16 +111,30 @@ export default function OrderFormPage() {
       return;
     }
 
-    Swal.fire({ ...ALERT_BASE, title: "Successfully Stored", icon: "success", timer: 1500 });
-
+    savingRef.current = true;
+    setSaving(true);
     try {
       await submitOrder(data);
     } catch (err) {
-      console.error(err.message);
+      // The form (and its draft) stay as they are, so nothing is retyped.
+      console.error("submitOrder failed:", err);
+      Swal.fire({
+        ...ALERT_BASE,
+        showConfirmButton: true,
+        title: "Order not saved",
+        text: `${friendlyMessage(err, "Couldn't save the order.")} Your order is still here — press Submit Order again.`,
+        icon: "error",
+      });
+      return;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
 
+    Swal.fire({ ...ALERT_BASE, title: "Successfully Stored", icon: "success", timer: 1500 });
     setForm(INITIAL_FORM);
     setValidated(false);
+    setRestored(false);
   };
 
   const brand = getBrand();
@@ -120,6 +173,23 @@ export default function OrderFormPage() {
           <i className="fa-solid fa-utensils text-brand-gold text-xl"></i>
           <h2 className="text-xl sm:text-2xl font-semibold text-brand-navy">Customer Order</h2>
         </div>
+
+        {restored && (
+          <p role="status" className="glass-panel p-3 mb-5 text-sm text-center">
+            <i className="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Restored your unsaved order.{" "}
+            <button
+              type="button"
+              className="underline font-semibold"
+              onClick={() => {
+                setForm(INITIAL_FORM);
+                setValidated(false);
+                setRestored(false);
+              }}
+            >
+              Start over
+            </button>
+          </p>
+        )}
 
         <div className="grid sm:grid-cols-3 gap-4 mb-5">
           <div className="field-group">
@@ -180,7 +250,7 @@ export default function OrderFormPage() {
 
         <div className="field-group mb-5">
           <label htmlFor="DueDate" className="field-label">
-            <i className="fa-solid fa-calendar-days"></i> Due Date <span className="normal-case text-brand-muted/50">(optional — catering/future orders)</span>
+            <i className="fa-solid fa-calendar-days"></i> Due Date <span className="normal-case text-brand-muted/90">(optional — catering/future orders)</span>
           </label>
           <input type="date" name="DueDate" id="DueDate" className="input-3d" value={form.DueDate} onChange={setField("DueDate")} />
         </div>
@@ -202,7 +272,7 @@ export default function OrderFormPage() {
 
         <div className="field-group mb-8">
           <label htmlFor="Notes" className="field-label">
-            <i className="fa-solid fa-note-sticky"></i> Notes <span className="normal-case text-brand-muted/50">(optional)</span>
+            <i className="fa-solid fa-note-sticky"></i> Notes <span className="normal-case text-brand-muted/90">(optional)</span>
           </label>
           <textarea
             name="Notes"
@@ -216,8 +286,8 @@ export default function OrderFormPage() {
         </div>
 
         <div className="flex justify-center">
-          <button id="addDate" type="submit" className="btn-3d">
-            <i className="fa-solid fa-paper-plane"></i> Submit Order
+          <button id="addDate" type="submit" className="btn-3d disabled:opacity-60" disabled={saving} aria-busy={saving}>
+            <i className={`fa-solid ${saving ? "fa-spinner fa-spin" : "fa-paper-plane"}`} aria-hidden="true"></i> {saving ? "Saving…" : "Submit Order"}
           </button>
         </div>
       </TiltCard>

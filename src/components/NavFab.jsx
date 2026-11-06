@@ -5,20 +5,22 @@ import TiltCard from "./TiltCard.jsx";
 export default function NavFab({ to, href, title, icon, colorClass, glowClass, external = false }) {
   const content = (
     <TiltCard maxDeg={10} className={`fab glass-panel hover:${glowClass}`}>
-      <i className={`fa-solid ${icon} text-2xl ${colorClass}`}></i>
+      <i className={`fa-solid ${icon} text-2xl ${colorClass}`} aria-hidden="true"></i>
     </TiltCard>
   );
 
+  // Icon-only buttons: aria-label gives screen readers the name the
+  // tooltip shows sighted users.
   if (external || href) {
     return (
-      <a href={href} title={title} target={external ? "_blank" : undefined} rel={external ? "noopener" : undefined}>
+      <a href={href} title={title} aria-label={title} className="nav-fab-link" target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined}>
         {content}
       </a>
     );
   }
 
   return (
-    <Link to={to} title={title}>
+    <Link to={to} title={title} aria-label={title} className="nav-fab-link">
       {content}
     </Link>
   );

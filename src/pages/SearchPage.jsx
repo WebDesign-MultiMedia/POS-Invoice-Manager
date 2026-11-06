@@ -8,6 +8,7 @@ import { fetchAllOrders, fetchAllCardPayments } from "../api/sheetdb.js";
 import { formatDate, formatMoney, parseStoredDate, escapeRegex } from "../lib/format.js";
 import { parseCardPaymentOrder } from "../lib/menu.js";
 import { isDemo } from "../lib/demo.js";
+import { friendlyMessage } from "../lib/errors.js";
 
 const SEARCH_FIELDS = {
   Contact: { label: "Phone number", icon: "fa-phone", type: "text", placeholder: "e.g. 555-0100" },
@@ -54,6 +55,7 @@ export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | error
   const [results, setResults] = useState(null);
+  const [errorText, setErrorText] = useState("");
   // Which sheet `results` came from, so the right card renders even if the
   // dropdown changes after a search.
   const [resultSource, setResultSource] = useState("orders");
@@ -66,6 +68,7 @@ export default function SearchPage() {
   };
 
   const runSearch = async () => {
+    if (status === "loading") return;
     const rawQuery = query.trim();
     if (!rawQuery) {
       Swal.fire({ title: `Enter a ${config.label.toLowerCase()}`, icon: "warning", theme: "dark", timer: 1400, showConfirmButton: false });
@@ -83,6 +86,7 @@ export default function SearchPage() {
       setStatus("idle");
     } catch (err) {
       console.error("Error fetching data:", err);
+      setErrorText(friendlyMessage(err, "Couldn't load orders."));
       setStatus("error");
     }
   };
@@ -131,29 +135,32 @@ export default function SearchPage() {
             onKeyDown={handleKeyDown}
           />
         </div>
-        <button id="searchBtn" className="btn-3d" onClick={runSearch}>
-          <i className="fa-solid fa-magnifying-glass"></i> Search
+        <button id="searchBtn" className="btn-3d disabled:opacity-60" onClick={runSearch} disabled={status === "loading"} aria-busy={status === "loading"}>
+          <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Search
         </button>
       </TiltCard>
 
-      <div id="searchResults" className="w-full max-w-4xl mt-8 grid gap-4 sm:grid-cols-2">
+      <div id="searchResults" className="w-full max-w-4xl mt-8 grid gap-4 sm:grid-cols-2" aria-live="polite">
         {status === "loading" && (
-          <div className="col-span-full flex flex-col items-center gap-3 py-10 text-brand-muted/80">
+          <div className="col-span-full flex flex-col items-center gap-3 py-10 text-brand-muted/90">
             <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-gold"></i>
             <p>Searching orders...</p>
           </div>
         )}
 
         {status === "error" && (
-          <div className="col-span-full flex flex-col items-center gap-2 py-10 text-brand-coral">
-            <i className="fa-solid fa-triangle-exclamation text-3xl"></i>
-            <p>Something went wrong fetching orders. Try again.</p>
+          <div role="alert" className="col-span-full flex flex-col items-center gap-3 py-10 text-center text-brand-coral">
+            <i className="fa-solid fa-triangle-exclamation text-3xl" aria-hidden="true"></i>
+            <p>{errorText}</p>
+            <button type="button" className="btn-3d !py-2 text-sm" onClick={runSearch}>
+              <i className="fa-solid fa-rotate-right" aria-hidden="true"></i> Try again
+            </button>
           </div>
         )}
 
         {status === "idle" && results !== null && results.length === 0 && (
-          <div className="col-span-full flex flex-col items-center gap-2 py-10 text-brand-muted/80 stagger-in">
-            <i className="fa-solid fa-folder-open text-3xl text-brand-muted/50"></i>
+          <div className="col-span-full flex flex-col items-center gap-2 py-10 text-brand-muted/90 stagger-in">
+            <i className="fa-solid fa-folder-open text-3xl text-brand-muted/90"></i>
             <p>{resultSource === "cardPayments" ? "No matching card payments found" : "No matching orders found"}</p>
           </div>
         )}
@@ -167,7 +174,7 @@ export default function SearchPage() {
                 <span className="text-brand-navy font-semibold break-all">
                   <i className="fa-solid fa-receipt"></i> {payment.InvoiceId || "No Order ID"}
                 </span>
-                <span className="text-sm text-brand-muted/70 whitespace-nowrap">
+                <span className="text-sm text-brand-muted/90 whitespace-nowrap">
                   <i className="fa-solid fa-calendar-days"></i> {payment.Date} {payment.Time}
                 </span>
               </div>
@@ -217,16 +224,16 @@ export default function SearchPage() {
                 );
               })()}
               <div className="mt-4 pt-3 border-t border-brand-navydeep/10 text-sm space-y-1">
-                <div className="flex justify-between text-brand-navydeep/70">
+                <div className="flex justify-between text-brand-navydeep/80">
                   <span>Amount</span>
                   <span>{formatMoney(payment.Amount)}</span>
                 </div>
-                <div className="flex justify-between text-brand-navydeep/70">
+                <div className="flex justify-between text-brand-navydeep/80">
                   <span>Card fee</span>
                   <span>{formatMoney(payment.Fee)}</span>
                 </div>
                 <div className="flex items-center justify-between pt-1">
-                  <span className="text-xs uppercase tracking-wide text-brand-muted/70">
+                  <span className="text-xs uppercase tracking-wide text-brand-muted/90">
                     <i className="fa-solid fa-credit-card"></i> {payment.Card ? `${payment.Card} · ` : ""}
                     {payment.Funding === "debit" ? "Debit" : "Credit"}
                   </span>
@@ -269,7 +276,7 @@ export default function SearchPage() {
                 <span className="text-brand-navy font-semibold">
                   <i className="fa-solid fa-hashtag"></i> {order.Id ?? ""}
                 </span>
-                <span className="text-sm text-brand-muted/70">
+                <span className="text-sm text-brand-muted/90">
                   <i className="fa-solid fa-calendar-days"></i> {order.Date ?? ""}
                 </span>
               </div>
@@ -288,7 +295,7 @@ export default function SearchPage() {
                 </p>
               </div>
               <div className="flex items-center justify-between mt-4 pt-3 border-t border-brand-navydeep/10">
-                <span className="text-xs uppercase tracking-wide text-brand-muted/70">
+                <span className="text-xs uppercase tracking-wide text-brand-muted/90">
                   <i className="fa-solid fa-wallet"></i> {order.Payment ?? ""}
                 </span>
                 <span className="text-lg font-bold text-brand-navy">${order.Cost ?? "0"}</span>

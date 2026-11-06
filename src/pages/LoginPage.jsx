@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../lib/auth.jsx";
+import { friendlyMessage } from "../lib/errors.js";
 
 // Staff login screen. Shown in place of whatever page was requested, so
 // after logging in the staff member lands right where they were going.
@@ -48,12 +49,12 @@ export function AuthSplash() {
 }
 
 export default function LoginPage() {
-  const { login, enterDemo } = useAuth();
+  const { login, enterDemo, sessionExpired } = useAuth();
   const [form, setForm] = useState({ identifier: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(sessionExpired ? "Your session expired. Please log in again." : "");
   const [capsLock, setCapsLock] = useState(false);
   const identifierRef = useRef(null);
 
@@ -103,7 +104,9 @@ export default function LoginPage() {
     try {
       await login(form.identifier, form.password);
     } catch (err) {
-      setError(err.message);
+      // The server's own login messages ("Wrong email/phone or password",
+      // "Too many attempts…") are written for staff, so they're shown as-is.
+      setError(err.serverMessage || friendlyMessage(err, "Couldn't log in. Please try again."));
       setForm((current) => ({ ...current, password: "" }));
     } finally {
       setSubmitting(false);

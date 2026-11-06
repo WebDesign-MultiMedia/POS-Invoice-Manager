@@ -80,7 +80,7 @@ export default function UpdatesPage() {
               <span className="text-brand-navy font-semibold">
                 <i className={`fa-solid ${update.icon}`}></i> {update.title}
               </span>
-              <span className="text-xs text-brand-muted/60">{update.date}</span>
+              <span className="text-xs text-brand-muted/85">{update.date}</span>
             </div>
             <p className="text-sm text-brand-muted/90">{update.body}</p>
           </TiltCard>

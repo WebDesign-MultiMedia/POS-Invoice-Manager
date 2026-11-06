@@ -18,7 +18,7 @@ function LogoutButton() {
       aria-label={status === "demo" ? "Exit demo" : "Log out"}
       className="no-print fab absolute top-4 left-4 z-50 hover:shadow-glow-gold"
     >
-      <i className="fa-solid fa-right-from-bracket text-xl text-brand-gold"></i>
+      <i className="fa-solid fa-right-from-bracket text-xl text-brand-gold" aria-hidden="true"></i>
     </button>
   );
 }
@@ -31,7 +31,7 @@ export default function Layout({ blobs = [], children, mainClassName = "" }) {
       <ThemeToggle />
       <LogoutButton />
       {blobs.map((cls, i) => (
-        <div key={i} className={`blob ${cls}`}></div>
+        <div key={i} className={`blob ${cls}`} aria-hidden="true"></div>
       ))}
       <main className={`relative z-10 flex flex-col items-center px-4 py-10 ${mainClassName}`.trim()}>
         <DemoBanner />
@@ -51,10 +51,10 @@ export function PageHeader({ logoSize = "w-16 h-16", title, subtitle, marginBott
           <i className="fa-solid fa-mug-saucer text-2xl text-brand-gold"></i>
         </span>
       ) : (
-        <img src="/imgs/BLFM-logo.PNG" alt="logo" className={`${logoSize} object-contain drop-shadow-lg`} />
+        <img src="/imgs/BLFM-logo.PNG" alt="Buffet Lucia Fiesta Mexicana logo" className={`${logoSize} object-contain drop-shadow-lg`} />
       )}
       <h1 className="font-headings text-2xl sm:text-3xl leading-snug shimmer-text text-center mt-2">{title}</h1>
-      <p className="text-brand-muted/80 text-sm leading-relaxed tracking-widest uppercase text-center mt-2 max-w-md px-2 text-balance">
+      <p className="text-brand-navydeep/90 text-sm leading-relaxed tracking-widest uppercase text-center mt-2 max-w-md px-2 text-balance">
         {/* Keep a "•" separator on the end of the line it follows, never starting the next one. */}
         {typeof subtitle === "string" ? subtitle.replace(/ • /g, "\u00a0• ") : subtitle}
       </p>

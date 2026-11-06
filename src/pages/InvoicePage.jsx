@@ -8,6 +8,8 @@ import { getInvoiceById, getCardPaymentsForInvoice, getShareToken, getSharedInvo
 import { toNumber, formatMoney, splitItems } from "../lib/format.js";
 import { getBrand } from "../lib/brand.js";
 import { copyText } from "../lib/clipboard.js";
+import { friendlyMessage } from "../lib/errors.js";
+import { invoiceBalance } from "../lib/totals.js";
 
 export default function InvoicePage() {
   const [searchParams] = useSearchParams();
@@ -19,6 +21,8 @@ export default function InvoicePage() {
   const [cardPayments, setCardPayments] = useState([]);
   const [popupOpen, setPopupOpen] = useState(false);
   const [popupValue, setPopupValue] = useState("");
+  // Shown in place of a blank invoice when a customer's link can't load.
+  const [loadError, setLoadError] = useState("");
 
   const wrapRef = useRef(null);
   const cardRef = useRef(null);
@@ -42,7 +46,7 @@ export default function InvoicePage() {
       }
     } catch (err) {
       console.error("Error loading invoice:", err);
-      Swal.fire({ title: "Couldn't load the invoice", text: "Check your connection and try again.", icon: "error", theme: "dark" });
+      Swal.fire({ title: "Couldn't load the invoice", text: friendlyMessage(err, "The invoice couldn't be loaded."), icon: "error", theme: "dark" });
     }
   };
 
@@ -59,12 +63,16 @@ export default function InvoicePage() {
         .then((shared) => {
           if (!shared) {
             console.warn("Invalid or missing share token for invoice:", preselectedId);
+            setLoadError(`This invoice link isn't valid. Please ask ${getBrand().name} to send it again.`);
             return;
           }
           setInvoice(shared.invoice);
           setCardPayments(shared.cardPayments || []);
         })
-        .catch((err) => console.error("Error loading shared invoice:", err));
+        .catch((err) => {
+          console.error("Error loading shared invoice:", err);
+          setLoadError(friendlyMessage(err, "This invoice couldn't be loaded right now."));
+        });
     } else {
       loadInvoice(preselectedId);
     }
@@ -159,15 +167,11 @@ export default function InvoicePage() {
   };
 
   const brand = getBrand();
-  const cost = invoice ? toNumber(invoice.Cost) || 0 : 0;
   const itemList = invoice ? splitItems(invoice.Items) : [];
-  const deposit = invoice ? toNumber(invoice.Deposit) : NaN;
-  const hasDeposit = !isNaN(deposit) && deposit > 0;
   // Card payments reduce the balance by their base Amount; the processing
-  // fee was paid on top and never counts toward the order.
-  const cardPaid = cardPayments.reduce((sum, p) => sum + (toNumber(p.Amount) || 0), 0);
+  // fee was paid on top and never counts toward the order (lib/totals.js).
+  const { cost, deposit, hasDeposit, balanceDue: totalDue } = invoiceBalance(invoice, cardPayments);
   const hasPayments = hasDeposit || cardPayments.length > 0;
-  const totalDue = Math.max(cost - (hasDeposit ? deposit : 0) - cardPaid, 0);
 
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -left-10 animate-float-slow no-print", "bg-brand-pink w-80 h-80 top-1/2 -right-16 animate-float no-print"]}>
@@ -198,6 +202,12 @@ export default function InvoicePage() {
         </p>
       )}
 
+      {loadError && (
+        <p role="alert" className="no-print glass-panel w-full max-w-3xl p-4 mb-6 text-center font-semibold text-brand-error">
+          <i className="fa-solid fa-circle-exclamation" aria-hidden="true"></i> {loadError}
+        </p>
+      )}
+
       <div ref={wrapRef} className="tilt-wrap w-full max-w-3xl stagger-in">
         <div ref={cardRef} className="paper-card animate-unfold text-brand-navydeep p-8 sm:p-12 overflow-hidden">
           <div className="flex justify-between items-start gap-4 flex-wrap pb-6 border-b-2 border-brand-navydeep/10">
@@ -211,43 +221,49 @@ export default function InvoicePage() {
               )}
               <div>
                 <p className="font-form text-2xl sm:text-3xl leading-tight text-brand-navy">{brand.name}</p>
-                <p className="text-xs uppercase tracking-widest text-brand-navydeep/60">
+                <p className="text-xs uppercase tracking-widest text-brand-navydeep/75">
                   {brand.shortTagline} &bull; {brand.location}
                 </p>
               </div>
             </div>
             <div className="text-sm text-right space-y-1 relative">
               <p>
-                <span className="font-semibold text-brand-navydeep/70">Receipt #</span>{" "}
+                <span className="font-semibold text-brand-navydeep/80">Receipt #</span>{" "}
                 {!isShareView && (
-                  <i
-                    className="fa-solid fa-magnifying-glass text-xs cursor-pointer hover:text-brand-gold no-print"
+                  <button
+                    type="button"
+                    className="no-print text-xs hover:text-brand-gold"
                     title="Look up another invoice"
+                    aria-label="Look up another invoice"
+                    aria-expanded={popupOpen}
                     onClick={() => setPopupOpen((v) => !v)}
-                  ></i>
+                  >
+                    <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                  </button>
                 )}{" "}
                 <span className="font-semibold">{invoice?.Id ?? ""}</span>
               </p>
               <p>
-                <span className="font-semibold text-brand-navydeep/70">Date</span> <span>{invoice?.Date ?? ""}</span>
+                <span className="font-semibold text-brand-navydeep/80">Date</span> <span>{invoice?.Date ?? ""}</span>
               </p>
               <p>
-                <span className="font-semibold text-brand-navydeep/70">Time</span> <span>{invoice?.Time ?? ""}</span>
+                <span className="font-semibold text-brand-navydeep/80">Time</span> <span>{invoice?.Time ?? ""}</span>
               </p>
               <p>
-                <span className="font-semibold text-brand-navydeep/70">Order Type</span> <span>{invoice?.PickupDelivery || "—"}</span>
+                <span className="font-semibold text-brand-navydeep/80">Order Type</span> <span>{invoice?.PickupDelivery || "—"}</span>
               </p>
               {invoice?.DueDate && (
                 <p>
-                  <span className="font-semibold text-brand-navydeep/70">Due Date</span> <span>{invoice.DueDate}</span>
+                  <span className="font-semibold text-brand-navydeep/80">Due Date</span> <span>{invoice.DueDate}</span>
                 </p>
               )}
               {popupOpen && (
                 <div className="no-print absolute z-20 top-full mt-2 left-1/2 -translate-x-1/2 glass-card !bg-white/95 p-3 flex flex-col gap-2 items-center shadow-depth-md">
                   <input
                     type="text"
-                    className="w-28 text-black text-center placeholder:text-gray-500 rounded-lg border border-black/10 px-2 py-1"
+                    className="w-28 text-base text-black text-center placeholder:text-gray-600 rounded-lg border border-black/10 px-2 py-1"
                     placeholder="Invoice #"
+                    aria-label="Invoice number"
                     value={popupValue}
                     onChange={(e) => setPopupValue(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handlePopupLoad()}
@@ -273,7 +289,7 @@ export default function InvoicePage() {
 
           <table className="w-full mt-6 text-sm">
             <thead>
-              <tr className="border-b-2 border-brand-navydeep/20 text-left text-brand-navydeep/70">
+              <tr className="border-b-2 border-brand-navydeep/20 text-left text-brand-navydeep/80">
                 <th className="py-2 pr-2 w-14">Qty</th>
                 <th className="py-2 pr-2">Description</th>
                 <th className="py-2 text-right">Amount</th>
@@ -319,12 +335,12 @@ export default function InvoicePage() {
             <div className="w-full sm:w-72 text-sm ml-auto">
               {invoice && (
                 <>
-                  <div className="flex justify-between py-1 text-brand-navydeep/70">
+                  <div className="flex justify-between py-1 text-brand-navydeep/80">
                     <span>Subtotal</span>
                     <span>{formatMoney(cost)}</span>
                   </div>
                   {hasDeposit && (
-                    <div className="flex justify-between py-1 text-brand-navydeep/70">
+                    <div className="flex justify-between py-1 text-brand-navydeep/80">
                       <span>Deposit paid</span>
                       <span>-{formatMoney(deposit)}</span>
                     </div>
@@ -332,14 +348,14 @@ export default function InvoicePage() {
                   {cardPayments.map((p) => {
                     const fee = toNumber(p.Fee) || 0;
                     return (
-                      <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-1 text-brand-navydeep/70">
+                      <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-1 text-brand-navydeep/80">
                         <div className="flex justify-between">
                           <span>
                             {p.Funding === "debit" ? "Debit" : "Credit"} card payment{p.Card ? ` (${p.Card})` : ""} · {p.Date}
                           </span>
                           <span>-{formatMoney(p.Amount)}</span>
                         </div>
-                        <p className="text-xs text-brand-navydeep/60">
+                        <p className="text-xs text-brand-navydeep/75">
                           {fee > 0
                             ? `Charged ${formatMoney(p.Total)} (incl. ${formatMoney(fee)} card processing fee)`
                             : `Charged ${formatMoney(p.Total)} (no card fee)`}
@@ -359,7 +375,7 @@ export default function InvoicePage() {
           <div className="flex justify-between items-end gap-6 mt-10 flex-wrap">
             <div className="max-w-xs">
               <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Terms &amp; Conditions</p>
-              <p className="text-xs text-brand-navydeep/70">
+              <p className="text-xs text-brand-navydeep/80">
                 {brand.demo
                   ? "Any remaining balance is due at delivery or pick-up. Thank you for your order! "
                   : "El saldo restante se paga al momento de la entrega o recogida. Gracias por su preferencia "}
@@ -368,20 +384,20 @@ export default function InvoicePage() {
             </div>
             <div className="text-right">
               <p className="font-form text-2xl text-brand-teal">{brand.demo ? "Demo Café" : "Buffet Lucia"}</p>
-              <p className="text-xs text-brand-navydeep/60 -mt-1">{brand.demo ? "Sample restaurant" : "Fiesta Mexicana"}</p>
+              <p className="text-xs text-brand-navydeep/75 -mt-1">{brand.demo ? "Sample restaurant" : "Fiesta Mexicana"}</p>
             </div>
           </div>
 
           {/* Social links, review and SMS sign-up QR codes belong to the real
               restaurant, so the demo's sample café shows a plain thank-you. */}
           {brand.demo ? (
-            <p className="mt-8 pt-6 border-t border-brand-navydeep/10 text-center text-xs text-brand-navydeep/70">
+            <p className="mt-8 pt-6 border-t border-brand-navydeep/10 text-center text-xs text-brand-navydeep/80">
               Thanks for trying the demo — this invoice belongs to a made-up business.
             </p>
           ) : (
             <>
               <div className="flex flex-col items-center mt-8 pt-6 border-t border-brand-navydeep/10 text-center">
-                <p className="text-xs text-brand-navydeep/70 max-w-xs">
+                <p className="text-xs text-brand-navydeep/80 max-w-xs">
                   "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
                 </p>
                 <span className="flex items-center gap-4 mt-2">

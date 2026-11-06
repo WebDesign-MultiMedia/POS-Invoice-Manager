@@ -20,7 +20,7 @@ const GUIDE_STEPS = [
   ["fa-magnifying-glass", "Search orders", "Find any order by phone, name, address, date, month, year — or a card payment by its Order ID."],
   ["fa-file-invoice-dollar", "Make an invoice", "Every search result has Generate Invoice: a printable receipt with deposits and card payments taken off the balance."],
   ["fa-credit-card", "Take card payments", "Pay with Card charges a walk-up sale or an invoice balance, adds the card fee for credit cards and logs it."],
-  ["fa-bullhorn", "Text customers", "Managers can text weekend specials to customers who signed up."],
+  ["fa-bullhorn", "Text customers", "Text weekend specials to customers who signed up, and see how many there are."],
   ["fa-droplet", "Pick a theme", "The top-right button switches between blue, green, red, black, white and gray."],
 ];
 
@@ -66,12 +66,12 @@ export default function DemoBanner() {
 
   return (
     <section className="no-print w-full max-w-3xl mt-12 mb-6 stagger-in" aria-label="Demo mode">
-      <div className="glass-panel px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 text-sm">
+      <div className="glass-panel demo-banner-panel px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 text-sm">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <span className="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-widest uppercase bg-brand-cactus/90 text-black">Demo</span>
-          <p className="text-brand-navydeep/90 leading-snug">
+          <p className="text-brand-navydeep leading-snug">
             <span className="font-semibold">Sample data only — nothing real is saved, charged or texted.</span>
-            {tip && <span className="block text-brand-navydeep/70 mt-0.5">{tip}</span>}
+            {tip && <span className="block text-brand-navydeep/90 mt-0.5">{tip}</span>}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">

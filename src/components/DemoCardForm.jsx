@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { calcSurcharge } from "../lib/surcharge.js";
 import { formatMoney } from "../lib/format.js";
 
@@ -41,6 +41,7 @@ export default function DemoCardForm({ baseAmountCents, onPaid }) {
   const [cvc, setCvc] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const submittingRef = useRef(false);
 
   const digits = digitsOf(number);
   const complete = luhnOk(digits) && /^\d{2}\s*\/\s*\d{2}$/.test(expiry) && /^\d{3,4}$/.test(cvc);
@@ -54,14 +55,17 @@ export default function DemoCardForm({ baseAmountCents, onPaid }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     if (!complete) {
       setError("Use one of the test cards below.");
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     await new Promise((resolve) => setTimeout(resolve, 900));
     const funding = TEST_CARDS.find((c) => digitsOf(c.number) === digits)?.funding || "credit";
     const { surchargeCents, totalCents } = calcSurcharge(baseAmountCents, funding);
+    submittingRef.current = false;
     setSubmitting(false);
     onPaid({
       id: `demo_${Date.now()}`,
@@ -134,7 +138,7 @@ export default function DemoCardForm({ baseAmountCents, onPaid }) {
             </button>
           ))}
         </div>
-        <p className="mt-2 text-brand-navydeep/70">No real card is charged. Credit adds the card fee ({formatMoney(preview.surchargeCents / 100)} here); debit doesn't.</p>
+        <p className="mt-2 text-brand-navydeep/80">No real card is charged. Credit adds the card fee ({formatMoney(preview.surchargeCents / 100)} here); debit doesn't.</p>
       </div>
 
       {error && (
@@ -143,7 +147,7 @@ export default function DemoCardForm({ baseAmountCents, onPaid }) {
         </p>
       )}
 
-      <button type="submit" className="btn-3d justify-center" disabled={submitting}>
+      <button type="submit" className="btn-3d justify-center disabled:opacity-60" disabled={submitting} aria-busy={submitting}>
         {submitting ? (
           <>
             <i className="fa-solid fa-spinner fa-spin"></i> Processing…

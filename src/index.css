@@ -17,7 +17,7 @@
     --brand-goldlight: 1 211 211;
     --brand-coral: 46 107 229;
     --brand-error: 226 55 68;
-    --brand-teal: 2 136 203;
+    --brand-teal: 2 114 170;
     --brand-cream: 247 250 255;
     --brand-terracotta: 46 107 229;
     --brand-cactus: 46 168 229;
@@ -143,7 +143,7 @@
     --brand-navy: 0 26 80;
     --brand-navydeep: 32 40 56;
     --brand-muted: 46 56 77;
-    --brand-teal: 2 136 203;
+    --brand-teal: 2 114 170;
     --brand-coral: 46 107 229;
     --brand-terracotta: 46 107 229;
     --brand-cream: 247 250 255;
@@ -175,7 +175,7 @@
     --ui-option-bg: #ffffff;
     --ui-focus: #0055ff;
     --ui-focus-ring: rgba(0, 85, 255, 0.18);
-    --ui-btn-from: #2b71f2;
+    --ui-btn-from: #246cf2;
     --ui-btn-to: #0049e0;
     --ui-btn-glow: rgba(0, 85, 255, 0.55);
     --ui-btn-edge: rgba(255, 255, 255, 0);
@@ -230,7 +230,7 @@
     --ui-option-bg: #11141a;
     --ui-focus: #78a5db;
     --ui-focus-ring: rgba(120, 165, 219, 0.28);
-    --ui-btn-from: #5b8cc7;
+    --ui-btn-from: #3f77ba;
     --ui-btn-to: #2f5d99;
     --ui-btn-glow: rgba(91, 140, 199, 0.6);
     --ui-btn-edge: rgba(255, 255, 255, 0.12);
@@ -291,7 +291,7 @@
     --ui-option-bg: #06331f;
     --ui-focus: #6ee7a8;
     --ui-focus-ring: rgba(52, 199, 120, 0.3);
-    --ui-btn-from: #22a86a;
+    --ui-btn-from: #1b8453;
     --ui-btn-to: #0f6b42;
     --ui-btn-glow: rgba(34, 168, 106, 0.7);
     --ui-btn-edge: rgba(255, 255, 255, 0.16);
@@ -321,7 +321,7 @@
     --ui-option-bg: #3d0707;
     --ui-focus: #fca5a5;
     --ui-focus-ring: rgba(239, 68, 68, 0.3);
-    --ui-btn-from: #e04848;
+    --ui-btn-from: #dc3232;
     --ui-btn-to: #9b1c1c;
     --ui-btn-glow: rgba(224, 72, 72, 0.7);
     --ui-btn-edge: rgba(255, 255, 255, 0.16);
@@ -886,7 +886,7 @@
     }
   }
   .login-bg {
-    background: linear-gradient(180deg, #2b71f2 0%, #265edc 51%, #10178b 100%);
+    background: linear-gradient(180deg, #2563eb 0%, #265edc 51%, #10178b 100%);
   }
 
   /* Background shapes */
@@ -965,7 +965,8 @@
     padding: 5px 12px;
     border: 1px solid rgba(255, 255, 255, 0.28);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.12);
+    /* Navy-tinted glass (not white) keeps the small white text at 4.5:1+. */
+    background: rgba(16, 23, 139, 0.3);
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     color: #fff;
@@ -990,7 +991,7 @@
   .login-tagline {
     max-width: 34ch;
     margin: 10px auto 0;
-    color: rgba(255, 255, 255, 0.85);
+    color: #fff;
     font-family: "Inter", system-ui, sans-serif;
     font-size: 15px;
     font-weight: 400;
@@ -1009,7 +1010,7 @@
     gap: 8px;
     border: 1px solid rgba(255, 255, 255, 0.22);
     border-radius: 999px;
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+    background: linear-gradient(145deg, rgba(16, 23, 139, 0.34), rgba(16, 23, 139, 0.22));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
     color: #fff;
     font-family: "Inter", system-ui, sans-serif;
@@ -1142,7 +1143,7 @@
     background: #a61207;
   }
   .login-btn-demo {
-    background: linear-gradient(90deg, #9c9c13 0%, #363607 100%);
+    background: linear-gradient(90deg, #78780f 0%, #363607 100%);
   }
   .login-status {
     width: 100%;
@@ -1774,4 +1775,36 @@ input.input-3d::-webkit-datetime-edit {
 .field-label {
   flex-wrap: wrap;
   row-gap: 0.1rem;
+}
+
+/* ---- Staff-ready basics (accessibility + phones) ---- */
+@layer base {
+  /* iOS Safari zooms the page into any focused field under 16px. Classes
+     that set a larger size (e.g. text-lg) still win over this. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* A clear keyboard focus ring on every button and link, in each theme's
+     focus colour. Mouse/touch clicks don't show it (:focus-visible). */
+  a:focus-visible,
+  button:focus-visible,
+  summary:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 3px solid var(--ui-focus, #0055ff);
+    outline-offset: 3px;
+  }
+  /* The round nav buttons are links wrapping a circle; ring the circle. */
+  .nav-fab-link {
+    display: inline-flex;
+    border-radius: 9999px;
+  }
+}
+
+/* Demo banner on the blue theme: navy-tinted glass so its small white text
+   stays at 4.5:1 over the lighter top of the blue background. */
+.theme-blue .demo-banner-panel {
+  background: rgba(16, 23, 139, 0.38);
 }

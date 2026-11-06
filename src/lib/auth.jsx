@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { isDemo, startDemo, endDemo } from "./demo.js";
+import { apiErrorFrom } from "./errors.js";
 
 // Staff login state for the whole app. The session itself is an HttpOnly
 // cookie set by api/auth.js, so this only tracks who is logged in;
@@ -20,9 +21,8 @@ async function postAuth(body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(payload.error || `Response status: ${res.status}`);
-  return payload;
+  if (!res.ok) throw await apiErrorFrom(res);
+  return res.json();
 }
 
 export function AuthProvider({ children }) {
@@ -30,6 +30,14 @@ export function AuthProvider({ children }) {
   // or "demo" while someone is trying the app on sample data (lib/demo.js).
   const [status, setStatus] = useState(() => (isDemo() ? "demo" : "loading"));
   const [user, setUser] = useState(() => (isDemo() ? "Demo" : null));
+  // True when a logged-in session ran out mid-use (an API call got a 401),
+  // so the login screen can say why it's back. Unsaved order drafts are
+  // kept in sessionStorage by the order form, so nothing typed is lost.
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const statusRef = useRef(status);
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     if (isDemo()) return undefined;
@@ -45,6 +53,7 @@ export function AuthProvider({ children }) {
 
     const onExpired = () => {
       setUser(null);
+      if (statusRef.current === "in") setSessionExpired(true);
       setStatus("out");
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
@@ -57,6 +66,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (identifier, password) => {
     const { user: login } = await postAuth({ action: "login", identifier, password });
     endDemo();
+    setSessionExpired(false);
     setUser(login);
     setStatus("in");
   }, []);
@@ -67,6 +77,7 @@ export function AuthProvider({ children }) {
     } else {
       await postAuth({ action: "logout" }).catch(() => {});
     }
+    setSessionExpired(false);
     setUser(null);
     setStatus("out");
   }, []);
@@ -74,11 +85,12 @@ export function AuthProvider({ children }) {
   // Demo: no server session at all, just the sample-data mode.
   const enterDemo = useCallback(() => {
     startDemo();
+    setSessionExpired(false);
     setUser("Demo");
     setStatus("demo");
   }, []);
 
-  return <AuthContext.Provider value={{ status, user, login, logout, enterDemo }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ status, user, sessionExpired, login, logout, enterDemo }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
