@@ -12,10 +12,16 @@ import { requireStaff } from "./_lib/auth.js";
 // signed by the Worker with SIGNUP_SIGNING_KEY; rows typed into the sheet by
 // hand don't verify and are skipped.
 //
-// The rest of the app has no login, so this endpoint is gated by its own
-// manager password (BROADCAST_PASSWORD, sent as the X-Broadcast-Password
-// header). Without it, anyone who found the URL could text every customer.
+// Like every other endpoint, it needs a staff login (api/_lib/auth.js). Only
+// people the manager has added to STAFF_ACCOUNTS can send a broadcast.
 //
+// Opt-outs: Twilio blocks any number that replied STOP (error 21610, counted
+// as "optedOut" below). As a second guard, a signup row is also skipped when
+// its "Unsubscribed" or "OptOut" column holds anything other than blank/No,
+// so someone who asks in person or by phone can be removed by marking the
+// sheet.
+//
+//   POST { countOnly: true }            → { recipientCount, latestSignup } (nothing sent)
 //   POST { messageText, dryRun: true }  → { recipientCount } (nothing sent)
 //   POST { messageText }                → { recipientCount, sent, optedOut, failed }
 
@@ -48,11 +54,13 @@ function toE164(raw) {
   return local.length === 10 ? `+1${local}` : null;
 }
 
-function passwordMatches(given) {
-  const expected = process.env.BROADCAST_PASSWORD || "";
-  const a = crypto.createHash("sha256").update(String(given || "")).digest();
-  const b = crypto.createHash("sha256").update(expected).digest();
-  return expected.length > 0 && crypto.timingSafeEqual(a, b);
+const OPT_OUT_COLUMNS = ["Unsubscribed", "OptOut"];
+
+export function isMarkedOptedOut(row) {
+  return OPT_OUT_COLUMNS.some((col) => {
+    const value = String(row[col] ?? "").trim().toLowerCase();
+    return value !== "" && value !== "no" && value !== "false" && value !== "0";
+  });
 }
 
 // Must match copySignupToSheet() in the BLFM website's consent Worker.
@@ -74,15 +82,30 @@ async function fetchRecipients() {
   }
   // A Set because someone who signs up twice still gets one text.
   const numbers = new Set();
+  const optedOut = new Set();
+  // When each number most recently signed up (the Worker's ISO "Date").
+  const signedUpAt = new Map();
   let skipped = 0;
   for (const row of rows) {
     if (row.Specials !== "Yes") continue;
     const number = toE164(row.Phone);
-    if (number && row.ConsentId && signatureMatches(row, number)) numbers.add(number);
-    else skipped++;
+    if (!number || !row.ConsentId || !signatureMatches(row, number)) {
+      skipped++;
+      continue;
+    }
+    if (isMarkedOptedOut(row)) {
+      optedOut.add(number);
+      continue;
+    }
+    numbers.add(number);
+    const when = Date.parse(row.Date);
+    if (Number.isFinite(when) && when > (signedUpAt.get(number) || 0)) signedUpAt.set(number, when);
   }
   if (skipped) console.warn(`send-broadcast: skipped ${skipped} SMSSignups rows that don't verify`);
-  return [...numbers];
+  // An opt-out on any row for a number wins over a later sign-up row.
+  const recipients = [...numbers].filter((n) => !optedOut.has(n));
+  const newest = Math.max(0, ...recipients.map((n) => signedUpAt.get(n) || 0));
+  return { recipients, latestSignup: newest ? new Date(newest).toISOString() : null };
 }
 
 export default async function handler(req, res) {
@@ -91,20 +114,28 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Staff login first, then the separate manager password below.
   if (!requireStaff(req, res)) return;
 
   const sender = process.env.TWILIO_MESSAGING_SERVICE_SID || process.env.TWILIO_PHONE_NUMBER;
-  if (!process.env.BROADCAST_PASSWORD || !process.env.SHEETDB_ID || !process.env.SIGNUP_SIGNING_KEY || !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !sender) {
-    console.error("send-broadcast: missing BROADCAST_PASSWORD, SHEETDB_ID, SIGNUP_SIGNING_KEY, or Twilio env vars");
+  if (!process.env.SHEETDB_ID || !process.env.SIGNUP_SIGNING_KEY || !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !sender) {
+    console.error("send-broadcast: missing SHEETDB_ID, SIGNUP_SIGNING_KEY, or Twilio env vars");
     return res.status(500).json({ error: "Server is not configured" });
   }
 
-  if (!passwordMatches(req.headers["x-broadcast-password"])) {
-    return res.status(401).json({ error: "Wrong manager password" });
+  const { messageText, dryRun, countOnly } = req.body || {};
+
+  // How many customers are signed up, for the Text Customers page. Nothing
+  // is sent and no message is needed.
+  if (countOnly) {
+    try {
+      const { recipients, latestSignup } = await fetchRecipients();
+      return res.status(200).json({ recipientCount: recipients.length, latestSignup });
+    } catch (err) {
+      console.error("send-broadcast count error:", err);
+      return res.status(500).json({ error: "Couldn't count subscribers" });
+    }
   }
 
-  const { messageText, dryRun } = req.body || {};
   const text = typeof messageText === "string" ? messageText.trim() : "";
   if (!text) return res.status(400).json({ error: "Message content required" });
   if (text.length > MAX_MESSAGE_LENGTH) {
@@ -112,7 +143,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const recipients = await fetchRecipients();
+    const { recipients } = await fetchRecipients();
     if (dryRun) return res.status(200).json({ recipientCount: recipients.length });
 
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
