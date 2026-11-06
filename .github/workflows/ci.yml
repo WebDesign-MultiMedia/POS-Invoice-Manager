@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, test, build, audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      # Placeholder values only. Real keys live in Vercel, never in CI.
+      - name: Build
+        run: npm run build
+        env:
+          VITE_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
+
+      # Fails the run if anything secret-looking ends up in the browser bundle.
+      - name: Check bundle for secrets
+        run: |
+          if grep -rEl 'sheetdb\.io/api/v1/|sk_(live|test)_|whsec_|AC[0-9a-f]{32}|docs\.google\.com/spreadsheets/d/' dist; then
+            echo "::error::Secret-looking value found in dist/ (see files above)"
+            exit 1
+          fi
+          for name in STRIPE_SECRET_KEY SHEETDB_ID SHEETDB_USER SHEETDB_PASS TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN SIGNUP_SIGNING_KEY STAFF_ACCOUNTS SESSION_SECRET GOOGLE_SHEET_URL; do
+            if grep -rl "$name" dist; then
+              echo "::error::Server env var name $name appears in dist/"
+              exit 1
+            fi
+          done
+          echo "No secrets in dist/"
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
