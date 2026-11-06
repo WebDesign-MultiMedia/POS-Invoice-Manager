@@ -65,7 +65,7 @@ npm run test:watch  # re-run on save
 npm run lint        # ESLint (React + hooks rules)
 ```
 
-There are 135 tests, and all network calls (Stripe, Twilio, SheetDB, `fetch`) are mocked. They cover:
+There are 134 tests, and all network calls (Stripe, Twilio, SheetDB, `fetch`) are mocked. They cover:
 
 - **Surcharge math:** the 3% cap, the pass-through fee, rounding to cents, $0 and large amounts, and that the amount shown equals the amount sent to Stripe.
 - **Formatting and totals:** currency, dates and times, item parsing, menu prices, cart totals, and invoice balances with deposits and card payments.
