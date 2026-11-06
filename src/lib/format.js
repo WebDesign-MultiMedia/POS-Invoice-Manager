@@ -26,9 +26,12 @@ export function getCurrentDateTime() {
   return { date, time };
 }
 
+// "$1,234.56" → 1234.56. Text with no digits ("TBD", "") is NaN rather than
+// 0, so it shows as blank instead of a misleading $0.00.
 export function toNumber(v) {
   if (v == null) return NaN;
   const cleaned = String(v).replace(/[^0-9.-]/g, "");
+  if (!/\d/.test(cleaned)) return NaN;
   return Number(cleaned);
 }
 

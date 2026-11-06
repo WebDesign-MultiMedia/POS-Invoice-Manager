@@ -13,4 +13,11 @@ export default defineConfig({
       "/api": "http://localhost:3001",
     },
   },
+  // Vitest: tests live in test/ (not api/, where Vercel would deploy them as
+  // functions). Node by default; browser-side tests opt into jsdom per file.
+  test: {
+    include: ["test/**/*.test.js"],
+    environment: "node",
+    restoreMocks: false,
+  },
 });

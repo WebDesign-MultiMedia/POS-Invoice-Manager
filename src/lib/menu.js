@@ -70,7 +70,7 @@ export function parseCardPaymentOrder(row) {
 // price like "$1,050.00" stays intact.
 function parseItems(text) {
   return text
-    .split(/\n|,\s*(?=\d)/)
+    .split(/\n|,\s+(?=\d)/)
     .map((entry) => entry.trim())
     .filter(Boolean)
     .map((entry) => {
