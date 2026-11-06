@@ -1,8 +1,18 @@
+# Dependencies and build output
 node_modules/
 dist/
-.DS_Store
+coverage/
+
+# Secrets: real env files never get committed (.env.example does)
 .env
 .env.local
-.env.*.local
+.env*.local
+
+# Tooling and OS
 .vercel
-.claude/settings.local*.json
+.vscode/
+.claude/
+.DS_Store
+
+# Old local scratch file, kept out of the public repo
+savedCode

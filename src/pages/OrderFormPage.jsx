@@ -88,10 +88,12 @@ export default function OrderFormPage() {
 
   const navLinks = (
     <>
-      {/* The real Google Sheet isn't part of the demo. */}
+      {/* The real Google Sheet isn't part of the demo. The link goes through
+          a staff-only redirect (api/sheet-link.js) so the sheet's address
+          isn't in the public bundle. */}
       {!brand.demo && (
       <NavFab
-        href="https://docs.google.com/spreadsheets/d/1foMCHxncVcHoJQwxRVPxTM3o64zIDyUJZErwtLLu5qo/edit?usp=sharing"
+        href="/api/sheet-link"
         external
         title="Open spreadsheet"
         icon="fa-file-excel"

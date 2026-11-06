@@ -4,6 +4,20 @@ import { requireStaff } from "./_lib/auth.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// Sanity ceiling on one charge ($25,000), well above any real catering
+// order. The amount is typed by staff, so this catches a slipped decimal or
+// an extra zero before it reaches a customer's card.
+export const MAX_CHARGE_CENTS = 2_500_000;
+
+// Card problems (declined, expired, wrong CVC…) come back from Stripe with a
+// message written for the cardholder, so staff see it as-is. Anything else
+// (bad API key, network trouble, a Stripe bug) gets a generic message; the
+// details go to the server log only.
+function publicError(err) {
+  if (err?.type === "StripeCardError") return { status: 402, error: err.message || "The card was declined." };
+  return { status: 500, error: "The payment couldn't be processed. No charge was made. Please try again." };
+}
+
 // Vercel serverless function: POST { paymentMethodId, baseAmountCents, invoiceId, email }
 // Runs server-side only (STRIPE_SECRET_KEY never reaches the browser) and is
 // the sole place the surcharge is actually applied — the client-side number
@@ -21,6 +35,9 @@ export default async function handler(req, res) {
 
   if (typeof paymentMethodId !== "string" || !Number.isInteger(baseAmountCents) || baseAmountCents <= 0) {
     return res.status(400).json({ error: "Missing or invalid payment details" });
+  }
+  if (baseAmountCents > MAX_CHARGE_CENTS) {
+    return res.status(400).json({ error: `Amounts over $${(MAX_CHARGE_CENTS / 100).toLocaleString("en-US")} can't be charged here. Check the amount.` });
   }
 
   try {
@@ -80,7 +97,8 @@ export default async function handler(req, res) {
       receiptUrl: paymentIntent.latest_charge?.receipt_url || null,
     });
   } catch (err) {
-    console.error("create-payment-intent error:", err);
-    return res.status(500).json({ error: err.message || "Payment failed" });
+    console.error("create-payment-intent error:", err?.type, err?.code, err?.message);
+    const { status, error } = publicError(err);
+    return res.status(status).json({ error });
   }
 }
