@@ -321,23 +321,37 @@ export default function InvoicePage() {
             )}
           </dl>
 
-          {/* Bill to */}
-          <div className="mt-2 sm:mt-4 text-[10px] sm:text-sm">
-            <p>
-              BILL TO {invoice?.Name && <span className="ml-1 font-bold">{invoice.Name}</span>}
-            </p>
-            <p className="flex items-center gap-1.5 mt-0.5">
-              <span className="relative w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 shrink-0 flex justify-center">
-                <span className="relative h-full w-[60%] overflow-hidden">
-                  <img src="/imgs/invoice/pin.png" alt="Address" className="absolute max-w-none h-full w-[166.67%] left-[-33.33%] top-0" />
+          {/* Bill to (left) and, for the real restaurant, the SMS sign-up (right) */}
+          <div className="flex items-start gap-3 sm:gap-6 mt-2 sm:mt-4">
+            <div className="flex-1 min-w-0 text-[10px] sm:text-sm">
+              <p>
+                BILL TO {invoice?.Name && <span className="ml-1 font-bold">{invoice.Name}</span>}
+              </p>
+              <p className="flex items-center gap-1.5 mt-0.5">
+                <span className="relative w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 shrink-0 flex justify-center">
+                  <span className="relative h-full w-[60%] overflow-hidden">
+                    <img src="/imgs/invoice/pin.png" alt="Address" className="absolute max-w-none h-full w-[166.67%] left-[-33.33%] top-0" />
+                  </span>
                 </span>
-              </span>
-              <span>{invoice?.Address ?? ""}</span>
-            </p>
-            <p className="flex items-center gap-1.5 mt-0.5">
-              <img src="/imgs/invoice/phone.png" alt="Phone" className="w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 shrink-0" />
-              <span>{invoice?.Contact ?? ""}</span>
-            </p>
+                <span>{invoice?.Address ?? ""}</span>
+              </p>
+              <p className="flex items-center gap-1.5 mt-0.5">
+                <img src="/imgs/invoice/phone.png" alt="Phone" className="w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 shrink-0" />
+                <span>{invoice?.Contact ?? ""}</span>
+              </p>
+            </div>
+            {/* Promo texts only go to customers who opt in on the website's
+                sign-up page, so the invoice points them there. */}
+            {!brand.demo && (
+              <a
+                href="https://buffetluciasfiestamexicana.com/sms-consent/"
+                className="block w-[133px] sm:w-64 shrink-0 text-[7px] sm:text-xs [overflow-wrap:anywhere]"
+              >
+                <span className="block font-bold uppercase receipt-accent">¡Recibe nuestras ofertas por texto!</span>
+                Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
+                <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="mt-1 sm:mt-2 w-10 h-10 sm:w-16 sm:h-16" />
+              </a>
+            )}
           </div>
 
           {/* Items: Qty | Description | Amount with hairline column rules */}
@@ -422,48 +436,40 @@ export default function InvoicePage() {
             </div>
           )}
 
-          {/* Terms */}
-          <div className="mt-8 sm:mt-10 max-w-[172px] sm:max-w-xs text-[7px] sm:text-xs">
-            <p className="font-bold uppercase receipt-accent">Terms &amp; Conditions</p>
-            <p>
-              {brand.demo
-                ? "Any remaining balance is due at delivery or pick-up. Thank you for your order!"
-                : "El saldo restante se paga al momento de la entrega o recogida. Gracias por su preferencia"}
-            </p>
-          </div>
-
-          {/* Review QR, SMS sign-up and the Welcome to the Bronx sign belong
-              to the real restaurant, so the demo's sample café shows a plain
-              thank-you instead. */}
-          {brand.demo ? (
-            <p className="mt-8 text-center text-[10px] sm:text-xs">Thanks for trying the demo — this invoice belongs to a made-up business.</p>
-          ) : (
-            <div className="flex items-center gap-2 sm:gap-6 mt-6 sm:mt-8">
-              <div className="flex-1 min-w-0 flex flex-col items-center text-[7px] sm:text-xs">
+          {/* Terms (left) and the review quote + QR (right, set a little lower) */}
+          <div className="flex items-start justify-between gap-3 mt-8 sm:mt-10">
+            <div className="max-w-[172px] sm:max-w-xs text-[7px] sm:text-xs">
+              <p className="font-bold uppercase receipt-accent">Terms &amp; Conditions</p>
+              <p>
+                {brand.demo
+                  ? "Any remaining balance is due at delivery or pick-up. Thank you for your order!"
+                  : "El saldo restante se paga al momento de la entrega o recogida. Gracias por su preferencia"}
+              </p>
+            </div>
+            {/* The review QR and the Welcome to the Bronx sign belong to the
+                real restaurant; the demo's sample café skips them. */}
+            {!brand.demo && (
+              <div className="break-inside-avoid w-[163px] sm:w-72 shrink-0 mt-[30px] sm:mt-12 flex flex-col items-center text-[7px] sm:text-xs">
                 <p className="font-bold uppercase text-center receipt-accent">
                   "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
                 </p>
                 <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="block mt-1 sm:mt-2 leading-[0]">
                   <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-[51px] h-[51px] sm:w-20 sm:h-20" />
                 </a>
-                {/* Promo texts only go to customers who opt in on the website's
-                    sign-up page, so the invoice points them there. */}
-                <a href="https://buffetluciasfiestamexicana.com/sms-consent/" className="flex items-center gap-2 sm:gap-3 self-stretch mt-2 sm:mt-4">
-                  <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-[51px] h-[51px] sm:w-20 sm:h-20 shrink-0" />
-                  <span className="min-w-0 [overflow-wrap:anywhere]">
-                    <span className="block font-bold uppercase receipt-accent">¡Recibe nuestras ofertas por texto!</span>
-                    Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
-                  </span>
-                </a>
               </div>
-              <span className="relative block w-[177px] h-[109px] sm:w-72 sm:h-[177.4px] shrink-0 overflow-hidden">
-                <img
-                  src="/imgs/invoice/welcome-bronx.png"
-                  alt="Welcome to the Bronx: Buffet Lucia's Fiesta Mexicana"
-                  className="absolute max-w-none w-full h-[162.77%] left-0 top-[-39.36%]"
-                />
-              </span>
-            </div>
+            )}
+          </div>
+
+          {brand.demo ? (
+            <p className="mt-8 text-center text-[10px] sm:text-xs">Thanks for trying the demo — this invoice belongs to a made-up business.</p>
+          ) : (
+            <span className="break-inside-avoid relative block mx-auto mt-1 sm:mt-3 w-[205px] h-[126px] sm:w-80 sm:h-[196.7px] overflow-hidden">
+              <img
+                src="/imgs/invoice/welcome-bronx.png"
+                alt="Welcome to the Bronx: Buffet Lucia's Fiesta Mexicana"
+                className="absolute max-w-none w-full h-[162.77%] left-0 top-[-39.36%]"
+              />
+            </span>
           )}
         </div>
       </div>

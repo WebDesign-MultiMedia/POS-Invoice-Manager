@@ -870,6 +870,15 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  /* Scale the whole receipt evenly (same proportions as the design) so a
+     normal order fits one letter page; the sign and review block never get
+     split across a page break. */
+  .receipt-wrap {
+    zoom: 0.9;
+  }
+  .receipt-card .break-inside-avoid {
+    break-inside: avoid;
+  }
   /* Exact receipt colours on paper: gray card, black ink, blue titles. */
   .receipt-card,
   .receipt-card * {
