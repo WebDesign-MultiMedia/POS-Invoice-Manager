@@ -151,7 +151,10 @@ export default function InvoicePage() {
           doc.head.appendChild(fix);
           const w = doc.querySelector("[data-receipt-wrap]");
           if (w) {
+            // The border is added outside the card's full desktop width
+            // (703px + 2 × 32px) so the card isn't squeezed by it.
             w.style.padding = "32px";
+            w.style.maxWidth = "767px";
             w.style.background = "#3358b5";
           }
         },
@@ -247,19 +250,20 @@ export default function InvoicePage() {
         </p>
       )}
 
-      {/* Receipt layout from the Figma design "POS Invoice Manager" (node 41:3).
-          Sizes follow the phone frame; sm: scales them up for wider screens
-          and for Save as Image (rendered at 900px wide). */}
-      <div ref={wrapRef} data-receipt-wrap className="receipt-wrap tilt-wrap w-full max-w-2xl stagger-in">
-        <div ref={cardRef} className="paper-card receipt-card animate-unfold font-receipt px-4 py-5 sm:px-10 sm:py-10 overflow-hidden">
-          {/* Header: logo, name, tagline, hairline */}
-          <header className="flex items-start gap-2 sm:gap-4">
+      {/* Receipt layout from the Figma file "POS Invoice Manager": phones
+          follow the iPhone frame (node 41:3); sm: and up (desktop, print and
+          Save as Image, which renders at 900px wide) follow the Desktop frame
+          (node 42:10). */}
+      <div ref={wrapRef} data-receipt-wrap className="receipt-wrap tilt-wrap w-full max-w-[368px] sm:max-w-[703px] stagger-in">
+        <div ref={cardRef} className="paper-card receipt-card animate-unfold font-receipt px-4 pt-3.5 pb-0.5 sm:px-7 sm:pt-[19px] sm:pb-1 overflow-hidden">
+          {/* Header: logo top-left; name, then tagline over a centred hairline */}
+          <header className="relative">
             {brand.demo ? (
-              <span className="w-[57px] h-[49px] sm:w-24 sm:h-20 shrink-0 flex items-center justify-center" aria-hidden="true">
+              <span className="absolute left-[-7px] top-0 sm:left-[-6px] w-[57px] h-[49px] sm:w-[100px] sm:h-[86px] flex items-center justify-center" aria-hidden="true">
                 <i className="fa-solid fa-mug-saucer text-3xl sm:text-5xl receipt-accent"></i>
               </span>
             ) : (
-              <span className="relative w-[57px] h-[49px] sm:w-24 sm:h-[82.5px] shrink-0 overflow-hidden">
+              <span className="absolute left-[-7px] top-0 sm:left-[-6px] w-[57px] h-[49px] sm:w-[100px] sm:h-[86px] overflow-hidden">
                 <img
                   src="/imgs/invoice/blfm-logo.png"
                   alt={`${brand.name} logo`}
@@ -267,16 +271,18 @@ export default function InvoicePage() {
                 />
               </span>
             )}
-            <div className="flex-1 min-w-0 pt-2 sm:pt-3 text-center">
-              <p className="text-[15px] sm:text-2xl leading-tight">{brand.demo ? brand.name : "Buffet Lucia’s Fiesta Mexicana"}</p>
-              <p className="text-[10px] sm:text-sm uppercase mt-0.5 pb-1 receipt-rule">
-                {brand.shortTagline} &bull; {brand.location}
-              </p>
-            </div>
+            <p className="relative pl-[49px] sm:pl-0 mt-1 sm:mt-3 text-center text-[20px] sm:text-[30px] leading-tight">
+              {brand.demo ? brand.name : "Buffet Lucia’s Fiesta Mexicana"}
+            </p>
+            <p className="relative mx-[29px] sm:mx-[58px] mt-0.5 sm:mt-1.5 pb-1.5 sm:pb-[7px] text-center text-[10px] sm:text-[15px] uppercase receipt-rule">
+              {brand.shortTagline} &bull; {brand.location}
+            </p>
           </header>
 
-          {/* Receipt #, date, time, order type: label over a short underline */}
-          <dl className={`relative grid ${invoice?.DueDate ? "grid-cols-5" : "grid-cols-4"} gap-2 mt-2 sm:mt-4 text-[10px] sm:text-sm text-center uppercase`}>
+          {/* Receipt #, date, time, order type: label over the bold value */}
+          <dl
+            className={`relative grid ${invoice?.DueDate ? "grid-cols-5" : "grid-cols-4"} gap-1 ml-6 mr-[30px] sm:ml-[49px] sm:mr-[60px] mt-[5px] sm:mt-2 text-[10px] sm:text-[15px] text-center uppercase`}
+          >
             {[
               ["Receipt #", invoice?.Id],
               ["Date", invoice?.Date],
@@ -321,22 +327,33 @@ export default function InvoicePage() {
             )}
           </dl>
 
-          {/* Bill to (left) and, for the real restaurant, the SMS sign-up (right) */}
-          <div className="flex items-start gap-3 sm:gap-6 mt-2 sm:mt-4">
-            <div className="flex-1 min-w-0 text-[10px] sm:text-sm">
+          {/* Bill to (indented, left) and, for the real restaurant, the SMS
+              sign-up QR with its text beside it (right) */}
+          <div className="flex items-start gap-3 sm:gap-6 mt-2 sm:mt-3">
+            <div className="flex-1 min-w-0 ml-10 sm:ml-[79px] text-[10px] sm:text-[15px]">
               <p>
                 BILL TO {invoice?.Name && <span className="ml-1 font-bold">{invoice.Name}</span>}
               </p>
-              <p className="flex items-center gap-1.5 mt-0.5">
-                <span className="relative w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 shrink-0 flex justify-center">
-                  <span className="relative h-full w-[60%] overflow-hidden">
-                    <img src="/imgs/invoice/pin.png" alt="Address" className="absolute max-w-none h-full w-[166.67%] left-[-33.33%] top-0" />
+              <p className="flex items-center gap-1.5 mt-0.5 sm:mt-1">
+                <span className="relative w-[10px] h-[10px] sm:w-[19px] sm:h-4 shrink-0 flex justify-center">
+                  <span className="relative h-full w-[60%] sm:w-[11px] overflow-hidden">
+                    <img
+                      src="/imgs/invoice/pin.png"
+                      alt="Address"
+                      className="absolute max-w-none h-full w-[166.67%] left-[-33.33%] sm:w-[145.45%] sm:left-[-22.73%] top-0"
+                    />
                   </span>
                 </span>
                 <span>{invoice?.Address ?? ""}</span>
               </p>
-              <p className="flex items-center gap-1.5 mt-0.5">
-                <img src="/imgs/invoice/phone.png" alt="Phone" className="w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 shrink-0" />
+              <p className="flex items-center gap-1.5 mt-0.5 sm:mt-1">
+                <span className="relative w-[10px] h-[10px] sm:w-[19px] sm:h-4 shrink-0 overflow-hidden">
+                  <img
+                    src="/imgs/invoice/phone.png"
+                    alt="Phone"
+                    className="absolute max-w-none w-full h-full left-0 top-0 sm:h-[118.75%] sm:top-[-9.375%]"
+                  />
+                </span>
                 <span>{invoice?.Contact ?? ""}</span>
               </p>
             </div>
@@ -345,36 +362,38 @@ export default function InvoicePage() {
             {!brand.demo && (
               <a
                 href="https://buffetluciasfiestamexicana.com/sms-consent/"
-                className="block w-[133px] sm:w-64 shrink-0 text-[7px] sm:text-xs [overflow-wrap:anywhere]"
+                className="flex items-start gap-[5px] sm:gap-[9px] shrink-0 mr-2 sm:-mr-1 text-[7px] sm:text-[10px]"
               >
-                <span className="block font-bold uppercase receipt-accent">¡Recibe nuestras ofertas por texto!</span>
-                Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
-                <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="mt-1 sm:mt-2 w-10 h-10 sm:w-16 sm:h-16" />
+                <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-9 h-9 sm:w-[63px] sm:h-[63px] shrink-0" />
+                <span className="block w-[134px] sm:w-[256px] [overflow-wrap:anywhere]">
+                  <span className="block font-bold uppercase receipt-accent">¡Recibe nuestras ofertas por texto!</span>
+                  Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
+                </span>
               </a>
             )}
           </div>
 
           {/* Items: Qty | Description | Amount with hairline column rules */}
-          <table className="w-full mt-5 sm:mt-6 text-[11px] sm:text-sm border-collapse">
+          <table className="w-[calc(100%-8px)] sm:w-[calc(100%-18px)] mt-5 sm:mt-8 text-[11px] sm:text-[15px] border-collapse">
             <thead>
-              <tr className="text-left receipt-rule">
-                <th className="font-normal pb-0.5 pr-1 w-[30px] sm:w-12">Qty</th>
+              <tr className="text-left receipt-rule sm:text-[20px]">
+                <th className="font-normal pb-0.5 pl-1.5 sm:pl-3 pr-1 w-[52px] sm:w-[68px]">Qty</th>
                 <th className="font-normal pb-0.5 px-1">Description</th>
-                <th className="font-normal pb-0.5 pl-1 text-right w-[52px] sm:w-24">Amount</th>
+                <th className="font-normal pb-0.5 pl-1 sm:pr-1.5 text-right w-[52px] sm:w-[110px]">Amount</th>
               </tr>
             </thead>
             <tbody>
               {invoice &&
                 (itemList.length > 0 ? itemList : [{ qty: invoice.Quantity || 1, text: "" }]).map((item, i, rows) => (
                   <tr key={i}>
-                    <td className={`pr-1 align-top ${i === 0 ? "pt-2" : "pt-0.5"} ${i === rows.length - 1 ? "pb-4" : ""}`}>{item.qty}</td>
+                    <td className={`pl-1.5 sm:pl-3 pr-1 align-top ${i === 0 ? "pt-2" : "pt-0.5"} ${i === rows.length - 1 ? "pb-4" : ""}`}>{item.qty}</td>
                     <td
                       className={`px-2 align-top border-x-[0.5px] border-black ${i === 0 ? "pt-2" : "pt-0.5"} ${i === rows.length - 1 ? "pb-4" : ""}`}
                     >
                       {item.text}
                     </td>
                     {i === 0 && (
-                      <td className="pl-1 pt-2 text-right align-top font-bold" rowSpan={rows.length}>
+                      <td className="pl-1 sm:pr-1.5 pt-2 text-right align-top font-bold" rowSpan={rows.length}>
                         {formatMoney(cost)}
                       </td>
                     )}
@@ -382,7 +401,7 @@ export default function InvoicePage() {
                 ))}
               {!invoice && (
                 <tr>
-                  <td className="h-[63px]"></td>
+                  <td className="h-[63px] sm:h-[100px]"></td>
                   <td className="border-x-[0.5px] border-black"></td>
                   <td></td>
                 </tr>
@@ -390,55 +409,54 @@ export default function InvoicePage() {
             </tbody>
           </table>
 
-          {/* Notes + totals */}
+          {/* Notes + totals: labels on the left, full-width rule above the balance */}
           {invoice && (
-            <div className="flex flex-wrap items-start gap-4 mt-3 text-[10px] sm:text-sm">
+            <div className="mt-3 sm:mt-4 mr-2 sm:mr-[18px] text-[11px] sm:text-[15px]">
               {invoice.Notes && (
-                <div className="flex-1 min-w-[140px]">
+                <div className="mb-2 px-1.5 sm:px-3">
                   <p className="font-bold uppercase receipt-accent">Notes</p>
                   <p className="whitespace-pre-line">{invoice.Notes}</p>
                 </div>
               )}
-              <div className="w-full sm:w-72 ml-auto">
-                <div className="flex justify-between py-0.5">
-                  <span>Subtotal</span>
-                  <span>{formatMoney(cost)}</span>
+              <div className="flex justify-between py-0.5 px-1.5 sm:px-3">
+                <span>Subtotal</span>
+                <span>{formatMoney(cost)}</span>
+              </div>
+              {hasDeposit && (
+                <div className="flex justify-between py-0.5 px-1.5 sm:px-3">
+                  <span>Deposit Paid</span>
+                  <span>-{formatMoney(deposit)}</span>
                 </div>
-                {hasDeposit && (
-                  <div className="flex justify-between py-0.5">
-                    <span>Deposit paid</span>
-                    <span>-{formatMoney(deposit)}</span>
-                  </div>
-                )}
-                {cardPayments.map((p) => {
-                  const fee = toNumber(p.Fee) || 0;
-                  return (
-                    <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-0.5">
-                      <div className="flex justify-between gap-2">
-                        <span>
-                          {p.Funding === "debit" ? "Debit" : "Credit"} card payment{p.Card ? ` (${p.Card})` : ""} · {p.Date}
-                        </span>
-                        <span>-{formatMoney(p.Amount)}</span>
-                      </div>
-                      <p className="text-[9px] sm:text-xs text-black/70">
-                        {fee > 0
-                          ? `Charged ${formatMoney(p.Total)} (incl. ${formatMoney(fee)} card processing fee)`
-                          : `Charged ${formatMoney(p.Total)} (no card fee)`}
-                      </p>
+              )}
+              {cardPayments.map((p) => {
+                const fee = toNumber(p.Fee) || 0;
+                return (
+                  <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-0.5 px-1.5 sm:px-3">
+                    <div className="flex justify-between gap-2">
+                      <span>
+                        {p.Funding === "debit" ? "Debit" : "Credit"} card payment{p.Card ? ` (${p.Card})` : ""} · {p.Date}
+                      </span>
+                      <span>-{formatMoney(p.Amount)}</span>
                     </div>
-                  );
-                })}
-                <div className="flex justify-between pt-1 mt-1 border-t-[0.5px] border-black font-bold text-[12px] sm:text-base">
-                  <span>{hasPayments ? "Balance Due" : "Total Due"}</span>
-                  <span>{formatMoney(totalDue)}</span>
-                </div>
+                    <p className="text-[9px] sm:text-xs text-black/70">
+                      {fee > 0
+                        ? `Charged ${formatMoney(p.Total)} (incl. ${formatMoney(fee)} card processing fee)`
+                        : `Charged ${formatMoney(p.Total)} (no card fee)`}
+                    </p>
+                  </div>
+                );
+              })}
+              <div className="flex justify-between pt-1 sm:pt-2 mt-0.5 px-1.5 sm:px-3 border-t-[0.5px] border-black font-bold sm:text-[17px]">
+                <span>{hasPayments ? "Balance Due" : "Total Due"}</span>
+                <span>{formatMoney(totalDue)}</span>
               </div>
             </div>
           )}
 
-          {/* Terms (left) and the review quote + QR (right, set a little lower) */}
-          <div className="flex items-start justify-between gap-3 mt-8 sm:mt-10">
-            <div className="max-w-[172px] sm:max-w-xs text-[7px] sm:text-xs">
+          {/* Terms (left) and the review quote + QR (right), both centred
+              in their half and starting on the same line */}
+          <div className="grid grid-cols-2 gap-x-2 justify-items-center items-start mt-5 sm:mt-7 text-[10px] sm:text-[15px] text-center">
+            <div className="w-full max-w-[154px] sm:max-w-[294px]">
               <p className="font-bold uppercase receipt-accent">Terms &amp; Conditions</p>
               <p>
                 {brand.demo
@@ -449,25 +467,25 @@ export default function InvoicePage() {
             {/* The review QR and the Welcome to the Bronx sign belong to the
                 real restaurant; the demo's sample café skips them. */}
             {!brand.demo && (
-              <div className="break-inside-avoid w-[163px] sm:w-72 shrink-0 mt-[30px] sm:mt-12 flex flex-col items-center text-[7px] sm:text-xs">
-                <p className="font-bold uppercase text-center receipt-accent">
+              <div className="break-inside-avoid w-full max-w-[163px] sm:max-w-[311px] flex flex-col items-center">
+                <p className="font-bold uppercase receipt-accent">
                   "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
                 </p>
-                <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="block mt-1 sm:mt-2 leading-[0]">
-                  <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-[51px] h-[51px] sm:w-20 sm:h-20" />
+                <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="block mt-0.5 sm:mt-1 leading-[0]">
+                  <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-[51px] h-[51px] sm:w-[83px] sm:h-[83px]" />
                 </a>
               </div>
             )}
           </div>
 
           {brand.demo ? (
-            <p className="mt-8 text-center text-[10px] sm:text-xs">Thanks for trying the demo — this invoice belongs to a made-up business.</p>
+            <p className="mt-8 mb-4 text-center text-[10px] sm:text-xs">Thanks for trying the demo — this invoice belongs to a made-up business.</p>
           ) : (
-            <span className="break-inside-avoid relative block mx-auto mt-1 sm:mt-3 w-[205px] h-[126px] sm:w-80 sm:h-[196.7px] overflow-hidden">
+            <span className="break-inside-avoid relative block mx-auto mt-1.5 sm:mt-0.5 w-[205px] h-[126px] sm:w-[352px] sm:h-[210px] overflow-hidden">
               <img
                 src="/imgs/invoice/welcome-bronx.png"
                 alt="Welcome to the Bronx: Buffet Lucia's Fiesta Mexicana"
-                className="absolute max-w-none w-full h-[162.77%] left-0 top-[-39.36%]"
+                className="absolute max-w-none left-0 w-full h-[162.77%] top-[-39.36%] sm:w-[102.27%] sm:h-[171.29%] sm:top-[-41.42%]"
               />
             </span>
           )}
