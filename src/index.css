@@ -774,9 +774,11 @@
 }
 
 @media print {
+  /* No page margin: the invoice prints like the Figma design, the gray
+     receipt on a full-bleed blue (#3358b5) page. */
   @page {
     size: 8.5in 11in;
-    margin: 0.4in;
+    margin: 0;
   }
   /* The invoice fades/unfolds in on screen, starting from opacity: 0.
      Some browsers (Safari on iPhone/iPad in particular) restart CSS
@@ -826,7 +828,7 @@
     display: none !important;
   }
   main {
-    padding: 0 !important;
+    padding: 0.4in !important;
     display: block !important;
   }
   /* main's horizontal centering (flex + items-center) only exists on
@@ -859,6 +861,20 @@
      anywhere in the markup, so it never actually matched anything.) */
   .paper-card {
     box-shadow: none !important;
+  }
+  /* Invoice page only: the design's blue behind the receipt. The root
+     background fills every printed page edge to edge. */
+  html:has(.receipt-card),
+  html:has(.receipt-card) body {
+    background: #3358b5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Exact receipt colours on paper: gray card, black ink, blue titles. */
+  .receipt-card,
+  .receipt-card * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
 

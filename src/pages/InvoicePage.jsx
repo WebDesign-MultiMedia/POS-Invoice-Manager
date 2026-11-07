@@ -107,6 +107,21 @@ export default function InvoicePage() {
     card.style.animation = "none";
     card.style.transform = "none";
     wrap.style.perspective = "none";
+    // Webfonts and images must be ready, or the image gets fallback text
+    // and blank picture slots.
+    await document.fonts?.ready;
+    await Promise.all(
+      [...card.querySelectorAll("img")].map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))),
+    );
+
+    // html2canvas measures where text sits using a 1x1 GIF placed inline in
+    // the live page; Tailwind's base `img { display: block }` knocks it onto
+    // its own line, and every line of text then gets drawn a few pixels low
+    // (through the rules). This style matches only that measuring image and
+    // is removed right after the capture.
+    const metricsFix = document.createElement("style");
+    metricsFix.textContent = 'img[src^="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP"] { display: inline !important; }';
+    document.head.appendChild(metricsFix);
 
     try {
       // windowWidth forces html2canvas to lay the card out as if the
@@ -117,12 +132,36 @@ export default function InvoicePage() {
       // edge-to-edge instead of looking like a normal, easy-to-read
       // document. This makes every device produce the same well-
       // proportioned, desktop-quality image.
-      const canvas = await html2canvas(card, { backgroundColor: null, scale: 2, windowWidth: 900 });
+      // The design frames the receipt on blue (#3358b5): capture the
+      // wrapper with that border so the saved image looks the same.
+      const canvas = await html2canvas(wrap, {
+        backgroundColor: "#3358b5",
+        scale: 2,
+        windowWidth: 900,
+        useCORS: true,
+        onclone: (doc) => {
+          // Only affects html2canvas's copy of the page: entrance animations
+          // restart in the copy and would be caught mid-fade (a washed-out
+          // card), so pin everything fully shown; staff-only controls (the
+          // lookup button) stay out of the customer's image.
+          const fix = doc.createElement("style");
+          fix.textContent = `*, *::before, *::after { animation: none !important; transition: none !important; }
+            .stagger-in, .animate-unfold, .paper-card, .tilt-wrap { opacity: 1 !important; transform: none !important; translate: none !important; }
+            .no-print { display: none !important; }`;
+          doc.head.appendChild(fix);
+          const w = doc.querySelector("[data-receipt-wrap]");
+          if (w) {
+            w.style.padding = "32px";
+            w.style.background = "#3358b5";
+          }
+        },
+      });
       const link = document.createElement("a");
       link.download = `invoice-${invoice?.Id || "order"}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
     } finally {
+      metricsFix.remove();
       card.style.animation = prevAnimation;
       card.style.transform = prevTransform;
       wrap.style.perspective = prevPerspective;
@@ -211,7 +250,7 @@ export default function InvoicePage() {
       {/* Receipt layout from the Figma design "POS Invoice Manager" (node 41:3).
           Sizes follow the phone frame; sm: scales them up for wider screens
           and for Save as Image (rendered at 900px wide). */}
-      <div ref={wrapRef} className="tilt-wrap w-full max-w-2xl stagger-in">
+      <div ref={wrapRef} data-receipt-wrap className="receipt-wrap tilt-wrap w-full max-w-2xl stagger-in">
         <div ref={cardRef} className="paper-card receipt-card animate-unfold font-receipt px-4 py-5 sm:px-10 sm:py-10 overflow-hidden">
           {/* Header: logo, name, tagline, hairline */}
           <header className="flex items-start gap-2 sm:gap-4">
@@ -220,11 +259,13 @@ export default function InvoicePage() {
                 <i className="fa-solid fa-mug-saucer text-3xl sm:text-5xl receipt-accent"></i>
               </span>
             ) : (
-              <img
-                src="/imgs/invoice/blfm-logo.png"
-                alt={`${brand.name} logo`}
-                className="w-[57px] h-[49px] sm:w-24 sm:h-20 shrink-0 object-cover"
-              />
+              <span className="relative w-[57px] h-[49px] sm:w-24 sm:h-[82.5px] shrink-0 overflow-hidden">
+                <img
+                  src="/imgs/invoice/blfm-logo.png"
+                  alt={`${brand.name} logo`}
+                  className="absolute max-w-none h-[106.51%] w-[121.83%] left-[-7.11%] top-[-5.33%]"
+                />
+              </span>
             )}
             <div className="flex-1 min-w-0 pt-2 sm:pt-3 text-center">
               <p className="text-[15px] sm:text-2xl leading-tight">{brand.demo ? brand.name : "Buffet Lucia’s Fiesta Mexicana"}</p>
@@ -259,7 +300,7 @@ export default function InvoicePage() {
                     </button>
                   )}
                 </dt>
-                <dd className="min-w-[24px] sm:min-w-[40px] min-h-[1.4em] mt-0.5 px-1 font-bold normal-case receipt-rule">{value ?? ""}</dd>
+                <dd className="min-h-[1.4em] mt-0.5 px-1 font-bold normal-case">{value ?? ""}</dd>
               </div>
             ))}
             {popupOpen && (
@@ -286,11 +327,15 @@ export default function InvoicePage() {
               BILL TO {invoice?.Name && <span className="ml-1 font-bold">{invoice.Name}</span>}
             </p>
             <p className="flex items-center gap-1.5 mt-0.5">
-              <img src="/imgs/invoice/pin.png" alt="Address" className="w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 object-contain shrink-0" />
+              <span className="relative w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 shrink-0 flex justify-center">
+                <span className="relative h-full w-[60%] overflow-hidden">
+                  <img src="/imgs/invoice/pin.png" alt="Address" className="absolute max-w-none h-full w-[166.67%] left-[-33.33%] top-0" />
+                </span>
+              </span>
               <span>{invoice?.Address ?? ""}</span>
             </p>
             <p className="flex items-center gap-1.5 mt-0.5">
-              <img src="/imgs/invoice/phone.png" alt="Phone" className="w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 object-cover shrink-0" />
+              <img src="/imgs/invoice/phone.png" alt="Phone" className="w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 shrink-0" />
               <span>{invoice?.Contact ?? ""}</span>
             </p>
           </div>
@@ -398,21 +443,26 @@ export default function InvoicePage() {
                 <p className="font-bold uppercase text-center receipt-accent">
                   "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
                 </p>
-                <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="mt-1 sm:mt-2">
+                <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="block mt-1 sm:mt-2 leading-[0]">
                   <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-[51px] h-[51px] sm:w-20 sm:h-20" />
                 </a>
                 {/* Promo texts only go to customers who opt in on the website's
                     sign-up page, so the invoice points them there. */}
-                <a href="https://buffetluciasfiestamexicana.com/sms-consent/" className="block self-stretch mt-2 sm:mt-4">
-                  <span className="block font-bold uppercase receipt-accent">¡Recibe nuestras ofertas por texto!</span>
-                  Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
+                <a href="https://buffetluciasfiestamexicana.com/sms-consent/" className="flex items-center gap-2 sm:gap-3 self-stretch mt-2 sm:mt-4">
+                  <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-[51px] h-[51px] sm:w-20 sm:h-20 shrink-0" />
+                  <span className="min-w-0 [overflow-wrap:anywhere]">
+                    <span className="block font-bold uppercase receipt-accent">¡Recibe nuestras ofertas por texto!</span>
+                    Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
+                  </span>
                 </a>
               </div>
-              <img
-                src="/imgs/invoice/welcome-bronx.png"
-                alt="Welcome to the Bronx: Buffet Lucia's Fiesta Mexicana"
-                className="w-[177px] sm:w-72 aspect-[177/109] shrink-0 object-cover object-[center_63%]"
-              />
+              <span className="relative block w-[177px] h-[109px] sm:w-72 sm:h-[177.4px] shrink-0 overflow-hidden">
+                <img
+                  src="/imgs/invoice/welcome-bronx.png"
+                  alt="Welcome to the Bronx: Buffet Lucia's Fiesta Mexicana"
+                  className="absolute max-w-none w-full h-[162.77%] left-0 top-[-39.36%]"
+                />
+              </span>
             </div>
           )}
         </div>
