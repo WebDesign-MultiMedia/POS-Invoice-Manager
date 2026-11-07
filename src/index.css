@@ -842,896 +842,134 @@
 }
 
 /* ---------- Staff login screen (src/pages/LoginPage.jsx) ----------
-   Its own fixed blue look, independent of the dark/white/gray theme.
-
-   Desktop (1024px+) reproduces the 1440×1024 design canvas. --u is one
-   design pixel: the window's size relative to the canvas, so the whole
-   composition scales together. Floor 0.7px keeps 1280×720 laptops
-   scroll-free; text sizes carry their own px minimums for legibility.
-   Below 1024px --u is a plain 1px and the max-width:1023px block restyles
-   the same markup to the mobile design (402×874 "iPhone Pro Max"). */
+   Built from the app's own surfaces (glass-card, glass-panel, field-label,
+   input-3d, btn-3d), so it follows the chosen theme and matches the pages
+   behind it. Only layout details live here. */
 @layer components {
-  .login-shell {
-    --u: 1px;
-    position: relative;
+  .login-features {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 28rem;
+  }
+  .login-feature {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    min-height: 100dvh;
-    overflow: hidden;
-  }
-  /* Field labels: read out by screen readers on desktop (the design
-     shows only placeholders); visible above the fields on phones. */
-  .login-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-  @media (min-width: 1024px) {
-    .login-mobile-only {
-      display: none !important;
-    }
-  }
-  @media (max-width: 1023px) {
-    .login-desktop-only {
-      display: none !important;
-    }
-  }
-  .login-bg {
-    background: linear-gradient(180deg, #2563eb 0%, #265edc 51%, #10178b 100%);
-  }
-
-  /* Background shapes */
-  .login-polygon {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 70vw;
-    max-width: 669px;
-    height: auto;
-    pointer-events: none;
-    user-select: none;
-  }
-  /* ellipse.png is already cropped to the visible corner of the circle. */
-  .login-ellipse {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    width: 180px;
-    height: auto;
-    pointer-events: none;
-    user-select: none;
-  }
-
-  /* Fonts from the design */
-  .font-login-title {
-    font-family: "Geostar Fill", "Inter", system-ui, sans-serif;
-    font-weight: 400;
-  }
-  .font-login-sub {
-    /* Light true-italic typewriter face (the design's Special Elite only
-       comes in one heavy-looking weight with no italic). */
-    font-family: "IBM Plex Mono", "Courier New", monospace;
-    font-weight: 300;
-    font-style: italic;
-  }
-  .font-login-heading {
-    font-family: "Inter", system-ui, sans-serif;
-    font-weight: 900;
-  }
-  .font-login-button {
-    font-family: "Iosevka Charon", "Inter", system-ui, sans-serif;
-    font-weight: 700;
-  }
-  .font-login-small {
-    font-family: "Instrument Sans", "Inter", system-ui, sans-serif;
-  }
-  .font-login-mono {
-    font-family: "Space Mono", "Courier New", monospace;
-    font-weight: 700;
-    font-style: italic;
-  }
-
-  /* Layout — stacked fallback first, desktop canvas below */
-  .login-stage {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-    padding: 40px 16px 56px;
-  }
-  .login-decor {
-    display: none;
-  }
-  .login-header h1 {
-    font-size: clamp(2rem, 9vw, 3rem);
-    line-height: 1.15;
-  }
-  /* Header: eyebrow pill, title, tagline, feature chips (desktop). */
-  .login-eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    border-radius: 999px;
-    /* Navy-tinted glass (not white) keeps the small white text at 4.5:1+. */
-    background: rgba(16, 23, 139, 0.3);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    color: #fff;
-    font-family: "Inter", system-ui, sans-serif;
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1.2;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-  /* A small "online" light: this is the live system. */
-  .login-eyebrow-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #4ade80;
-    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25), 0 0 10px rgba(74, 222, 128, 0.8);
-  }
-  .login-header h1 {
-    margin-top: 12px;
-  }
-  .login-tagline {
-    max-width: 34ch;
-    margin: 10px auto 0;
-    color: #fff;
-    font-family: "Inter", system-ui, sans-serif;
-    font-size: 15px;
-    font-weight: 400;
-    line-height: 1.45;
-    text-wrap: balance;
-  }
-  .login-chips {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-  }
-  .login-chips li {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    border-radius: 999px;
-    background: linear-gradient(145deg, rgba(16, 23, 139, 0.34), rgba(16, 23, 139, 0.22));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    color: #fff;
-    font-family: "Inter", system-ui, sans-serif;
-    font-weight: 500;
-    white-space: nowrap;
-  }
-  .login-chips i {
-    color: #c7d5ff;
-  }
-  .login-card {
-    width: 100%;
-    max-width: 438px;
-    margin-top: 32px;
-    padding: 40px 24px 20px;
-    border-radius: 20px;
-    background: rgba(59, 57, 57, 0.4);
+    gap: 0.5rem;
     text-align: center;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    font-weight: 600;
+    color: rgb(var(--brand-navydeep) / 0.9);
   }
-  .login-card h2 {
-    font-size: 2rem;
-    line-height: 1.2;
-  }
-
-  /* Form — sizes in design px × --u */
-  .login-form {
-    display: flex;
-    flex-direction: column;
+  .login-feature-icon {
+    display: inline-flex;
     align-items: center;
-    width: 100%;
-    max-width: calc(295 * var(--u));
-    margin: calc(51 * var(--u)) auto 0;
+    justify-content: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    font-size: 1.25rem;
+    border-radius: 9999px;
   }
-  .login-field {
-    position: relative;
-    width: 100%;
+  /* Decorative, not buttons: no hover change. */
+  :root .login-feature-icon:hover {
+    background: var(--ui-fab-bg);
   }
-  .login-field + .login-field {
-    margin-top: calc(12 * var(--u));
-  }
-  .login-input {
-    width: 100%;
-    height: max(40px, calc(38 * var(--u)));
-    padding: 0 calc(12 * var(--u)) 0 max(46px, calc(52 * var(--u)));
-    border: 2px solid #aea9a9;
-    border-radius: calc(10 * var(--u));
-    background: transparent;
-    color: #fff;
-    font-family: "Inter", system-ui, sans-serif;
-    font-weight: 200;
-    /* Never under 16px: iOS zooms into smaller focused inputs. */
-    font-size: max(16px, calc(20 * var(--u)));
-    outline: none;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .login-input::placeholder {
-    color: #fff;
-    opacity: 1;
-  }
-  .login-input:focus {
-    border-color: #fff;
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
-  }
-  .login-field-icon {
+  .login-eye {
     position: absolute;
     top: 50%;
-    left: max(12px, calc(14 * var(--u)));
+    right: 0.35rem;
     transform: translateY(-50%);
-    color: #fff;
-    font-size: max(18px, calc(24 * var(--u)));
-    line-height: 1;
-    pointer-events: none;
-  }
-  .login-field-toggle {
-    pointer-events: auto;
-    padding: 4px;
-    margin-left: -4px;
-    border-radius: 6px;
-    background: transparent;
-    cursor: pointer;
-  }
-  .login-field-toggle:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 1px;
-  }
-  .login-submit {
-    width: calc(182 * var(--u));
-    min-width: 140px;
-    height: max(40px, calc(39 * var(--u)));
-    margin-top: calc(26 * var(--u));
-    border-radius: calc(10 * var(--u));
-    background: #fff;
-    color: #2447d6;
-    font-size: max(20px, calc(24 * var(--u)));
-    line-height: 1;
-    box-shadow: 0 8px 20px -8px rgba(10, 20, 90, 0.6);
-    transition: background-color 0.15s;
-  }
-  .login-submit:hover {
-    background: #eff6ff;
-  }
-  .login-submit:disabled {
-    opacity: 0.7;
-  }
-  .login-submit:focus-visible,
-  .login-secondary button:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 3px;
-  }
-  .login-secondary {
-    display: flex;
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
-    gap: calc(31 * var(--u));
-    margin-top: calc(27 * var(--u));
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    color: var(--ui-label);
   }
-  .login-secondary button {
-    min-width: calc(103 * var(--u));
-    height: max(30px, calc(29 * var(--u)));
-    padding: 0 10px;
-    border: 1px solid #fff;
-    border-radius: calc(5 * var(--u));
-    color: #fff;
-    font-size: max(12px, calc(11 * var(--u)));
-    white-space: nowrap;
-    transition: filter 0.15s;
-  }
-  .login-secondary button:hover {
-    filter: brightness(1.15);
-  }
-  .login-btn-create {
-    background: #a61207;
-  }
-  .login-btn-demo {
-    background: linear-gradient(90deg, #78780f 0%, #363607 100%);
+  .login-eye:hover {
+    color: var(--ui-input-text);
   }
   .login-status {
+    min-height: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .login-status:empty {
+    min-height: 0;
+    margin-top: -1rem;
+  }
+  .login-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ui-label);
+  }
+  .login-divider::before,
+  .login-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--ui-input-border);
+  }
+  .login-demo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
     width: 100%;
-    min-height: max(36px, calc(40 * var(--u)));
-    margin-top: calc(10 * var(--u));
-    font-size: max(12px, calc(13 * var(--u)));
-    line-height: 1.35;
+    padding: 0.75rem 1.75rem;
+    font-weight: 600;
+    color: var(--ui-input-text);
   }
-
-  /* ---- Mobile (under 1024px) ----
-     The mobile design (402×874), modernised: blue backdrop with soft
-     light, the features as frosted tiles, and the form in a navy bottom
-     sheet with labelled fields and a full-width button.
-     The page is exactly one screen tall with no scrolling. --m is one
-     design pixel *vertically* (screen height ÷ 874, max 1px), so on
-     shorter screens — including Safari with its toolbars showing — the
-     layout squeezes to fit instead of scrolling. Widths stay in plain px.
-     Text and tap targets keep px minimums. Screens under 500px tall
-     (phones sideways) can't fit it, so there the page scrolls normally. */
-  @media (max-width: 1023px) {
-    .login-shell {
-      --m: clamp(0.6px, calc(100vh / 874), 1px);
-      --m: clamp(0.6px, calc(100dvh / 874), 1px);
-      justify-content: flex-start;
-      height: 100vh;
-      height: 100dvh;
-    }
-    .login-bg {
-      background:
-        radial-gradient(120% 60% at 50% -10%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 60%),
-        radial-gradient(70% 45% at 100% 35%, rgba(84, 132, 255, 0.55) 0%, rgba(84, 132, 255, 0) 70%),
-        radial-gradient(60% 40% at 0% 55%, rgba(16, 23, 139, 0.45) 0%, rgba(16, 23, 139, 0) 70%),
-        #2447d6;
-    }
-    .login-polygon,
-    .login-ellipse {
-      display: none;
-    }
-    .login-stage {
-      flex: 1 1 auto;
-      min-height: 0;
-      padding: clamp(12px, calc(8dvh - 40px), 30px) 0 0;
-    }
-    .login-header {
-      flex: none;
-      width: 100%;
-      padding: 0 20px;
-    }
-    .login-header h1 {
-      max-width: 344px;
-      margin: calc(12 * var(--m)) auto 0;
-      font-size: max(24px, min(calc(40 * var(--m)), 10vw));
-      line-height: 1.1;
-      text-shadow: 0 6px 24px rgba(10, 20, 90, 0.35);
-    }
-
-    /* Features as frosted tiles: picture on the left, name on the right. */
+  :root .login-demo {
+    border-radius: 14px;
+  }
+  @media (max-width: 380px) {
     .login-features {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: calc(10 * var(--m)) 10px;
-      max-width: 380px;
-      margin: calc(24 * var(--m)) auto 0;
-      color: #fafafa;
-      font-size: 13px;
-      line-height: 16px;
-      text-align: left;
-    }
-    .login-features li {
-      display: flex;
-      flex-direction: row-reverse;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 9px;
-      min-width: 0;
-      padding: calc(10 * var(--m)) 10px;
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      border-radius: 16px;
-      background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 10px 24px -14px rgba(10, 20, 90, 0.7);
-      -webkit-backdrop-filter: blur(10px);
-      backdrop-filter: blur(10px);
-    }
-    .login-features li span {
-      min-width: 0;
-    }
-    .login-features img {
-      flex: none;
-      width: 40px;
-      height: max(32px, calc(46 * var(--m)));
-      object-fit: contain;
-      filter: drop-shadow(0 4px 8px rgba(10, 20, 90, 0.35));
-      user-select: none;
-    }
-
-    /* Navy bottom sheet, 7px past the screen on each side and filling the
-       rest of the screen, so only its rounded top edge shows. */
-    .login-card {
-      position: relative;
-      flex: 1 1 auto;
-      min-height: 0;
-      /* Fits without scrolling; scrolls inside only if a long message on a
-         tiny screen ever needs it, instead of cutting it off. */
-      overflow-x: hidden;
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      scrollbar-width: none;
-      width: calc(100% + 14px);
-      max-width: 560px;
-      margin: clamp(14px, calc(6dvh - 12px), 36px) -7px 0;
-      padding: max(22px, calc(32 * var(--m))) 31px calc(12px + env(safe-area-inset-bottom));
-      border: 1px solid rgba(255, 255, 255, 0.35);
-      border-bottom: 0;
-      border-radius: 32px 32px 0 0;
-      background:
-        radial-gradient(90% 50% at 50% 0%, rgba(84, 132, 255, 0.28) 0%, rgba(84, 132, 255, 0) 70%),
-        #00007d;
-      box-shadow: 0 -18px 40px -12px rgba(5, 10, 70, 0.55);
-      text-align: left;
-    }
-    /* Grab handle */
-    .login-card::before {
-      content: "";
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      width: 40px;
-      height: 4px;
-      margin-left: -20px;
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.3);
-    }
-    .login-card h2,
-    .login-card-sub,
-    .login-form {
-      width: 100%;
-      max-width: 340px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    .login-card h2 {
-      color: #fff;
-      font-size: max(22px, calc(26 * var(--m)));
-      font-weight: 800;
-      line-height: 1.15;
-      letter-spacing: 0.5px;
-    }
-    .login-card-sub {
-      margin-top: 4px;
-      color: rgba(255, 255, 255, 0.7);
-      font-family: "Inter", system-ui, sans-serif;
-      font-size: 14px;
-      line-height: 1.35;
-    }
-    .login-form {
-      align-items: stretch;
-      margin-top: calc(20 * var(--m));
-    }
-    .login-field {
-      display: flex;
-      flex-direction: column;
-    }
-    .login-field + .login-field {
-      margin-top: calc(14 * var(--m));
-    }
-    .login-label {
-      position: static;
-      width: auto;
-      height: auto;
-      margin: 0 0 calc(6 * var(--m));
-      overflow: visible;
-      clip: auto;
-      color: rgba(255, 255, 255, 0.75);
-      font-family: "Inter", system-ui, sans-serif;
-      font-size: 12px;
-      font-weight: 600;
-      line-height: 16px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-    .login-input {
-      order: 1;
-      height: max(44px, calc(52 * var(--m)));
-      padding: 0 46px 0 44px;
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.07);
-      font-family: "Inter", system-ui, sans-serif;
-      font-weight: 500;
-      /* 16px: iOS zooms into smaller focused inputs. */
-      font-size: 16px;
-    }
-    .login-input::placeholder {
-      color: rgba(255, 255, 255, 0.4);
-    }
-    .login-input:focus {
-      border-color: #7d9bff;
-      background: rgba(255, 255, 255, 0.1);
-      box-shadow: 0 0 0 4px rgba(84, 132, 255, 0.3);
-    }
-    .login-input[aria-invalid="true"] {
-      border-color: #fcd34d;
-    }
-    /* Icons sit inside the field (the label is above it). */
-    .login-field-icon {
-      top: auto;
-      bottom: calc(max(44px, calc(52 * var(--m))) / 2);
-      left: 16px;
-      transform: translateY(50%);
-      font-size: 15px;
-      color: rgba(255, 255, 255, 0.55);
-      z-index: 1;
-    }
-    .login-input:focus ~ .login-field-icon,
-    .login-field:focus-within .login-field-icon {
-      color: #fff;
-    }
-    .login-field-toggle {
-      left: auto;
-      right: 6px;
-      margin: 0;
-      padding: 10px;
-      font-size: 16px;
-      border-radius: 10px;
-    }
-    .login-field-toggle:hover {
-      color: #fff;
-    }
-    .login-submit {
-      width: 100%;
-      min-width: 0;
-      height: max(46px, calc(54 * var(--m)));
-      margin-top: calc(22 * var(--m));
-      border: 0;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #3d63ff 0%, #2447d6 100%);
-      color: #fff;
-      font-family: "Inter", system-ui, sans-serif;
-      font-size: 17px;
-      font-weight: 700;
-      letter-spacing: 0.2px;
-      box-shadow: 0 12px 28px -10px rgba(61, 99, 255, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-      transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
-    }
-    .login-submit .fa-arrow-right {
-      margin-left: 8px;
-      font-size: 14px;
-      transition: transform 0.15s;
-    }
-    .login-submit:hover {
-      background: linear-gradient(135deg, #3d63ff 0%, #2447d6 100%);
-      filter: brightness(1.08);
-    }
-    .login-submit:hover .fa-arrow-right {
-      transform: translateX(3px);
-    }
-    .login-submit:active {
-      transform: scale(0.98);
-    }
-
-    /* "New here?" divider */
-    .login-divider {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: calc(18 * var(--m)) 0 calc(12 * var(--m));
-      color: rgba(255, 255, 255, 0.6);
-      font-family: "Inter", system-ui, sans-serif;
-      font-size: 12px;
-      line-height: 16px;
-    }
-    .login-divider::before,
-    .login-divider::after {
-      content: "";
-      flex: 1;
-      height: 1px;
-      background: rgba(255, 255, 255, 0.18);
-    }
-    .login-secondary {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 0;
-    }
-    .login-secondary button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      min-width: 0;
-      height: max(40px, calc(46 * var(--m)));
-      padding: 0 12px;
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: 12px;
-      color: #fff;
-      font-family: "Inter", system-ui, sans-serif;
-      font-size: 15px;
-      font-weight: 600;
-      transition: background-color 0.15s, border-color 0.15s, transform 0.15s;
-    }
-    .login-secondary button i {
-      font-size: 13px;
-    }
-    .login-secondary button:active {
-      transform: scale(0.97);
-    }
-    .login-btn-create {
-      background: rgba(166, 18, 7, 0.85);
-      border-color: rgba(255, 140, 120, 0.45);
-    }
-    .login-btn-demo {
-      background: linear-gradient(90deg, rgba(156, 156, 19, 0.9) 0%, rgba(94, 94, 12, 0.9) 100%);
-      border-color: rgba(230, 230, 120, 0.4);
-    }
-    .login-secondary button:hover {
-      filter: brightness(1.12);
-    }
-    /* Messages appear right under the fields they're about and take no
-       room until there is one. */
-    .login-status {
-      order: 1;
-      width: 100%;
-      min-height: 0;
-      margin-top: 10px;
-      font-family: "Inter", system-ui, sans-serif;
-      font-size: 13px;
-      line-height: 1.35;
-      color: rgba(255, 255, 255, 0.85);
-    }
-    .login-status:empty {
-      margin-top: 0;
-    }
-    .login-submit,
-    .login-divider,
-    .login-secondary {
-      order: 2;
-    }
-  }
-  /* Narrower phones: smaller tile text so "Announcements" fits. */
-  @media (max-width: 399px) {
-    .login-features {
-      font-size: 11.5px;
-      line-height: 14px;
-      letter-spacing: 0;
-    }
-    .login-features li {
-      gap: 7px;
-      padding-left: 8px;
-      padding-right: 8px;
-    }
-    .login-features img {
-      width: 36px;
-    }
-  }
-  /* Smallest phones: picture above the name. */
-  @media (max-width: 359px) {
-    .login-features li {
-      flex-direction: column-reverse;
-      gap: 4px;
-      text-align: center;
-    }
-    .login-features li {
-      padding-top: 6px;
-      padding-bottom: 6px;
-    }
-    .login-features img {
-      height: 26px;
-    }
-  }
-  /* Shorter phones: drop the extras before anything gets cramped. */
-  @media (max-width: 1023px) and (max-height: 799px) {
-    .login-tagline {
-      display: none;
-    }
-  }
-  @media (max-width: 1023px) and (max-height: 720px) {
-    .login-card-sub {
-      display: none;
-    }
-  }
-  @media (max-width: 1023px) and (max-height: 640px) {
-    .login-divider {
-      display: none;
-    }
-    .login-eyebrow {
-      display: none;
-    }
-    .login-secondary {
-      margin-top: 10px;
-    }
-    .login-stage {
-      padding-top: 12px;
-    }
-    .login-header h1 {
-      margin-top: 0;
-      font-size: max(24px, min(calc(40 * var(--m)), 9vw));
-    }
-    .login-features {
-      margin-top: 14px;
-    }
-    .login-card {
-      margin-top: 12px;
-      padding-top: 20px;
-    }
-    .login-form {
-      margin-top: 10px;
-    }
-    .login-input {
-      height: 42px;
-    }
-    .login-field-icon {
-      bottom: 21px;
-    }
-    .login-submit {
-      height: 44px;
-    }
-    .login-secondary button {
-      height: 38px;
-    }
-    .login-label {
-      font-size: 11px;
-      line-height: 14px;
-    }
-  }
-  /* Phones sideways and other very short screens: let it scroll. */
-  @media (max-width: 1023px) and (max-height: 499px) {
-    .login-shell {
-      height: auto;
-      min-height: 100dvh;
-    }
-    .login-stage,
-    .login-card {
-      flex: 1 0 auto;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .login-shell {
-      --u: clamp(0.7px, min(calc(100vw / 1440), calc(100vh / 1024)), 1.6px);
-      --u: clamp(0.7px, min(calc(100vw / 1440), calc(100dvh / 1024)), 1.6px);
-    }
-    .login-polygon {
-      width: calc(669 * var(--u));
-      max-width: none;
-    }
-    .login-ellipse {
-      width: calc(316 * var(--u));
-    }
-    .login-stage {
-      display: block;
-      flex-shrink: 0;
-      width: calc(1440 * var(--u));
-      height: calc(1024 * var(--u));
-      padding: 0;
-    }
-    .login-decor {
-      display: block;
-      position: absolute;
-      left: calc(var(--x) * var(--u));
-      top: calc(var(--y) * var(--u));
-      width: calc(var(--w) * var(--u));
-      height: calc(var(--h) * var(--u));
-      max-width: none;
-      object-fit: contain;
-      filter: drop-shadow(0 calc(10 * var(--u)) calc(16 * var(--u)) rgba(10, 20, 90, 0.3));
-      pointer-events: none;
-      user-select: none;
-    }
-    .login-header {
-      position: absolute;
-      top: calc(36 * var(--u));
-      left: calc(241 * var(--u));
-      width: calc(981 * var(--u));
-    }
-    .login-eyebrow {
-      gap: calc(10 * var(--u));
-      padding: calc(7 * var(--u)) calc(16 * var(--u));
-      font-size: max(11px, calc(13 * var(--u)));
-    }
-    .login-eyebrow-dot {
-      width: max(7px, calc(8 * var(--u)));
-      height: max(7px, calc(8 * var(--u)));
-    }
-    .login-header h1 {
-      margin-top: calc(12 * var(--u));
-      font-size: calc(54 * var(--u));
-      line-height: 1.05;
-      text-shadow: 0 calc(8 * var(--u)) calc(30 * var(--u)) rgba(10, 20, 90, 0.35);
-    }
-    .login-tagline {
-      max-width: none;
-      margin-top: calc(10 * var(--u));
-      font-size: max(15px, calc(21 * var(--u)));
-    }
-    .login-chips {
-      gap: calc(12 * var(--u));
-      margin-top: calc(16 * var(--u));
-    }
-    .login-chips li {
-      gap: calc(9 * var(--u));
-      padding: calc(7 * var(--u)) calc(16 * var(--u));
-      font-size: max(13px, calc(16 * var(--u)));
-    }
-    .login-card {
-      position: absolute;
-      top: calc(284 * var(--u));
-      left: calc(472 * var(--u));
-      width: calc(438 * var(--u));
-      max-width: none;
-      min-height: calc(405 * var(--u));
-      margin: 0;
-      padding: calc(50 * var(--u)) 0 calc(8 * var(--u));
-      border-radius: calc(20 * var(--u));
-    }
-    .login-card h2 {
-      font-size: max(24px, calc(32 * var(--u)));
-      line-height: normal;
-    }
-    .login-status {
-      width: calc(368 * var(--u));
-      /* Wider than the form column; align-items:center overflows it
-         evenly on both sides (auto margins would pin it left). */
-      flex-shrink: 0;
+      gap: 0.5rem;
+    }
+    .login-feature-icon {
+      width: 3rem;
+      height: 3rem;
+      font-size: 1.1rem;
     }
   }
 }
 
-/* Login page on phones/tablets: it's exactly one screen tall, so turn off
-   page scrolling and the iOS/Android rubber-band bounce while it's shown.
-   LoginPage.jsx adds .login-open to <html> while mounted. Very short
-   screens (phones sideways) still scroll, matching the CSS above. */
-@media (max-width: 1023px) and (min-height: 500px) {
-  html.login-open {
-    overflow-y: hidden;
-    overscroll-behavior: none;
+/* Login on short laptop screens (e.g. 1280×800): a more compact header so
+   the whole form fits without scrolling. Outside the layers so it beats
+   the Tailwind spacing utilities on the same elements. */
+@media (min-width: 640px) and (max-height: 860px) {
+  .login-main {
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
   }
-  html.login-open body {
-    overscroll-behavior: none;
+  .login-header {
+    margin-bottom: 0.75rem;
   }
-}
-
-/* Inter for the app chrome in every theme, as on the login screen
-   (outside the layers so it beats body's font utility class). The invoice
-   paper keeps its own fonts. */
-html body {
-  font-family: "Inter", system-ui, sans-serif;
-}
-html .paper-card {
-  font-family: "Open Sans", sans-serif;
-}
-/* The receipt-number lookup popup sits on the light invoice paper. */
-html .paper-card .glass-card {
-  background: rgba(255, 255, 255, 0.97);
-  border-color: rgba(0, 0, 0, 0.1);
-}
-/* Selected tabs / steppers drawn as solid accent with white text (Pay
-   page): drawn like the primary button, so they read in every theme. */
-html .bg-brand-gold.text-white {
-  background: linear-gradient(135deg, var(--ui-btn-from) 0%, var(--ui-btn-to) 100%);
-  box-shadow: 0 6px 16px -8px var(--ui-btn-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-}
-/* On phones, a nav row at the very top of a page (Pay, Invoice, Text
-   Customers) would sit under the corner log-out / theme buttons; start
-   it below them. */
-@media (max-width: 639px) {
-  main > section:first-child {
-    margin-top: 2.75rem;
+  .login-mark {
+    width: 4rem;
+    height: 4rem;
   }
-}
-
-/* The login screen keeps its own colours whatever app theme was picked
-   before logging out: the page behind it (seen at the very top on phones,
-   in the status-bar area and when the page bounces) matches the login
-   background instead of the theme's. Outside the layers so it beats the
-   theme's page colour. */
-html.login-open,
-html.login-open body {
-  background: #2447d6;
-  color-scheme: light;
-}
-@media (min-width: 1024px) {
-  html.login-open,
-  html.login-open body {
-    background: #2b71f2;
+  .login-features {
+    margin-bottom: 1rem;
   }
-}
-html.login-open body::before {
-  display: none;
+  .login-feature-icon {
+    width: 3rem;
+    height: 3rem;
+    font-size: 1.1rem;
+  }
+  .login-card {
+    padding: 1.5rem 2rem;
+  }
 }
 
 /* ---------- Inputs never wider than their form ----------

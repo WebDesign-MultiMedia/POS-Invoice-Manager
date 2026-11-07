@@ -6,7 +6,7 @@ A point-of-sale and invoicing app built for a real Bronx catering business: orde
 
 **Live:** https://pos-invoice-manager.vercel.app
 
-**Try it without an account:** open the link and press **Demo** on the login screen. Demo mode runs entirely in your browser on a made-up café's data. Take an order, search it, print its invoice, "charge" a test card (`4242 4242 4242 4242`) and preview a text broadcast. Nothing is saved, charged or texted, and the real orders are never touched.
+**Try it without an account:** open the link and press **Try the demo** on the login screen. Demo mode runs entirely in your browser on a made-up café's data. Take an order, search it, print its invoice, "charge" a test card (`4242 4242 4242 4242`) and preview a text broadcast. Nothing is saved, charged or texted, and the real orders are never touched.
 
 ![Login screen](docs/screenshots/login.webp)
 
@@ -92,7 +92,7 @@ npm run hash-password        # make a STAFF_ACCOUNTS entry
 Environment variable **names** (see [`.env.example`](.env.example) for a one-line description of each):
 `VITE_STRIPE_PUBLISHABLE_KEY`, `STAFF_ACCOUNTS`, `SESSION_SECRET`, `SHEETDB_ID`, `SHEETDB_USER`, `SHEETDB_PASS`, `GOOGLE_SHEET_URL`, `STRIPE_SECRET_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID`, `TWILIO_PHONE_NUMBER`, `SIGNUP_SIGNING_KEY`.
 
-Demo mode needs none of these. Run `npm run dev` and press **Demo**.
+Demo mode needs none of these. Run `npm run dev` and press **Try the demo**.
 
 ## For restaurant staff
 

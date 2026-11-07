@@ -9,12 +9,12 @@ Open the app at **https://pos-invoice-manager.vercel.app** on the tablet, phone 
 
 ## 1. Log in
 
-Type your **email or phone number** and your **password**, then press **Login**.
+Type your **email or phone number** and your **password**, then press **Log in**.
 
 - You stay logged in for 7 days on that device.
 - If you see **"Your session expired. Please log in again."**, just log in. An order you were typing is still there.
-- Forgot your password or need an account? Ask the manager. There is no sign-up button for staff.
-- **Demo** opens a practice copy with fake orders. Nothing in the demo is saved, charged or texted.
+- Forgot your password or need an account? Ask the manager. The manager adds staff accounts.
+- **Try the demo** opens a practice copy with fake orders. Nothing in the demo is saved, charged or texted.
 
 ![Login screen](screenshots/login.webp)
 

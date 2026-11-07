@@ -1,49 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../lib/auth.jsx";
 import { friendlyMessage } from "../lib/errors.js";
+import ThemeToggle from "../components/ThemeToggle.jsx";
 
 // Staff login screen. Shown in place of whatever page was requested, so
 // after logging in the staff member lands right where they were going.
 //
-// Desktop (1024px+) follows the "POS Invoice Manager" login design, a
-// 1440×1024 canvas. Every position and size is written in design pixels
-// times --u (see .login-stage in index.css), so the whole composition
-// scales with the window like the mock-up instead of drifting apart.
-//
-// Phones/tablets (under 1024px) follow the separate "iPhone Pro Max" login
-// design (402×874), modernised: blue backdrop with soft glows, the four
-// features as glass tiles, and the form in a navy bottom sheet with
-// labelled fields. Same markup, restyled in index.css; the
-// parts only one layout uses are toggled with .login-desktop-only /
-// .login-mobile-only.
-//
-// Illustrations are the design's own exports (public/imgs/login): top-left
-// corner (x, y), width (w) and height (h) in design pixels. The design's
-// announcement and receipt illustrations weren't supplied, so they're
-// left out rather than substituted.
-const DECOR = [
-  { x: 140, y: 275, w: 130, h: 167, src: "/imgs/login/invoice.png" },
-  { x: 1113, y: 288, w: 169, h: 141, src: "/imgs/login/payment-card.png" },
-  { x: 156, y: 704, w: 97, h: 152, src: "/imgs/login/phone.png" },
-  { x: 1090, y: 644, w: 248, h: 190, src: "/imgs/login/text-notification.png" },
-];
+// Built from the same pieces as the pages behind it (glass-card,
+// field-label, input-3d, btn-3d, round glass icons, the Geostar title),
+// so it follows the chosen theme and logging in feels like one app rather
+// than a separate splash page. Layout-only styles: .login-* in index.css.
 
-// Mobile feature grid, in the design's reading order (line breaks are the
-// design's). Icons are drawn larger than the design's ~35px so they're
-// readable; size is set in index.css (.login-features img).
-// Desktop shows the same four as compact chips (label + icon) under the
-// tagline.
+// What the app does, as round glass icons like the app's own nav row.
 const FEATURES = [
-  { lines: ["Track & Search", "Orders"], label: "Track & search orders", icon: "fa-magnifying-glass", src: "/imgs/login/phone.png" },
-  { lines: ["Generate", "Invoice"], label: "Generate invoices", icon: "fa-file-invoice-dollar", src: "/imgs/login/invoice.png" },
-  { lines: ["Text", "Announcements"], label: "Text announcements", icon: "fa-bullhorn", src: "/imgs/login/text-notification.png" },
-  { lines: ["Card", "Payments"], label: "Card payments", icon: "fa-credit-card", src: "/imgs/login/payment-card.png" },
+  { label: "Orders", icon: "fa-magnifying-glass" },
+  { label: "Invoices", icon: "fa-file-invoice-dollar" },
+  { label: "Card payments", icon: "fa-credit-card" },
+  { label: "Customer texts", icon: "fa-bullhorn" },
 ];
 
 export function AuthSplash() {
   return (
-    <main className="login-bg flex min-h-[100dvh] items-center justify-center" aria-busy="true">
-      <i className="fa-solid fa-circle-notch fa-spin text-4xl text-white/80" aria-label="Loading"></i>
+    <main className="relative z-10 flex min-h-[100dvh] items-center justify-center" aria-busy="true">
+      <i className="fa-solid fa-circle-notch fa-spin text-4xl text-brand-gold" aria-label="Loading"></i>
     </main>
   );
 }
@@ -64,33 +43,12 @@ export default function LoginPage() {
     if (window.matchMedia?.("(pointer: fine)").matches) identifierRef.current?.focus();
   }, []);
 
-  // Lets index.css turn off page scrolling on phones while this screen is
-  // up (it fits one screen), and keep the page behind it in the login's
-  // own colours whatever theme was picked; removed once the app takes over.
-  useEffect(() => {
-    document.documentElement.classList.add("login-open");
-    // The browser bar / status bar colour follows this tag on phones; match
-    // the login screen instead of whatever theme was picked before logging out.
-    const themeMeta = document.querySelector('meta[name="theme-color"]');
-    const previousThemeColor = themeMeta?.getAttribute("content");
-    themeMeta?.setAttribute("content", "#2447d6");
-    return () => {
-      document.documentElement.classList.remove("login-open");
-      if (themeMeta && previousThemeColor) themeMeta.setAttribute("content", previousThemeColor);
-    };
-  }, []);
-
   const handleChange = (field) => (event) => {
     setForm((current) => ({ ...current, [field]: event.target.value }));
     if (error) setError("");
   };
 
   const checkCapsLock = (event) => setCapsLock(Boolean(event.getModifierState?.("CapsLock")));
-
-  const showNotice = (message) => {
-    setError("");
-    setNotice(message);
-  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -114,59 +72,42 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="login-bg login-shell text-white">
-      {/* Background shapes, pinned to the window corners */}
-      <img src="/imgs/login/polygon.png" alt="" aria-hidden="true" className="login-polygon" />
-      <img src="/imgs/login/ellipse.png" alt="" aria-hidden="true" className="login-ellipse" />
-
-      <div className="login-stage">
-        {DECOR.map(({ x, y, w, h, src }) => (
-          <img key={src} src={src} alt="" aria-hidden="true" className="login-decor" style={{ "--x": x, "--y": y, "--w": w, "--h": h }} />
-        ))}
-
-        <header className="login-header text-center">
-          {/* Eyebrow → title → one-line promise → features: a clear
-              reading order that says whose screen this is and what it does. */}
-          <span className="login-eyebrow">
-            <span className="login-eyebrow-dot" aria-hidden="true"></span>
-            Staff portal
+    <>
+      <ThemeToggle />
+      <main className="login-main relative z-10 flex min-h-[100dvh] flex-col items-center justify-center px-4 py-8">
+        {/* Same header as the app's pages: round mark, Geostar title, tracked subtitle. */}
+        <header className="login-header flex flex-col items-center mb-5 stagger-in">
+          <span className="login-mark glass-panel !rounded-full w-20 h-20 flex items-center justify-center" aria-hidden="true">
+            <img src="/icons/icon-192.png" alt="" className="w-12 h-12 rounded-xl" />
           </span>
-          <h1 className="font-login-title">POS Invoice Manager</h1>
-          <p className="login-tagline">Orders, invoices, card payments and customer texts — all in one place.</p>
-          <ul className="login-chips login-desktop-only" aria-label="Features">
-            {FEATURES.map(({ label, icon }) => (
-              <li key={label}>
-                <i className={`fa-solid ${icon}`} aria-hidden="true"></i>
-                {label}
-              </li>
-            ))}
-          </ul>
-          <ul className="login-features login-mobile-only font-login-sub" aria-label="Features">
-            {FEATURES.map(({ lines, src }) => (
-              <li key={src}>
-                <span>
-                  {lines[0]}
-                  <br />
-                  {lines[1]}
-                </span>
-                <img src={src} alt="" aria-hidden="true" />
-              </li>
-            ))}
-          </ul>
+          <h1 className="font-headings text-2xl sm:text-4xl leading-snug shimmer-text text-center mt-3">POS Invoice Manager</h1>
+          <p className="text-brand-navydeep/90 text-sm leading-relaxed tracking-widest uppercase text-center mt-2">Staff portal</p>
         </header>
 
-        <section aria-labelledby="login-heading" className="login-card">
-          <h2 id="login-heading" className="font-login-heading">
-            USER LOGIN
-          </h2>
-          <p className="login-card-sub login-mobile-only">Sign in to manage orders, invoices &amp; payments.</p>
+        <ul className="login-features mb-6 stagger-in" aria-label="What you can do">
+          {FEATURES.map(({ label, icon }) => (
+            <li key={label} className="login-feature">
+              <span className="glass-panel login-feature-icon" aria-hidden="true">
+                <i className={`fa-solid ${icon} text-brand-gold`}></i>
+              </span>
+              {label}
+            </li>
+          ))}
+        </ul>
 
-          <form onSubmit={handleSubmit} noValidate className="login-form">
-            {/* Email / phone */}
-            <div className="login-field">
-              <i className="fa-solid fa-user login-field-icon" aria-hidden="true"></i>
-              <label htmlFor="identifier" className="login-label">
-                Email or phone number
+        <section aria-labelledby="login-heading" className="login-card glass-card w-full max-w-md p-6 sm:p-8 stagger-in">
+          <div className="flex items-center gap-2 mb-1 justify-center">
+            <i className="fa-solid fa-right-to-bracket text-brand-gold text-xl" aria-hidden="true"></i>
+            <h2 id="login-heading" className="text-xl sm:text-2xl font-semibold text-brand-navy">
+              Staff Login
+            </h2>
+          </div>
+          <p className="text-center text-sm text-brand-navydeep/80 mb-6">Sign in to take orders, payments and texts.</p>
+
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+            <div className="field-group">
+              <label htmlFor="identifier" className="field-label">
+                <i className="fa-solid fa-user" aria-hidden="true"></i> Email or phone
               </label>
               <input
                 ref={identifierRef}
@@ -179,101 +120,96 @@ export default function LoginPage() {
                 spellCheck="false"
                 value={form.identifier}
                 onChange={handleChange("identifier")}
-                placeholder="Email/ Phone Number"
+                placeholder="you@example.com or phone"
                 enterKeyHint="next"
                 aria-invalid={Boolean(error)}
                 aria-describedby="login-status"
-                className="login-input"
+                className={`input-3d ${error ? "field-error" : ""}`.trim()}
               />
             </div>
 
-            {/* Password — on desktop the lock doubles as show/hide; on
-                phones the lock is just an icon and an eye on the right
-                does it. */}
-            <div className="login-field">
-              <i className="fa-solid fa-lock login-field-icon login-mobile-only" aria-hidden="true"></i>
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                aria-pressed={showPassword}
-                className="login-field-icon login-field-toggle"
-              >
-                <i className={`fa-solid login-desktop-only ${showPassword ? "fa-lock-open" : "fa-lock"}`} aria-hidden="true"></i>
-                <i className={`fa-solid login-mobile-only ${showPassword ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true"></i>
-              </button>
-              <label htmlFor="password" className="login-label">
-                Password
+            <div className="field-group">
+              <label htmlFor="password" className="field-label">
+                <i className="fa-solid fa-lock" aria-hidden="true"></i> Password
               </label>
-              <input
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                value={form.password}
-                onChange={handleChange("password")}
-                onKeyDown={checkCapsLock}
-                onKeyUp={checkCapsLock}
-                onBlur={() => setCapsLock(false)}
-                placeholder="Password"
-                enterKeyHint="go"
-                aria-invalid={Boolean(error)}
-                aria-describedby="login-status"
-                className="login-input"
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={form.password}
+                  onChange={handleChange("password")}
+                  onKeyDown={checkCapsLock}
+                  onKeyUp={checkCapsLock}
+                  onBlur={() => setCapsLock(false)}
+                  placeholder="Password"
+                  enterKeyHint="go"
+                  aria-invalid={Boolean(error)}
+                  aria-describedby="login-status"
+                  className={`input-3d !pr-12 ${error ? "field-error" : ""}`.trim()}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  className="login-eye"
+                >
+                  <i className={`fa-solid ${showPassword ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true"></i>
+                </button>
+              </div>
             </div>
 
-            <button type="submit" disabled={submitting} className="login-submit font-login-button">
-              {submitting ? (
-                <i className="fa-solid fa-circle-notch fa-spin" aria-label="Logging in"></i>
-              ) : (
-                <>
-                  <span className="login-desktop-only">LOGIN</span>
-                  <span className="login-mobile-only">
-                    Log in <i className="fa-solid fa-arrow-right" aria-hidden="true"></i>
-                  </span>
-                </>
-              )}
-            </button>
-
-            <p className="login-divider login-mobile-only">
-              <span>New here?</span>
-            </p>
-
-            {/* No self sign-up: accounts are added by the manager. Demo opens
-                the app on made-up sample data only (lib/demo.js) — it never
-                touches the real orders or the server. */}
-            <div className="login-secondary font-login-small">
-              <button type="button" className="login-btn-create" onClick={() => showNotice("Accounts are set up by the manager — ask them.")}>
-                <span className="login-desktop-only">Create an Account</span>
-                <span className="login-mobile-only">
-                  <i className="fa-solid fa-user-plus" aria-hidden="true"></i> Sign up
-                </span>
-              </button>
-              <button type="button" className="login-btn-demo" onClick={enterDemo}>
-                <i className="fa-solid fa-play login-mobile-only" aria-hidden="true"></i> Demo
-              </button>
-            </div>
-
-            {/* Fixed height so a message appearing doesn't shift the card. */}
-            <div id="login-status" className="login-status font-login-small" aria-live="polite">
+            {/* Fixed minimum height so a message appearing doesn't shift the buttons. */}
+            <div id="login-status" className="login-status text-sm" aria-live="polite">
               {error ? (
-                <p role="alert" className="font-semibold text-amber-200">
+                <p role="alert" className="font-semibold text-brand-error">
                   <i className="fa-solid fa-circle-exclamation mr-1.5" aria-hidden="true"></i>
                   {error}
                 </p>
               ) : (
-                notice && <p>{notice}</p>
+                notice && (
+                  <p className="text-brand-navydeep/90">
+                    <i className="fa-solid fa-circle-info mr-1.5" aria-hidden="true"></i>
+                    {notice}
+                  </p>
+                )
               )}
               {capsLock && (
-                <p className="text-white/90">
-                  <i className="fa-solid fa-arrow-up mr-1" aria-hidden="true"></i>Caps Lock is on
+                <p className="text-brand-navydeep/90">
+                  <i className="fa-solid fa-arrow-up mr-1.5" aria-hidden="true"></i>Caps Lock is on
                 </p>
               )}
             </div>
+
+            <button type="submit" disabled={submitting} aria-busy={submitting} className="btn-3d w-full disabled:opacity-60">
+              {submitting ? (
+                <>
+                  <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Logging in…
+                </>
+              ) : (
+                <>
+                  Log in <i className="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                </>
+              )}
+            </button>
+
+            <p className="login-divider" aria-hidden="true">
+              <span>or</span>
+            </p>
+
+            {/* Demo opens the app on made-up sample data only (lib/demo.js);
+                it never touches the real orders or the server. */}
+            <button type="button" onClick={enterDemo} className="glass-panel login-demo">
+              <i className="fa-solid fa-play text-brand-gold" aria-hidden="true"></i> Try the demo
+            </button>
+
+            {/* No self sign-up: the manager adds staff accounts. */}
+            <p className="text-center text-xs text-brand-navydeep/80">Need an account? Ask your manager to add you.</p>
           </form>
         </section>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
