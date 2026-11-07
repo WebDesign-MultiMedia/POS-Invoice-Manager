@@ -117,7 +117,7 @@ export default function InvoicePage() {
       // edge-to-edge instead of looking like a normal, easy-to-read
       // document. This makes every device produce the same well-
       // proportioned, desktop-quality image.
-      const canvas = await html2canvas(card, { backgroundColor: "#ffffff", scale: 2, windowWidth: 900 });
+      const canvas = await html2canvas(card, { backgroundColor: null, scale: 2, windowWidth: 900 });
       const link = document.createElement("a");
       link.download = `invoice-${invoice?.Id || "order"}.png`;
       link.href = canvas.toDataURL("image/png");
@@ -208,315 +208,213 @@ export default function InvoicePage() {
         </p>
       )}
 
-      <div ref={wrapRef} className="tilt-wrap w-full max-w-3xl stagger-in">
-        <div ref={cardRef} className="paper-card animate-unfold text-brand-navydeep p-8 sm:p-12 overflow-hidden">
-          <div className="flex justify-between items-start gap-4 flex-wrap pb-6 border-b-2 border-brand-navydeep/10">
-            <div className="flex items-center gap-3">
-              {brand.demo ? (
-                <span className="w-16 h-16 rounded-full ring-2 ring-brand-gold shadow flex items-center justify-center bg-brand-cream" aria-hidden="true">
-                  <i className="fa-solid fa-mug-saucer text-2xl text-brand-navy"></i>
-                </span>
-              ) : (
-                <img src="/imgs/BLFM-logo.PNG" alt={`${brand.name} logo`} className="w-16 h-16 object-contain rounded-full ring-2 ring-brand-gold shadow" />
-              )}
-              <div>
-                <p className="font-form text-2xl sm:text-3xl leading-tight text-brand-navy">{brand.name}</p>
-                <p className="text-xs uppercase tracking-widest text-brand-navydeep/75">
-                  {brand.shortTagline} &bull; {brand.location}
-                </p>
+      {/* Receipt layout from the Figma design "POS Invoice Manager" (node 41:3).
+          Sizes follow the phone frame; sm: scales them up for wider screens
+          and for Save as Image (rendered at 900px wide). */}
+      <div ref={wrapRef} className="tilt-wrap w-full max-w-2xl stagger-in">
+        <div ref={cardRef} className="paper-card receipt-card animate-unfold font-receipt px-4 py-5 sm:px-10 sm:py-10 overflow-hidden">
+          {/* Header: logo, name, tagline, hairline */}
+          <header className="flex items-start gap-2 sm:gap-4">
+            {brand.demo ? (
+              <span className="w-[57px] h-[49px] sm:w-24 sm:h-20 shrink-0 flex items-center justify-center" aria-hidden="true">
+                <i className="fa-solid fa-mug-saucer text-3xl sm:text-5xl receipt-accent"></i>
+              </span>
+            ) : (
+              <img
+                src="/imgs/invoice/blfm-logo.png"
+                alt={`${brand.name} logo`}
+                className="w-[57px] h-[49px] sm:w-24 sm:h-20 shrink-0 object-cover"
+              />
+            )}
+            <div className="flex-1 min-w-0 pt-2 sm:pt-3 text-center">
+              <p className="text-[15px] sm:text-2xl leading-tight">{brand.demo ? brand.name : "Buffet Lucia’s Fiesta Mexicana"}</p>
+              <p className="text-[10px] sm:text-sm uppercase mt-0.5 pb-1 receipt-rule">
+                {brand.shortTagline} &bull; {brand.location}
+              </p>
+            </div>
+          </header>
+
+          {/* Receipt #, date, time, order type: label over a short underline */}
+          <dl className={`relative grid ${invoice?.DueDate ? "grid-cols-5" : "grid-cols-4"} gap-2 mt-2 sm:mt-4 text-[10px] sm:text-sm text-center uppercase`}>
+            {[
+              ["Receipt #", invoice?.Id],
+              ["Date", invoice?.Date],
+              ["Time", invoice?.Time],
+              ["Order type", invoice?.PickupDelivery || (invoice ? "—" : "")],
+              ...(invoice?.DueDate ? [["Due date", invoice.DueDate]] : []),
+            ].map(([label, value]) => (
+              <div key={label} className="flex flex-col items-center">
+                <dt className="whitespace-nowrap">
+                  {label}
+                  {label === "Receipt #" && !isShareView && (
+                    <button
+                      type="button"
+                      className="no-print ml-1 hover:text-[#3358b5]"
+                      title="Look up another invoice"
+                      aria-label="Look up another invoice"
+                      aria-expanded={popupOpen}
+                      onClick={() => setPopupOpen((v) => !v)}
+                    >
+                      <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                    </button>
+                  )}
+                </dt>
+                <dd className="min-w-[24px] sm:min-w-[40px] min-h-[1.4em] mt-0.5 px-1 font-bold normal-case receipt-rule">{value ?? ""}</dd>
               </div>
-            </div>
-            <div className="text-sm text-right space-y-1 relative">
-              <p>
-                <span className="font-semibold text-brand-navydeep/80">Receipt #</span>{" "}
-                {!isShareView && (
-                  <button
-                    type="button"
-                    className="no-print text-xs hover:text-brand-gold"
-                    title="Look up another invoice"
-                    aria-label="Look up another invoice"
-                    aria-expanded={popupOpen}
-                    onClick={() => setPopupOpen((v) => !v)}
-                  >
-                    <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                  </button>
-                )}{" "}
-                <span className="font-semibold">{invoice?.Id ?? ""}</span>
-              </p>
-              <p>
-                <span className="font-semibold text-brand-navydeep/80">Date</span> <span>{invoice?.Date ?? ""}</span>
-              </p>
-              <p>
-                <span className="font-semibold text-brand-navydeep/80">Time</span> <span>{invoice?.Time ?? ""}</span>
-              </p>
-              <p>
-                <span className="font-semibold text-brand-navydeep/80">Order Type</span> <span>{invoice?.PickupDelivery || "—"}</span>
-              </p>
-              {invoice?.DueDate && (
-                <p>
-                  <span className="font-semibold text-brand-navydeep/80">Due Date</span> <span>{invoice.DueDate}</span>
-                </p>
-              )}
-              {popupOpen && (
-                <div className="no-print absolute z-20 top-full mt-2 left-1/2 -translate-x-1/2 glass-card !bg-white/95 p-3 flex flex-col gap-2 items-center shadow-depth-md">
-                  <input
-                    type="text"
-                    className="w-28 text-base text-black text-center placeholder:text-gray-600 rounded-lg border border-black/10 px-2 py-1"
-                    placeholder="Invoice #"
-                    aria-label="Invoice number"
-                    value={popupValue}
-                    onChange={(e) => setPopupValue(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handlePopupLoad()}
-                  />
-                  <button className="btn-3d !py-1.5 !px-4 text-sm" onClick={handlePopupLoad}>
-                    Load
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+            ))}
+            {popupOpen && (
+              <div className="no-print absolute z-20 top-full mt-2 left-0 glass-card !bg-white/95 p-3 flex flex-col gap-2 items-center shadow-depth-md font-form normal-case">
+                <input
+                  type="text"
+                  className="w-28 text-base text-black text-center placeholder:text-gray-600 rounded-lg border border-black/10 px-2 py-1"
+                  placeholder="Invoice #"
+                  aria-label="Invoice number"
+                  value={popupValue}
+                  onChange={(e) => setPopupValue(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handlePopupLoad()}
+                />
+                <button className="btn-3d !py-1.5 !px-4 text-sm" onClick={handlePopupLoad}>
+                  Load
+                </button>
+              </div>
+            )}
+          </dl>
 
-          <div className="pt-6">
-            <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Bill To</p>
-            <p className="font-form text-xl">{invoice?.Name ?? ""}</p>
-            <p className="text-sm italic text-brand-navydeep/80">
-              <i className="fa-solid fa-location-dot text-brand-coral"></i> {invoice?.Address ?? ""}
+          {/* Bill to */}
+          <div className="mt-2 sm:mt-4 text-[10px] sm:text-sm">
+            <p>
+              BILL TO {invoice?.Name && <span className="ml-1 font-bold">{invoice.Name}</span>}
             </p>
-            <p className="text-sm italic text-brand-navydeep/80">
-              <i className="fa-solid fa-phone text-brand-teal"></i> {invoice?.Contact ?? ""}
+            <p className="flex items-center gap-1.5 mt-0.5">
+              <img src="/imgs/invoice/pin.png" alt="Address" className="w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 object-contain shrink-0" />
+              <span>{invoice?.Address ?? ""}</span>
+            </p>
+            <p className="flex items-center gap-1.5 mt-0.5">
+              <img src="/imgs/invoice/phone.png" alt="Phone" className="w-[10px] h-[10px] sm:w-3.5 sm:h-3.5 object-cover shrink-0" />
+              <span>{invoice?.Contact ?? ""}</span>
             </p>
           </div>
 
-          <table className="w-full mt-6 text-sm">
+          {/* Items: Qty | Description | Amount with hairline column rules */}
+          <table className="w-full mt-5 sm:mt-6 text-[11px] sm:text-sm border-collapse">
             <thead>
-              <tr className="border-b-2 border-brand-navydeep/20 text-left text-brand-navydeep/80">
-                <th className="py-2 pr-2 w-14">Qty</th>
-                <th className="py-2 pr-2">Description</th>
-                <th className="py-2 text-right">Amount</th>
+              <tr className="text-left receipt-rule">
+                <th className="font-normal pb-0.5 pr-1 w-[30px] sm:w-12">Qty</th>
+                <th className="font-normal pb-0.5 px-1">Description</th>
+                <th className="font-normal pb-0.5 pl-1 text-right w-[52px] sm:w-24">Amount</th>
               </tr>
             </thead>
             <tbody>
-              {invoice && itemList.length > 0 && (
-                <>
-                  {itemList.map((item, i) => (
-                    <tr key={i} className={i === itemList.length - 1 ? "border-b border-brand-navydeep/10" : ""}>
-                      <td className="py-1 pr-2 align-top">{item.qty}</td>
-                      <td className="py-1 pr-2">
-                        <ul className="list-disc pl-4 marker:text-brand-navydeep/40">
-                          <li>{item.text}</li>
-                        </ul>
+              {invoice &&
+                (itemList.length > 0 ? itemList : [{ qty: invoice.Quantity || 1, text: "" }]).map((item, i, rows) => (
+                  <tr key={i}>
+                    <td className={`pr-1 align-top ${i === 0 ? "pt-2" : "pt-0.5"} ${i === rows.length - 1 ? "pb-4" : ""}`}>{item.qty}</td>
+                    <td
+                      className={`px-2 align-top border-x-[0.5px] border-black ${i === 0 ? "pt-2" : "pt-0.5"} ${i === rows.length - 1 ? "pb-4" : ""}`}
+                    >
+                      {item.text}
+                    </td>
+                    {i === 0 && (
+                      <td className="pl-1 pt-2 text-right align-top font-bold" rowSpan={rows.length}>
+                        {formatMoney(cost)}
                       </td>
-                      {i === 0 && (
-                        <td className="py-1 text-right font-semibold align-top" rowSpan={itemList.length}>
-                          {formatMoney(cost)}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </>
-              )}
-              {invoice && itemList.length === 0 && (
-                <tr className="border-b border-brand-navydeep/10">
-                  <td className="py-2 pr-2 align-top">{invoice.Quantity || 1}</td>
-                  <td className="py-2 pr-2"></td>
-                  <td className="py-2 text-right font-semibold align-top">{formatMoney(cost)}</td>
+                    )}
+                  </tr>
+                ))}
+              {!invoice && (
+                <tr>
+                  <td className="h-[63px]"></td>
+                  <td className="border-x-[0.5px] border-black"></td>
+                  <td></td>
                 </tr>
               )}
             </tbody>
           </table>
 
-          <div className="flex flex-wrap items-start gap-6 mt-2">
-            {invoice?.Notes && (
-              <div className="flex-1 min-w-[160px] text-sm">
-                <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Notes</p>
-                <p className="text-brand-navydeep/80 whitespace-pre-line">{invoice.Notes}</p>
-              </div>
-            )}
-            <div className="w-full sm:w-72 text-sm ml-auto">
-              {invoice && (
-                <>
-                  <div className="flex justify-between py-1 text-brand-navydeep/80">
-                    <span>Subtotal</span>
-                    <span>{formatMoney(cost)}</span>
-                  </div>
-                  {hasDeposit && (
-                    <div className="flex justify-between py-1 text-brand-navydeep/80">
-                      <span>Deposit paid</span>
-                      <span>-{formatMoney(deposit)}</span>
-                    </div>
-                  )}
-                  {cardPayments.map((p) => {
-                    const fee = toNumber(p.Fee) || 0;
-                    return (
-                      <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-1 text-brand-navydeep/80">
-                        <div className="flex justify-between">
-                          <span>
-                            {p.Funding === "debit" ? "Debit" : "Credit"} card payment{p.Card ? ` (${p.Card})` : ""} · {p.Date}
-                          </span>
-                          <span>-{formatMoney(p.Amount)}</span>
-                        </div>
-                        <p className="text-xs text-brand-navydeep/75">
-                          {fee > 0
-                            ? `Charged ${formatMoney(p.Total)} (incl. ${formatMoney(fee)} card processing fee)`
-                            : `Charged ${formatMoney(p.Total)} (no card fee)`}
-                        </p>
-                      </div>
-                    );
-                  })}
-                  <div className="flex justify-between py-2 mt-1 border-t-2 border-brand-navydeep/20 font-bold text-base text-brand-navydeep">
-                    <span>{hasPayments ? "Balance Due" : "Total Due"}</span>
-                    <span>{formatMoney(totalDue)}</span>
-                  </div>
-                </>
+          {/* Notes + totals */}
+          {invoice && (
+            <div className="flex flex-wrap items-start gap-4 mt-3 text-[10px] sm:text-sm">
+              {invoice.Notes && (
+                <div className="flex-1 min-w-[140px]">
+                  <p className="font-bold uppercase receipt-accent">Notes</p>
+                  <p className="whitespace-pre-line">{invoice.Notes}</p>
+                </div>
               )}
-            </div>
-          </div>
-
-          <div className="flex justify-between items-end gap-6 mt-10 flex-wrap">
-            <div className="max-w-xs">
-              <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1">Terms &amp; Conditions</p>
-              <p className="text-xs text-brand-navydeep/80">
-                {brand.demo
-                  ? "Any remaining balance is due at delivery or pick-up. Thank you for your order! "
-                  : "El saldo restante se paga al momento de la entrega o recogida. Gracias por su preferencia "}
-                <i className="fa-solid fa-hand-holding-heart"></i>
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="font-form text-2xl text-brand-teal">{brand.demo ? "Demo Café" : "Buffet Lucia"}</p>
-              <p className="text-xs text-brand-navydeep/75 -mt-1">{brand.demo ? "Sample restaurant" : "Fiesta Mexicana"}</p>
-            </div>
-          </div>
-
-          {/* Social links, review and SMS sign-up QR codes belong to the real
-              restaurant, so the demo's sample café shows a plain thank-you. */}
-          {brand.demo ? (
-            <p className="mt-8 pt-6 border-t border-brand-navydeep/10 text-center text-xs text-brand-navydeep/80">
-              Thanks for trying the demo — this invoice belongs to a made-up business.
-            </p>
-          ) : (
-            <>
-              <div className="flex flex-col items-center mt-8 pt-6 border-t border-brand-navydeep/10 text-center">
-                <p className="text-xs text-brand-navydeep/80 max-w-xs">
-                  "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
-                </p>
-                <span className="flex items-center gap-4 mt-2">
-                  <a href="https://www.facebook.com/BuffetLuciasFiestaMExicana">
-                    <i className="fa-brands fa-facebook text-2xl text-blue-600 hover:text-blue-400"></i>
-                  </a>
-                  <a href="https://www.tiktok.com/@buffetluciasftamexicana?is_from_webapp=1&sender_device=pc">
-                    <i className="fa-brands fa-tiktok text-2xl text-cyan-600 hover:text-cyan-400"></i>
-                  </a>
-                  <a href="https://maps.app.goo.gl/BVCYcyCA5nvdb1as9">
-                    <i className="fa-solid fa-map-location-dot text-2xl text-green-700 hover:text-green-500"></i>
-                  </a>
-                  <a href="https://g.page/r/CRSDyjL1S-KyEBM/review">
-                    <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-12 h-12" />
-                  </a>
-                </span>
+              <div className="w-full sm:w-72 ml-auto">
+                <div className="flex justify-between py-0.5">
+                  <span>Subtotal</span>
+                  <span>{formatMoney(cost)}</span>
+                </div>
+                {hasDeposit && (
+                  <div className="flex justify-between py-0.5">
+                    <span>Deposit paid</span>
+                    <span>-{formatMoney(deposit)}</span>
+                  </div>
+                )}
+                {cardPayments.map((p) => {
+                  const fee = toNumber(p.Fee) || 0;
+                  return (
+                    <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-0.5">
+                      <div className="flex justify-between gap-2">
+                        <span>
+                          {p.Funding === "debit" ? "Debit" : "Credit"} card payment{p.Card ? ` (${p.Card})` : ""} · {p.Date}
+                        </span>
+                        <span>-{formatMoney(p.Amount)}</span>
+                      </div>
+                      <p className="text-[9px] sm:text-xs text-black/70">
+                        {fee > 0
+                          ? `Charged ${formatMoney(p.Total)} (incl. ${formatMoney(fee)} card processing fee)`
+                          : `Charged ${formatMoney(p.Total)} (no card fee)`}
+                      </p>
+                    </div>
+                  );
+                })}
+                <div className="flex justify-between pt-1 mt-1 border-t-[0.5px] border-black font-bold text-[12px] sm:text-base">
+                  <span>{hasPayments ? "Balance Due" : "Total Due"}</span>
+                  <span>{formatMoney(totalDue)}</span>
+                </div>
               </div>
-
-              {/* Promo texts only go to customers who opt in on the website's
-                  sign-up page, so the invoice points them there rather than the
-                  POS adding anyone to the list. */}
-              <a
-                href="https://buffetluciasfiestamexicana.com/sms-consent/"
-                className="flex items-center justify-center gap-4 mt-6 mx-auto max-w-sm rounded-xl border border-dashed border-brand-teal/50 p-3 text-left"
-              >
-                <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-16 h-16 shrink-0" />
-                <span className="text-xs text-brand-navydeep/80">
-                  <span className="block font-semibold text-brand-teal">
-                    <i className="fa-solid fa-mobile-screen-button"></i> ¡Recibe nuestras ofertas por texto!
-                  </span>
-                  Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
-                </span>
-              </a>
-            </>
+            </div>
           )}
 
-          <div className="relative -mx-8 sm:-mx-12 -mb-8 sm:-mb-12 mt-8 h-36 sm:h-44 overflow-hidden select-none pointer-events-none">
-            <svg viewBox="0 0 800 220" preserveAspectRatio="xMidYMax slice" className="w-full h-full">
-              <g fill="#001A50" fillOpacity="0.12">
-                <rect x="0" y="110" width="76" height="90" />
-                <rect x="80" y="130" width="76" height="70" />
-                <rect x="160" y="100" width="76" height="100" />
-                <polygon points="160,100 198,80 236,100" />
-                <rect x="240" y="140" width="76" height="60" />
-                <rect x="320" y="115" width="76" height="85" />
-                <rect x="400" y="125" width="76" height="75" />
-                <rect x="480" y="105" width="76" height="95" />
-                <polygon points="480,105 518,85 556,105" />
-                <rect x="560" y="135" width="76" height="65" />
-                <rect x="640" y="120" width="76" height="80" />
-                <rect x="720" y="130" width="76" height="70" />
-                <rect x="14" y="126" width="10" height="14" />
-                <rect x="42" y="126" width="10" height="14" />
-                <rect x="14" y="156" width="10" height="14" />
-                <rect x="42" y="156" width="10" height="14" />
-                <rect x="176" y="118" width="10" height="14" />
-                <rect x="204" y="118" width="10" height="14" />
-                <rect x="176" y="148" width="10" height="14" />
-                <rect x="204" y="148" width="10" height="14" />
-                <rect x="656" y="138" width="10" height="14" />
-                <rect x="684" y="138" width="10" height="14" />
-                <line x1="330" y1="140" x2="386" y2="140" stroke="#001A50" strokeWidth="3" />
-                <line x1="330" y1="160" x2="386" y2="160" stroke="#001A50" strokeWidth="3" />
-                <line x1="580" y1="150" x2="626" y2="150" stroke="#001A50" strokeWidth="3" />
-              </g>
-              <g fill="#001A50" fillOpacity="0.18">
-                <line x1="345" y1="115" x2="336" y2="95" stroke="#001A50" strokeWidth="2" />
-                <line x1="357" y1="115" x2="358" y2="95" stroke="#001A50" strokeWidth="2" />
-                <rect x="336" y="78" width="24" height="20" rx="3" />
-                <polygon points="333,78 363,78 348,64" />
-                <line x1="665" y1="120" x2="656" y2="100" stroke="#001A50" strokeWidth="2" />
-                <line x1="677" y1="120" x2="678" y2="100" stroke="#001A50" strokeWidth="2" />
-                <rect x="656" y="83" width="24" height="20" rx="3" />
-                <polygon points="653,83 683,83 668,69" />
-              </g>
-              <g stroke="#0288CB" strokeWidth="4" fill="none" opacity="0.55">
-                <line x1="0" y1="200" x2="0" y2="150" />
-                <line x1="100" y1="200" x2="100" y2="150" />
-                <line x1="200" y1="200" x2="200" y2="150" />
-                <line x1="300" y1="200" x2="300" y2="150" />
-                <line x1="400" y1="200" x2="400" y2="150" />
-                <line x1="500" y1="200" x2="500" y2="150" />
-                <line x1="600" y1="200" x2="600" y2="150" />
-                <line x1="700" y1="200" x2="700" y2="150" />
-                <line x1="800" y1="200" x2="800" y2="150" />
-                <line x1="0" y1="200" x2="100" y2="150" />
-                <line x1="100" y1="200" x2="200" y2="150" />
-                <line x1="200" y1="200" x2="300" y2="150" />
-                <line x1="300" y1="200" x2="400" y2="150" />
-                <line x1="400" y1="200" x2="500" y2="150" />
-                <line x1="500" y1="200" x2="600" y2="150" />
-                <line x1="600" y1="200" x2="700" y2="150" />
-                <line x1="700" y1="200" x2="800" y2="150" />
-                <line x1="100" y1="200" x2="0" y2="150" />
-                <line x1="200" y1="200" x2="100" y2="150" />
-                <line x1="300" y1="200" x2="200" y2="150" />
-                <line x1="400" y1="200" x2="300" y2="150" />
-                <line x1="500" y1="200" x2="400" y2="150" />
-                <line x1="600" y1="200" x2="500" y2="150" />
-                <line x1="700" y1="200" x2="600" y2="150" />
-                <line x1="800" y1="200" x2="700" y2="150" />
-              </g>
-              <rect x="0" y="144" width="800" height="10" fill="#0288CB" opacity="0.55" />
-              <g opacity="0.85">
-                <rect x="250" y="118" width="200" height="26" rx="8" fill="#0288CB" />
-                <rect x="266" y="124" width="26" height="12" rx="2" fill="#F7FAFF" />
-                <rect x="300" y="124" width="26" height="12" rx="2" fill="#F7FAFF" />
-                <rect x="334" y="124" width="26" height="12" rx="2" fill="#F7FAFF" />
-                <rect x="368" y="124" width="26" height="12" rx="2" fill="#F7FAFF" />
-                <rect x="402" y="124" width="26" height="12" rx="2" fill="#F7FAFF" />
-                <circle cx="270" cy="146" r="6" fill="#001A50" />
-                <circle cx="430" cy="146" r="6" fill="#001A50" />
-              </g>
-              <circle cx="758" cy="188" r="24" fill="#0055FF" />
-              <text x="758" y="195" textAnchor="middle" fontFamily="Open Sans, sans-serif" fontWeight="700" fontSize="18" fill="#ffffff">
-                BX
-              </text>
-            </svg>
+          {/* Terms */}
+          <div className="mt-8 sm:mt-10 max-w-[172px] sm:max-w-xs text-[7px] sm:text-xs">
+            <p className="font-bold uppercase receipt-accent">Terms &amp; Conditions</p>
+            <p>
+              {brand.demo
+                ? "Any remaining balance is due at delivery or pick-up. Thank you for your order!"
+                : "El saldo restante se paga al momento de la entrega o recogida. Gracias por su preferencia"}
+            </p>
           </div>
+
+          {/* Review QR, SMS sign-up and the Welcome to the Bronx sign belong
+              to the real restaurant, so the demo's sample café shows a plain
+              thank-you instead. */}
+          {brand.demo ? (
+            <p className="mt-8 text-center text-[10px] sm:text-xs">Thanks for trying the demo — this invoice belongs to a made-up business.</p>
+          ) : (
+            <div className="flex items-center gap-2 sm:gap-6 mt-6 sm:mt-8">
+              <div className="flex-1 min-w-0 flex flex-col items-center text-[7px] sm:text-xs">
+                <p className="font-bold uppercase text-center receipt-accent">
+                  "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
+                </p>
+                <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="mt-1 sm:mt-2">
+                  <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-[51px] h-[51px] sm:w-20 sm:h-20" />
+                </a>
+                {/* Promo texts only go to customers who opt in on the website's
+                    sign-up page, so the invoice points them there. */}
+                <a href="https://buffetluciasfiestamexicana.com/sms-consent/" className="block self-stretch mt-2 sm:mt-4">
+                  <span className="block font-bold uppercase receipt-accent">¡Recibe nuestras ofertas por texto!</span>
+                  Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
+                </a>
+              </div>
+              <img
+                src="/imgs/invoice/welcome-bronx.png"
+                alt="Welcome to the Bronx: Buffet Lucia's Fiesta Mexicana"
+                className="w-[177px] sm:w-72 aspect-[177/109] shrink-0 object-cover object-[center_63%]"
+              />
+            </div>
+          )}
         </div>
       </div>
     </Layout>

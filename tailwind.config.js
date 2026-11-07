@@ -10,6 +10,8 @@ export default {
         form1: ["Open Sans", "sans-serif"],
         form2: ["Open Sans", "sans-serif"],
         form3: ["Open Sans", "sans-serif"],
+        // Invoice receipt (Figma "POS Invoice Manager" design).
+        receipt: ["Iosevka Charon", "ui-monospace", "monospace"],
       },
       colors: {
         // Bound to CSS custom properties (defined in src/index.css for

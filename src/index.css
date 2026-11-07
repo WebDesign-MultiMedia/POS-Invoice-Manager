@@ -503,6 +503,27 @@
     box-shadow: 0 10px 24px -16px rgba(0, 0, 0, 0.2);
   }
 
+  /* Invoice receipt (Figma design): flat light-gray sheet, black hairlines,
+     blue section titles. Keeps .paper-card's token pins and print colours. */
+  .paper-card.receipt-card {
+    background: #d9d9d9;
+    border-radius: 20px;
+    box-shadow: none;
+    color: #000;
+  }
+  .paper-card.receipt-card::before,
+  .paper-card.receipt-card::after {
+    display: none;
+  }
+  .receipt-rule {
+    border-color: #000;
+    border-width: 0;
+    border-bottom-width: 0.5px;
+  }
+  .receipt-accent {
+    color: #3358b5;
+  }
+
   /* ---------- 3D tilt ---------- */
   .tilt {
     transition: box-shadow 200ms ease-out;
