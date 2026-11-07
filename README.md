@@ -23,13 +23,16 @@ A point-of-sale and invoicing app built for a real Bronx catering business: orde
 - **Invoices:** printable one-page invoices that subtract deposits and earlier card payments from the balance. Save as an image, or share a signed read-only link with the customer.
 - **Card payments:** Stripe PaymentIntents for walk-up sales (tap-to-add menu) or an invoice balance. A compliant card fee (≤ 3%, credit only, never debit) is calculated on the server. Receipts can be texted.
 - **SMS broadcast:** staff text specials to customers who opted in on the restaurant's website, with STOP handling. The page shows the live subscriber count and newest sign-up.
-- **Staff login:** the whole app and every API route sit behind a staff session.
+- **Sign-up alerts:** the restaurant's opt-in form (a separate Cloudflare Worker) records each consent, copies a signed row to the sheet, texts the customer a confirmation and emails the owner a short alert from the restaurant's own domain.
+- **Staff login:** the whole app and every API route sit behind a staff session. The "Open spreadsheet" button goes through a staff-only redirect, so the sheet's link never ships to the browser.
+- **Built for daily use:** plain-language errors (offline, expired login, server problem), a crash screen with Reload, locked buttons that prevent double orders and double charges, and an order save that only reports success once the sheet confirms it.
+- **Installable:** add it to a phone or tablet home screen as an app (PWA icon and manifest). Pages load on demand to keep the first load small.
 - **Demo mode:** the full app on sample data with no server access, for visitors.
 - **Six themes, mobile-first:** tested at 390, 768 and 1280 px. 16 px inputs (no iOS zoom), visible focus rings, and WCAG 2.1 AA text contrast in every theme.
 
 ## Tech stack
 
-React 18 · Vite · React Router · Tailwind CSS · Vercel serverless functions (Node) · Stripe (PaymentIntents + Elements) · SheetDB (Google Sheets as the database) · Twilio (A2P 10DLC messaging) · scrypt password hashing + HMAC-signed cookies · Vitest · ESLint · GitHub Actions
+React 18 · Vite · React Router · Tailwind CSS · Vercel serverless functions (Node) · Cloudflare Workers + D1 (opt-in form) · Resend (email alerts) · Stripe (PaymentIntents + Elements) · SheetDB (Google Sheets as the database) · Twilio (A2P 10DLC messaging) · scrypt password hashing + HMAC-signed cookies · Vitest · ESLint · GitHub Actions
 
 ## Architecture
 
@@ -40,6 +43,9 @@ flowchart LR
   API -->|"secret key"| ST["Stripe"]
   API -->|"auth token"| T["Twilio"]
   B -. "card details go straight to Stripe.js" .-> ST
+  W["Opt-in form<br/>Cloudflare Worker + D1"] -->|"signed sign-up row"| S
+  W -->|"confirmation text"| T
+  W -->|"owner alert"| R["Resend email"]
   D["Demo mode"] -. "stays in the browser:<br/>localStorage sample data" .-> B
 ```
 
@@ -53,7 +59,7 @@ flowchart LR
 - **Secrets stay server-side:** the only `VITE_` (browser) variable is the Stripe *publishable* key. CI scans the built bundle and fails if a SheetDB URL, Stripe secret, Twilio SID, Google Sheet link or server env var name ever appears in it.
 - **Signed share links:** a customer's invoice link carries an HMAC token for that one invoice. It can't be changed to open another invoice, and the response is trimmed to what the invoice shows.
 - **Server-side payment amounts:** the server re-reads the card's funding type from Stripe and computes the surcharge and total itself, so client-sent totals or "debit" claims are ignored. It also caps a single charge as a sanity check. Card declines show Stripe's cardholder message; other errors stay in server logs.
-- **Opted-in SMS only:** recipients come only from website sign-ups signed by the consent form's server. Rows typed into the sheet by hand are rejected. STOP replies are blocked by Twilio, and anyone marked *Unsubscribed* in the sheet is skipped. Every text names the business and says "Reply STOP to unsubscribe." Sending needs a staff login, and the page confirms the recipient count before anything goes out.
+- **Opted-in SMS only:** every consent is stored permanently in the Worker's D1 database as proof of opt-in. Recipients come only from website sign-ups signed by the consent form's server. Rows typed into the sheet by hand are rejected. STOP replies are blocked by Twilio, and anyone marked *Unsubscribed* in the sheet is skipped. Every text names the business and says "Reply STOP to unsubscribe." Sending needs a staff login, and the page confirms the recipient count before anything goes out.
 - **Security headers** (in `vercel.json`): a strict Content-Security-Policy, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy` and `Permissions-Policy`.
 - **CI:** lint, tests, a build with placeholder keys only, the bundle secret scan, and `npm audit --audit-level=high` run on every push and pull request. Deploys happen on Vercel, not in CI, so CI never holds a secret.
 
