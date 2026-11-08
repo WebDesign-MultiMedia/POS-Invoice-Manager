@@ -1140,3 +1140,14 @@ input.input-3d::-webkit-datetime-edit {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Phones: the calculator fills the screen, so its keys size to the screen
+   height (slightly wide ovals, like the iPhone calculator) instead of
+   being circles sized by width — that keeps all five rows on screen, even
+   on short phones. */
+@media (max-width: 639px) {
+  .catering-calc .calc-key {
+    aspect-ratio: auto;
+    height: clamp(2.75rem, 9dvh, 4.75rem);
+  }
+}

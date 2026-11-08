@@ -31,9 +31,62 @@ export function pressDelete(tokens) {
   return tokens.slice(0, -1);
 }
 
+// The result remembers what it was made from (`from`), so the dish list on
+// the display can still show those dishes after "=".
 export function pressEquals(tokens) {
   if (!tokens.some((t) => t.type === "dish")) return tokens;
-  return [{ type: "result", value: evaluate(tokens) }];
+  return [{ type: "result", value: evaluate(tokens), from: tokens }];
+}
+
+// The dish list shown above the total, one line per entry:
+//   { kind: "dish", op, qty, id, name, size, amount }   op is null or + − × ÷
+//   { kind: "subtotal", value }                         where "=" was pressed
+// When everything is just added up, the same dish and size are combined
+// into one line ("2× Carnitas"). Once × − ÷ are used, the order matters,
+// so each tap gets its own line with its operator in front.
+export function dishLines(tokens) {
+  const flat = flatten(tokens);
+  const onlyAdding = flat.every((e) => e.kind === "subtotal" || !e.op || e.op === "+");
+
+  if (onlyAdding) {
+    const lines = [];
+    const byKey = {};
+    for (const e of flat) {
+      if (e.kind === "subtotal") {
+        lines.push(e);
+        continue;
+      }
+      const key = `${e.id}:${e.size}`;
+      if (byKey[key]) {
+        byKey[key].qty += 1;
+        byKey[key].amount = round2(byKey[key].amount + e.amount);
+      } else {
+        byKey[key] = { ...e, op: null };
+        lines.push(byKey[key]);
+      }
+    }
+    // When only adding, an earlier subtotal is just part of the running
+    // order; show "=" only when it was the last thing pressed.
+    const endedOnEquals = flat.length > 0 && flat[flat.length - 1].kind === "subtotal";
+    return lines.filter((l) => l.kind !== "subtotal").concat(endedOnEquals ? [flat[flat.length - 1]] : []);
+  }
+  return flat;
+}
+
+function flatten(tokens) {
+  const out = [];
+  let op = null;
+  for (const t of tokens) {
+    if (t.type === "op") op = t.op;
+    else if (t.type === "result") {
+      out.push(...(t.from ? flatten(t.from) : []), { kind: "subtotal", value: t.value });
+      op = null;
+    } else {
+      out.push({ kind: "dish", op, qty: 1, id: t.id, name: t.name, size: t.size, amount: t.price });
+      op = null;
+    }
+  }
+  return out;
 }
 
 const round2 = (n) => Math.round(n * 100) / 100;

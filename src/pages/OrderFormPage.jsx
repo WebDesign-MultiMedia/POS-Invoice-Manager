@@ -6,7 +6,7 @@ import NavFab, { NavRow } from "../components/NavFab.jsx";
 import { submitOrder } from "../api/sheetdb.js";
 import { getCurrentDateTime, getTotalQuantity, formatDate } from "../lib/format.js";
 import { getBrand } from "../lib/brand.js";
-import { isDemo } from "../lib/demo.js";
+import { readDraft, writeDraft, readDraftSource } from "../lib/orderDraft.js";
 import { friendlyMessage } from "../lib/errors.js";
 
 const INITIAL_FORM = {
@@ -33,30 +33,9 @@ const ALERT_BASE = {
   `,
 };
 
-// A half-typed order is kept in sessionStorage (this tab only) until it's
-// saved, so it survives a session timeout, the login screen, or a reload.
-// Demo drafts use their own key so sample data never shows up after a real
-// login.
-const draftKey = () => (isDemo() ? "pim-order-draft-demo" : "pim-order-draft");
-
 function loadDraft() {
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(draftKey()));
-    if (saved && typeof saved === "object") return { ...INITIAL_FORM, ...saved };
-  } catch {
-    // Storage blocked or corrupt draft: start empty.
-  }
-  return null;
-}
-
-function saveDraft(form) {
-  try {
-    const isEmpty = Object.values(form).every((v) => !String(v).trim());
-    if (isEmpty) sessionStorage.removeItem(draftKey());
-    else sessionStorage.setItem(draftKey(), JSON.stringify(form));
-  } catch {
-    // Storage blocked: the form still works, just without a draft.
-  }
+  const saved = readDraft();
+  return saved ? { ...INITIAL_FORM, ...saved } : null;
 }
 
 function fieldClass(value, validated) {
@@ -74,8 +53,11 @@ export default function OrderFormPage() {
   // the disabled button, and the ref stops the second one immediately.
   const savingRef = useRef(false);
 
+  // Set when the draft was filled in from a Catering Calculator quote.
+  const [draftSource] = useState(() => (initialDraft ? readDraftSource() : null));
+
   useEffect(() => {
-    saveDraft(form);
+    writeDraft(form);
   }, [form]);
 
   const setField = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
@@ -177,7 +159,15 @@ export default function OrderFormPage() {
 
         {restored && (
           <p role="status" className="glass-panel p-3 mb-5 text-sm text-center">
-            <i className="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Restored your unsaved order.{" "}
+            {draftSource ? (
+              <>
+                <i className="fa-solid fa-calculator" aria-hidden="true"></i> Filled in from {draftSource}. Add the payment and deposit, then submit.{" "}
+              </>
+            ) : (
+              <>
+                <i className="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Restored your unsaved order.{" "}
+              </>
+            )}
             <button
               type="button"
               className="underline font-semibold"

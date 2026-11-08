@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pressDish, pressOp, pressDelete, pressEquals, evaluate, dishCounts } from "../src/lib/cateringCalc.js";
+import { pressDish, pressOp, pressDelete, pressEquals, evaluate, dishCounts, dishLines } from "../src/lib/cateringCalc.js";
 import { CATERING_MENU, CATERING_DISHES } from "../src/lib/cateringMenu.js";
 
 const dish = (name, half, whole = half * 2) => ({ id: name.toLowerCase(), name, prices: { half, whole } });
@@ -41,7 +41,8 @@ describe("catering calculator", () => {
 
   it("collapses to the result on =, and keeps adding after it", () => {
     const after = run(d(A), d(B), pressEquals);
-    expect(after).toEqual([{ type: "result", value: 140 }]);
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ type: "result", value: 140 });
     expect(evaluate(pressDish(after, C, "half"))).toBe(150);
   });
 
@@ -56,6 +57,28 @@ describe("catering calculator", () => {
 
   it("counts each dish and size for the button badges", () => {
     expect(dishCounts(run(d(A), d(A), d(A, "whole")))).toEqual({ "a:half": 2, "a:whole": 1 });
+  });
+});
+
+describe("dish list on the display", () => {
+  const show = (tokens) => dishLines(tokens).map((l) => (l.kind === "subtotal" ? `= ${l.value}` : `${l.op || ""}${l.qty}x ${l.name} ${l.size} ${l.amount}`));
+
+  it("is empty with nothing picked", () => {
+    expect(dishLines([])).toEqual([]);
+  });
+
+  it("combines the same dish and size when only adding", () => {
+    expect(show(run(d(A, "whole"), d(B), d(A, "whole"), d(A)))).toEqual(["2x A whole 400", "1x B half 40", "1x A half 100"]);
+  });
+
+  it("lists each tap in order with its operator once × − ÷ are used", () => {
+    expect(show(run(d(A), d(B), op("×"), d(C)))).toEqual(["1x A half 100", "+1x B half 40", "×1x C half 10"]);
+  });
+
+  it("keeps the dishes listed after =, with the subtotal", () => {
+    expect(show(run(d(A), d(B), pressEquals))).toEqual(["1x A half 100", "1x B half 40", "= 140"]);
+    expect(show(run(d(A), pressEquals, d(A)))).toEqual(["2x A half 200"]);
+    expect(show(run(d(A), d(B), pressEquals, op("÷"), d(C)))).toEqual(["1x A half 100", "+1x B half 40", "= 140", "÷1x C half 10"]);
   });
 });
 

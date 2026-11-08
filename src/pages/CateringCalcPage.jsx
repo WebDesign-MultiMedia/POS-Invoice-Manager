@@ -1,27 +1,121 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
+import CateringListMode from "../components/CateringListMode.jsx";
+import CateringQuotes from "../components/CateringQuotes.jsx";
+import { loadQuotes, saveQuotes, makeQuote, updateQuoteDishes } from "../lib/cateringQuotes.js";
 import { CATERING_MENU, DEMO_PRICES, TRAY_SIZES } from "../lib/cateringMenu.js";
-import { pressDish, pressOp, pressDelete, pressEquals, evaluate, dishCounts } from "../lib/cateringCalc.js";
+import { pressDish, pressOp, pressDelete, pressEquals, evaluate, dishCounts, dishLines } from "../lib/cateringCalc.js";
 import { formatMoney } from "../lib/format.js";
 
 const SIZE_SHORT = Object.fromEntries(TRAY_SIZES.map((s) => [s.id, s.short]));
 const HOLD_TO_CLEAR_MS = 600;
 
-// An iPhone-style calculator where the number keys are catering dishes.
-// Tapping dishes adds them up; ÷ × − + = keep their usual spots down the
-// right side, and ⌫ stays top-left (hold it to clear everything).
+const MODES = [
+  { id: "tap", label: "Tap dishes", icon: "fa-calculator" },
+  { id: "list", label: "Type a list", icon: "fa-list" },
+];
+
+// Two ways to price a catering order:
+//  - "Tap dishes": an iPhone-style calculator where the number keys are
+//    catering dishes. Tapping dishes adds them up; ÷ × − + = keep their
+//    usual spots down the right side, and ⌫ stays top-left (hold it to
+//    clear everything).
+//  - "Type a list": type or paste dishes, the total is worked out as you
+//    type (CateringListMode).
 export default function CateringCalcPage() {
+  const [mode, setMode] = useState("tap");
+  const [listText, setListText] = useState("");
   const [tokens, setTokens] = useState([]);
-  const [size, setSize] = useState("half");
+  const [size, setSize] = useState("whole"); // whole tray is the usual order
+
+  // Dish categories are dropdowns, one open at a time. Opening one scrolls
+  // its header to the top of the dish area so its dishes are in view.
+  const [openCategory, setOpenCategory] = useState(null);
+  const toggleCategory = (category, headerButton) => {
+    const opening = openCategory !== category;
+    setOpenCategory(opening ? category : null);
+    if (opening) {
+      requestAnimationFrame(() => {
+        const box = headerButton.closest(".overflow-y-auto");
+        if (box) box.scrollTo({ top: headerButton.offsetTop - box.offsetTop, behavior: "smooth" });
+      });
+    }
+  };
+
+  // "Open in calculator": each matched line becomes that many taps.
+  const sendToCalculator = (lines) => {
+    let next = [];
+    for (const line of lines) for (let n = 0; n < line.qty; n++) next = pressDish(next, line.dish, line.size);
+    setTokens(next);
+    setActiveQuoteId(null);
+    setMode("tap");
+  };
+
+  // "=" saves the order as a quote below the calculator. Carrying on after
+  // "=" (adding more dishes, then "=" again) updates that same quote rather
+  // than making a new one; starting over makes a new one.
+  const [quotes, setQuotes] = useState(loadQuotes);
+  const [activeQuoteId, setActiveQuoteId] = useState(null);
+  const [savedNote, setSavedNote] = useState(null);
+  const updateQuotes = (fn) =>
+    setQuotes((prev) => {
+      const next = fn(prev);
+      saveQuotes(next);
+      return next;
+    });
+
+  const onEquals = () => {
+    const next = pressEquals(tokens);
+    if (next === tokens) return;
+    const value = next[0].value;
+    const dishLinesNow = dishLines(next);
+    const continuing = tokens[0]?.type === "result" && quotes.some((q) => q.id === activeQuoteId);
+    let saved;
+    if (continuing) {
+      saved = updateQuoteDishes(quotes.find((q) => q.id === activeQuoteId), dishLinesNow, value);
+      updateQuotes((prev) => prev.map((q) => (q.id === saved.id ? saved : q)));
+    } else {
+      saved = makeQuote(dishLinesNow, value, quotes);
+      updateQuotes((prev) => [...prev, saved]);
+    }
+    setActiveQuoteId(saved.id);
+    setSavedNote({ id: saved.id, number: saved.number, updated: continuing });
+    setTokens(next);
+  };
+
+  useEffect(() => {
+    if (!savedNote) return;
+    const t = setTimeout(() => setSavedNote(null), 4000);
+    return () => clearTimeout(t);
+  }, [savedNote]);
+
+  // Back to an empty calculator: the next "=" starts a new quote.
+  useEffect(() => {
+    if (!tokens.length) setActiveQuoteId(null);
+  }, [tokens.length]);
+
+  // Phones: open with the calculator filling the screen.
+  const calcRef = useRef(null);
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 639px)").matches || !calcRef.current) return;
+    // offsetTop ignores the entrance animation's transform, which would
+    // otherwise leave the page scrolled a little past the top.
+    let y = 0;
+    for (let el = calcRef.current; el; el = el.offsetParent) y += el.offsetTop;
+    window.scrollTo(0, y);
+  }, []);
+
+  const scrollToQuote = (id) => document.getElementById(`quote-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   const total = evaluate(tokens);
   const counts = useMemo(() => dishCounts(tokens), [tokens]);
+  const lines = useMemo(() => dishLines(tokens), [tokens]);
   const lastOp = tokens.length && tokens[tokens.length - 1].type === "op" ? tokens[tokens.length - 1].op : null;
 
-  // Keep the newest part of a long expression in view.
+  // Keep the newest dish in view at the bottom of the list.
   const tapeRef = useRef(null);
   useEffect(() => {
-    if (tapeRef.current) tapeRef.current.scrollLeft = tapeRef.current.scrollWidth;
+    if (tapeRef.current) tapeRef.current.scrollTop = tapeRef.current.scrollHeight;
   }, [tokens]);
 
   // ⌫: a tap deletes the last entry; holding it clears everything.
@@ -54,30 +148,85 @@ export default function CateringCalcPage() {
 
       <PageHeader title="Catering Calculator" subtitle="Tap dishes to add them up" />
 
-      <section className="catering-calc stagger-in w-full max-w-md rounded-[2.5rem] p-4 sm:p-5" aria-label="Catering calculator">
-        {DEMO_PRICES && <p className="text-center text-xs font-semibold uppercase tracking-widest text-[#f1a33c] mb-1">Demo prices</p>}
-
-        {/* Display: the expression on top, the running total under it. */}
-        <div className="px-2 pt-2 pb-3 text-right">
-          <div ref={tapeRef} className="min-h-[1.5rem] overflow-x-auto whitespace-nowrap text-base text-[#a5a5a5] no-scrollbar" aria-label="Expression">
-            {tokens.map((t, i) =>
-              t.type === "op" ? (
-                <span key={i} className="mx-1.5 text-[#f1a33c]">{t.op}</span>
-              ) : t.type === "result" ? (
-                <span key={i}>{formatMoney(t.value)}</span>
-              ) : (
-                <span key={i}>
-                  {t.name} <span className="text-[#7a7a7a]">({SIZE_SHORT[t.size]})</span>
-                </span>
-              )
-            )}
-          </div>
-          <output className={`block font-light text-white leading-tight tabular-nums ${totalSize}`} aria-live="polite" aria-label="Total">
-            {totalText}
-          </output>
+      {/* On phones the calculator is full-bleed and at least one screen tall,
+          and the page opens scrolled to it, so it fills the whole screen
+          like a calculator app; the dish area stretches to use the height. */}
+      <section
+        ref={calcRef}
+        className="catering-calc stagger-in flex w-full max-w-md flex-col rounded-[2.5rem] p-4 sm:p-5 max-sm:-mx-4 max-sm:w-[calc(100%+2rem)] max-sm:max-w-none max-sm:min-h-[100dvh] max-sm:rounded-none max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
+        aria-label="Catering calculator"
+      >
+        <div className="mb-2 flex rounded-full bg-[#1c1c1e] p-1" role="tablist" aria-label="How to calculate">
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              role="tab"
+              aria-selected={mode === m.id}
+              onClick={() => setMode(m.id)}
+              className={`flex-1 rounded-full py-2 text-sm font-semibold transition-colors ${mode === m.id ? "bg-[#f1a33c] text-white" : "text-[#a5a5a5]"}`}
+            >
+              <i className={`fa-solid ${m.icon} mr-1.5`} aria-hidden="true"></i>
+              {m.label}
+            </button>
+          ))}
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
+        {DEMO_PRICES && mode === "list" && <p className="text-center text-xs font-semibold uppercase tracking-widest text-[#f1a33c] mb-1">Demo prices</p>}
+
+        {mode === "list" ? (
+          <CateringListMode text={listText} onTextChange={setListText} size={size} onSizeChange={setSize} onSendToCalculator={sendToCalculator} />
+        ) : (
+        <div className="flex flex-1 flex-col">
+        {/* Display: the picked dishes as a list, the running total under it. */}
+        <div className="px-1 pt-1 pb-3">
+          <ul
+            ref={tapeRef}
+            className="max-h-[9.5rem] max-sm:max-h-[min(9.5rem,18dvh)] min-h-[2.75rem] overflow-y-auto overscroll-contain rounded-2xl bg-[#1c1c1e] px-3 py-2 text-sm no-scrollbar"
+            aria-label="Dishes selected"
+          >
+            {lines.length === 0 ? (
+              <li className="py-1.5 text-center text-[#7a7a7a]">No dishes yet. Tap a dish to start.</li>
+            ) : (
+              lines.map((line, i) =>
+                line.kind === "subtotal" ? (
+                  <li key={i} className="mt-1 flex justify-between border-t border-dashed border-[#3a3a3c] pt-1.5 font-semibold text-white tabular-nums">
+                    <span className="text-[#f1a33c]">=</span>
+                    <span>{formatMoney(line.value)}</span>
+                  </li>
+                ) : (
+                  <li key={i} className="flex items-baseline gap-2 py-1">
+                    <span className={`w-3 shrink-0 text-center ${line.op && line.op !== "+" ? "text-base font-semibold text-[#f1a33c]" : "text-[#f1a33c]"}`} aria-label={line.op ? OP_LABELS[line.op] : undefined}>
+                      {line.op && line.op !== "+" ? line.op : "•"}
+                    </span>
+                    <span className="min-w-0 flex-1 text-white">
+                      {line.qty > 1 && <span className="font-semibold text-[#f1a33c]">{line.qty}× </span>}
+                      {line.name} <span className="text-[#7a7a7a]">({SIZE_SHORT[line.size]})</span>
+                    </span>
+                    <span className="shrink-0 text-[#a5a5a5] tabular-nums">{formatMoney(line.amount)}</span>
+                  </li>
+                )
+              )
+            )}
+          </ul>
+          <div className="mt-2 flex items-end justify-between gap-2 px-1">
+            {/* Beside the total (not on its own line) to save height on phones. */}
+            <span className="pb-2 text-[0.65rem] font-semibold uppercase tracking-widest text-[#f1a33c]">{DEMO_PRICES && "Demo prices"}</span>
+            <output className={`block text-right font-light text-white leading-tight tabular-nums ${totalSize} [@media(max-height:640px)]:text-5xl`} aria-live="polite" aria-label="Total">
+              {totalText}
+            </output>
+          </div>
+          <p className="min-h-[1.25rem] px-1 text-right text-sm text-[#f1a33c]" role="status">
+            {savedNote && (
+              <button type="button" onClick={() => scrollToQuote(savedNote.id)} className="underline-offset-2 hover:underline">
+                <i className="fa-solid fa-check" aria-hidden="true"></i> {savedNote.updated ? "Updated" : "Saved as"} Quote #{savedNote.number} below{" "}
+                <i className="fa-solid fa-arrow-down" aria-hidden="true"></i>
+              </button>
+            )}
+          </p>
+        </div>
+
+        <div className="grid flex-1 grid-cols-4 grid-rows-[auto_1fr] gap-3">
           {/* Top row: ⌫ · tray size · ÷ (AC and % left out for now) */}
           <button
             type="button"
@@ -114,10 +263,31 @@ export default function CateringCalcPage() {
           {/* Dishes take the number keys' place and scroll; × − + = stay put. */}
           <div className="relative col-span-3">
             <div className="absolute inset-0 overflow-y-auto overscroll-contain rounded-2xl no-scrollbar">
-              {CATERING_MENU.map(({ category, dishes }) => (
+              {CATERING_MENU.map(({ category, dishes }) => {
+                const isOpen = openCategory === category;
+                const picked = dishes.reduce((n, d) => n + (counts[`${d.id}:half`] || 0) + (counts[`${d.id}:whole`] || 0), 0);
+                const panelId = `cat-${dishes[0].id}`;
+                return (
                 <div key={category} className="mb-2">
-                  <h2 className="sticky top-0 z-10 bg-black py-1 text-[0.7rem] font-semibold uppercase tracking-wider text-[#a5a5a5]">{category}</h2>
-                  <div className="grid grid-cols-3 gap-2">
+                  <h2>
+                    <button
+                      type="button"
+                      onClick={(e) => toggleCategory(category, e.currentTarget)}
+                      aria-expanded={isOpen}
+                      aria-controls={panelId}
+                      className={`calc-dish flex w-full items-center gap-2 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-white ${isOpen ? "bg-[#5c5c5c]" : "bg-[#333]"}`}
+                    >
+                      <span className="min-w-0 flex-1">{category}</span>
+                      {picked > 0 && (
+                        <span className="min-w-[1.25rem] rounded-full bg-[#f1a33c] px-1.5 text-center text-[0.7rem] font-bold leading-5" aria-label={`${picked} picked`}>
+                          {picked}
+                        </span>
+                      )}
+                      <i className={`fa-solid fa-chevron-down text-xs text-[#a5a5a5] transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true"></i>
+                    </button>
+                  </h2>
+                  {isOpen && (
+                  <div id={panelId} className="mt-2 grid grid-cols-3 gap-2">
                     {dishes.map((dish) => {
                       const count = counts[`${dish.id}:${size}`];
                       return (
@@ -139,21 +309,35 @@ export default function CateringCalcPage() {
                       );
                     })}
                   </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="calc-op-col flex flex-col justify-start gap-3">
             {["×", "−", "+"].map((op) => (
               <OpKey key={op} op={op} active={lastOp === op} onPress={(o) => setTokens((t) => pressOp(t, o))} />
             ))}
-            <button type="button" className="calc-key calc-key-op" onClick={() => setTokens(pressEquals)} aria-label="Equals">
+            <button type="button" className="calc-key calc-key-op" onClick={onEquals} aria-label="Equals, save as a quote" title="Total and save as a quote">
               =
             </button>
           </div>
         </div>
+        </div>
+        )}
       </section>
+
+      <CateringQuotes
+        quotes={quotes}
+        highlightId={activeQuoteId}
+        onChange={(quote) => updateQuotes((prev) => prev.map((q) => (q.id === quote.id ? quote : q)))}
+        onDelete={(id) => {
+          updateQuotes((prev) => prev.filter((q) => q.id !== id));
+          if (id === activeQuoteId) setActiveQuoteId(null);
+        }}
+      />
     </Layout>
   );
 }
