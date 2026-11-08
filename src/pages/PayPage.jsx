@@ -111,7 +111,8 @@ export default function PayPage() {
     setReceipt(null);
   };
 
-  const invoiceTotalDue = invoice ? invoiceBalance(invoice, invoicePayments).balanceDue : 0;
+  const invoiceTotals = invoice ? invoiceBalance(invoice, invoicePayments) : null;
+  const invoiceTotalDue = invoiceTotals ? invoiceTotals.balanceDue : 0;
 
   // The real menu, or the sample café's in demo mode.
   const brand = getBrand();
@@ -410,6 +411,28 @@ export default function PayPage() {
         {!receipt && readyToCharge && (
           <div className="flex flex-col gap-6 mt-6">
             <div className="glass-panel p-4 text-sm">
+              {/* For an invoice, show how the amount due was worked out, so it
+                  matches the Cost in the sheet at a glance. */}
+              {mode === "invoice" && invoiceTotals && (invoiceTotals.hasDeposit || invoiceTotals.cardPaid > 0) && (
+                <div className="mb-1 border-b border-brand-navydeep/15 pb-1 tabular-nums">
+                  <div className="flex justify-between py-1">
+                    <span className="text-brand-navydeep/80">Order total</span>
+                    <span>{formatMoney(invoiceTotals.cost)}</span>
+                  </div>
+                  {invoiceTotals.hasDeposit && (
+                    <div className="flex justify-between py-1">
+                      <span className="text-brand-navydeep/80">Deposit</span>
+                      <span>−{formatMoney(invoiceTotals.deposit)}</span>
+                    </div>
+                  )}
+                  {invoiceTotals.cardPaid > 0 && (
+                    <div className="flex justify-between py-1">
+                      <span className="text-brand-navydeep/80">Paid by card</span>
+                      <span>−{formatMoney(invoiceTotals.cardPaid)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex justify-between py-1">
                 <span className="text-brand-navydeep/80">Amount due</span>
                 <span className="font-semibold">{formatMoney(totalDue)}</span>
