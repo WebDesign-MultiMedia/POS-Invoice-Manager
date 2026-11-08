@@ -151,3 +151,20 @@ export function isValidShareToken(invoiceId, token) {
   if (!process.env.SESSION_SECRET || !invoiceId || !token) return false;
   return safeEqual(token, shareTokenFor(invoiceId));
 }
+
+// ---------- catering calculator link ----------
+
+// One no-login link for employees: /catering?share=1&token=… opens only the
+// Catering Calculator. The token is an HMAC of the link "version", so every
+// link already sent stops working when CALCULATOR_LINK_VERSION is changed
+// (e.g. from 1 to 2) on the server, without logging anyone out.
+const calculatorLinkVersion = () => String(process.env.CALCULATOR_LINK_VERSION || "1").trim();
+
+export function calculatorTokenFor() {
+  return sign(`catering-calculator:${calculatorLinkVersion()}`).slice(0, 32);
+}
+
+export function isValidCalculatorToken(token) {
+  if (!process.env.SESSION_SECRET || !token) return false;
+  return safeEqual(token, calculatorTokenFor());
+}

@@ -17,7 +17,8 @@ const receiptUrl = (await import("../api/receipt-url.js")).default;
 const sendBroadcast = (await import("../api/send-broadcast.js")).default;
 const sheetLink = (await import("../api/sheet-link.js")).default;
 const auth = (await import("../api/auth.js")).default;
-const { shareTokenFor } = await import("../api/_lib/auth.js");
+const calculatorLink = (await import("../api/calculator-link.js")).default;
+const { shareTokenFor, calculatorTokenFor } = await import("../api/_lib/auth.js");
 
 const fetchMock = vi.fn();
 
@@ -56,6 +57,7 @@ describe("staff-only routes return 401 without a session", () => {
     ["POST broadcast", sendBroadcast, { method: "POST", body: { messageText: "hi" } }],
     ["GET spreadsheet link", sheetLink, { url: "/api/sheet-link" }],
     ["GET current user", auth, { url: "/api/auth" }],
+    ["GET calculator link token", calculatorLink, { url: "/api/calculator-link?action=token" }],
   ])("%s", async (_name, handler, req) => {
     const res = await call(handler, req);
     expect(res.statusCode).toBe(401);
@@ -74,6 +76,21 @@ describe("staff-only routes return 401 without a session", () => {
 });
 
 describe("public routes", () => {
+  it("the calculator link check accepts only the signed token", async () => {
+    expect((await call(calculatorLink, { url: "/api/calculator-link?action=check&token=bad" })).statusCode).toBe(403);
+    expect((await call(calculatorLink, { url: "/api/calculator-link?action=check" })).statusCode).toBe(403);
+    const ok = await call(calculatorLink, { url: `/api/calculator-link?action=check&token=${calculatorTokenFor()}` });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.body).toEqual({ ok: true });
+  });
+
+  it("changing CALCULATOR_LINK_VERSION turns off links already sent", async () => {
+    const oldToken = calculatorTokenFor();
+    vi.stubEnv("CALCULATOR_LINK_VERSION", "2");
+    expect((await call(calculatorLink, { url: `/api/calculator-link?action=check&token=${oldToken}` })).statusCode).toBe(403);
+    expect((await call(calculatorLink, { url: `/api/calculator-link?action=check&token=${calculatorTokenFor()}` })).statusCode).toBe(200);
+  });
+
   it("a shared invoice needs a valid token for that exact invoice", async () => {
     expect((await call(sheets, { url: "/api/sheets?action=sharedInvoice&id=714&token=bad" })).statusCode).toBe(404);
     const wrongInvoice = shareTokenFor("715");

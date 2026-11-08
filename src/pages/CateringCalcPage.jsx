@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { createPortal } from "react-dom";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import NavFab, { NavRow } from "../components/NavFab.jsx";
 import CateringListMode from "../components/CateringListMode.jsx";
 import CateringQuotes from "../components/CateringQuotes.jsx";
+import ShareCalculatorButton from "../components/ShareCalculatorButton.jsx";
+import { checkCalculatorToken } from "../api/calculatorLink.js";
 import { loadQuotes, saveQuotes, makeQuote, updateQuoteDishes } from "../lib/cateringQuotes.js";
 import { CATERING_MENU, DEMO_PRICES, TRAY_SIZES } from "../lib/cateringMenu.js";
 import { pressDish, pressOp, pressDelete, pressEquals, evaluate, dishCounts, dishLines } from "../lib/cateringCalc.js";
@@ -24,6 +28,24 @@ const MODES = [
 //  - "Type a list": type or paste dishes, the total is worked out as you
 //    type (CateringListMode).
 export default function CateringCalcPage() {
+  // An employee's no-login link (?share=1&token=…) shows only the
+  // calculator: no menu buttons, no Share, no Make invoice. Its token is
+  // checked with the server first.
+  const [searchParams] = useSearchParams();
+  const shared = searchParams.get("share") === "1";
+  const linkToken = searchParams.get("token");
+  const [linkState, setLinkState] = useState(shared ? "checking" : "ok");
+  useEffect(() => {
+    if (!shared) return;
+    let cancelled = false;
+    checkCalculatorToken(linkToken)
+      .then((ok) => !cancelled && setLinkState(ok ? "ok" : "invalid"))
+      .catch(() => !cancelled && setLinkState("offline"));
+    return () => {
+      cancelled = true;
+    };
+  }, [shared, linkToken]);
+
   const [mode, setMode] = useState("tap");
   const [listText, setListText] = useState("");
   const [tokens, setTokens] = useState([]);
@@ -95,18 +117,41 @@ export default function CateringCalcPage() {
     if (!tokens.length) setActiveQuoteId(null);
   }, [tokens.length]);
 
-  // Phones: open with the calculator filling the screen.
+  // The calculator is a popup over the page: full screen on phones, a
+  // centered card on bigger screens. It opens with the page, and while
+  // it's open the page behind is locked so nothing scrolls the calculator
+  // away. Closing it shows the page (menu buttons and saved quotes).
+  const [calcOpen, setCalcOpen] = useState(true);
   const calcRef = useRef(null);
+  const openButtonRef = useRef(null);
   useEffect(() => {
-    if (!window.matchMedia("(max-width: 639px)").matches || !calcRef.current) return;
-    // offsetTop ignores the entrance animation's transform, which would
-    // otherwise leave the page scrolled a little past the top.
-    let y = 0;
-    for (let el = calcRef.current; el; el = el.offsetParent) y += el.offsetTop;
-    window.scrollTo(0, y);
-  }, []);
+    if (!calcOpen || linkState !== "ok") return;
+    const html = document.documentElement;
+    const body = document.body;
+    const before = { html: html.style.overflow, body: body.style.overflow };
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    calcRef.current?.focus({ preventScroll: true });
+    const onKey = (e) => {
+      if (e.key === "Escape") setCalcOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      html.style.overflow = before.html;
+      body.style.overflow = before.body;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [calcOpen, linkState]);
 
-  const scrollToQuote = (id) => document.getElementById(`quote-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const closeCalc = () => {
+    setCalcOpen(false);
+    requestAnimationFrame(() => openButtonRef.current?.focus({ preventScroll: true }));
+  };
+
+  const scrollToQuote = (id) => {
+    setCalcOpen(false);
+    requestAnimationFrame(() => document.getElementById(`quote-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
   const total = evaluate(tokens);
   const counts = useMemo(() => dishCounts(tokens), [tokens]);
   const lines = useMemo(() => dishLines(tokens), [tokens]);
@@ -137,26 +182,49 @@ export default function CateringCalcPage() {
   const totalText = formatMoney(total);
   const totalSize = totalText.length > 13 ? "text-4xl" : totalText.length > 10 ? "text-5xl" : "text-6xl";
 
+  if (linkState !== "ok") return <LinkStatus state={linkState} />;
+
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-teal w-64 h-64 bottom-0 -left-16 animate-float"]}>
+      {!shared && (
       <NavRow className="mb-6">
         <NavFab to="/" title="Order form" icon="fa-house" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
         <NavFab to="/search" title="Search orders" icon="fa-magnifying-glass" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />
         <NavFab to="/invoice" title="View invoice" icon="fa-file-invoice-dollar" colorClass="text-brand-terracotta" glowClass="shadow-glow-terracotta" />
         <NavFab to="/pay" title="Pay with Card" icon="fa-credit-card" colorClass="text-brand-cactus" glowClass="shadow-glow-teal" />
       </NavRow>
+      )}
 
       <PageHeader title="Catering Calculator" subtitle="Tap dishes to add them up" />
 
-      {/* On phones the calculator is full-bleed and at least one screen tall,
-          and the page opens scrolled to it, so it fills the whole screen
-          like a calculator app; the dish area stretches to use the height. */}
+      <button ref={openButtonRef} type="button" onClick={() => setCalcOpen(true)} className="btn-3d stagger-in w-full max-w-md !py-4 text-lg">
+        <i className="fa-solid fa-calculator" aria-hidden="true"></i> Open calculator
+        {tokens.length > 0 && <span className="font-normal opacity-90">· {totalText}</span>}
+      </button>
+
+      {/* Portaled to <body> so it covers the page's floating buttons (theme,
+          log out), which sit above <main> and everything inside it. */}
+      {calcOpen && createPortal(
+      <div className="calc-popup fixed inset-0 z-[60] flex justify-center overflow-y-auto overscroll-contain bg-black sm:items-center sm:bg-black/75 sm:p-6">
       <section
         ref={calcRef}
-        className="catering-calc stagger-in flex w-full max-w-md flex-col rounded-[2.5rem] p-4 sm:p-5 max-sm:-mx-4 max-sm:w-[calc(100%+2rem)] max-sm:max-w-none max-sm:min-h-[100dvh] max-sm:rounded-none max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
         aria-label="Catering calculator"
+        className="catering-calc flex w-full max-w-md flex-col p-4 outline-none max-sm:min-h-full max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] sm:my-auto sm:rounded-[2.5rem] sm:p-5"
       >
-        <div className="mb-2 flex rounded-full bg-[#1c1c1e] p-1" role="tablist" aria-label="How to calculate">
+        <div className="mb-2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={closeCalc}
+          className="calc-dish flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#333] text-white"
+          aria-label="Close calculator"
+          title="Close (shows the menu and saved quotes)"
+        >
+          <i className="fa-solid fa-xmark text-lg" aria-hidden="true"></i>
+        </button>
+        <div className="flex min-w-0 flex-1 rounded-full bg-[#1c1c1e] p-1" role="tablist" aria-label="How to calculate">
           {MODES.map((m) => (
             <button
               key={m.id}
@@ -166,10 +234,12 @@ export default function CateringCalcPage() {
               onClick={() => setMode(m.id)}
               className={`flex-1 rounded-full py-2 text-sm font-semibold transition-colors ${mode === m.id ? "bg-[#f1a33c] text-white" : "text-[#a5a5a5]"}`}
             >
-              <i className={`fa-solid ${m.icon} mr-1.5`} aria-hidden="true"></i>
+              <i className={`fa-solid ${m.icon} mr-1.5 max-[400px]:hidden`} aria-hidden="true"></i>
               {m.label}
             </button>
           ))}
+        </div>
+        {!shared && <ShareCalculatorButton className="calc-dish flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#333] text-white" />}
         </div>
 
         {DEMO_PRICES && mode === "list" && <p className="text-center text-xs font-semibold uppercase tracking-widest text-[#f1a33c] mb-1">Demo prices</p>}
@@ -328,8 +398,12 @@ export default function CateringCalcPage() {
         </div>
         )}
       </section>
+      </div>,
+      document.body
+      )}
 
       <CateringQuotes
+        canInvoice={!shared}
         quotes={quotes}
         highlightId={activeQuoteId}
         onChange={(quote) => updateQuotes((prev) => prev.map((q) => (q.id === quote.id ? quote : q)))}
@@ -355,5 +429,24 @@ function OpKey({ op, active, onPress }) {
     >
       {op}
     </button>
+  );
+}
+
+// What a no-login link shows while it's checked, or when it can't be used.
+function LinkStatus({ state }) {
+  const content = {
+    checking: { icon: "fa-spinner fa-spin", title: "Opening the calculator…", text: "" },
+    invalid: { icon: "fa-link-slash", title: "This link doesn't work anymore", text: "Ask your manager for a new calculator link." },
+    offline: { icon: "fa-wifi", title: "Couldn't open the calculator", text: "Check your connection, then reload this page." },
+  }[state];
+  return (
+    <Layout>
+      <PageHeader title="Catering Calculator" subtitle="" />
+      <div className="glass-card w-full max-w-md p-6 text-center" role={state === "checking" ? "status" : "alert"}>
+        <i className={`fa-solid ${content.icon} text-3xl text-brand-gold`} aria-hidden="true"></i>
+        <p className="mt-3 font-semibold text-brand-navy">{content.title}</p>
+        {content.text && <p className="mt-1 text-sm text-brand-muted">{content.text}</p>}
+      </div>
+    </Layout>
   );
 }

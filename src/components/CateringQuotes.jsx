@@ -20,7 +20,7 @@ const when = (iso) => new Date(iso).toLocaleString(undefined, { month: "short", 
 // Saved quotes under the calculator, newest first. Each one keeps the
 // dishes and total from "=", takes the client's details, and can open the
 // order form filled in so it becomes an order and an invoice.
-export default function CateringQuotes({ quotes, onChange, onDelete, highlightId }) {
+export default function CateringQuotes({ quotes, onChange, onDelete, highlightId, canInvoice = true }) {
   if (!quotes.length) return null;
   return (
     <section className="mt-8 w-full max-w-md stagger-in" aria-labelledby="quotes-heading">
@@ -29,14 +29,14 @@ export default function CateringQuotes({ quotes, onChange, onDelete, highlightId
       </h2>
       <div className="flex flex-col gap-4">
         {[...quotes].reverse().map((quote) => (
-          <QuoteCard key={quote.id} quote={quote} onChange={onChange} onDelete={onDelete} highlight={quote.id === highlightId} />
+          <QuoteCard key={quote.id} quote={quote} onChange={onChange} onDelete={onDelete} highlight={quote.id === highlightId} canInvoice={canInvoice} />
         ))}
       </div>
     </section>
   );
 }
 
-function QuoteCard({ quote, onChange, onDelete, highlight }) {
+function QuoteCard({ quote, onChange, onDelete, highlight, canInvoice }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(true);
   const set = (key) => (e) => onChange({ ...quote, [key]: e.target.value });
@@ -145,9 +145,12 @@ function QuoteCard({ quote, onChange, onDelete, highlight }) {
         <button type="button" onClick={confirmDelete} className="btn-3d flex-1 !px-4 !bg-none !bg-transparent border border-brand-error/60 text-brand-error" aria-label={`Delete Quote #${quote.number}`}>
           <i className="fa-solid fa-trash" aria-hidden="true"></i> Delete
         </button>
-        <button type="button" onClick={makeInvoice} className="btn-3d flex-[2] !px-4">
-          <i className="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Make invoice
-        </button>
+        {/* Making an order needs a staff login, so the no-login link hides it. */}
+        {canInvoice && (
+          <button type="button" onClick={makeInvoice} className="btn-3d flex-[2] !px-4">
+            <i className="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Make invoice
+          </button>
+        )}
       </div>
     </article>
   );

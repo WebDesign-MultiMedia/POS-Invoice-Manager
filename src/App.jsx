@@ -16,13 +16,17 @@ const BroadcastPage = lazy(() => import("./pages/BroadcastPage.jsx"));
 const CateringCalcPage = lazy(() => import("./pages/CateringCalcPage.jsx"));
 
 // Every page is staff-only, except a customer's read-only invoice link
-// (/invoice?id=…&token=…&share=1), which the server checks on its own.
+// (/invoice?id=…&token=…&share=1) and the Catering Calculator's employee
+// link (/catering?share=1&token=…), which the server checks on their own.
 function StaffGate({ children }) {
   const { status } = useAuth();
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
 
   if (pathname === "/invoice" && searchParams.get("share") === "1") return children;
+  // The Catering Calculator's employee link: the page checks its signed
+  // token with the server and shows only the calculator (no login).
+  if (pathname === "/catering" && searchParams.get("share") === "1") return children;
   if (status === "loading") return <AuthSplash />;
   if (status !== "in" && status !== "demo") return <LoginPage />;
   return children;
