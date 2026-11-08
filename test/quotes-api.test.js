@@ -28,7 +28,10 @@ beforeEach(() => {
   const res = mockRes();
   setSessionCookie(res, "staff@example.com");
   staffCookie = cookieFrom(res);
-  fetchMock.mockReset().mockResolvedValue({ ok: true, status: 200, json: async () => ({ updated: 0 }) });
+  // What SheetDB really answers an update that matches no row.
+  fetchMock.mockReset().mockImplementation(async (url, init) =>
+    init.method === "PATCH" ? { ok: false, status: 404, json: async () => ({ error: "No results found" }) } : { ok: true, status: 200, json: async () => ({ created: 1 }) }
+  );
   vi.stubGlobal("fetch", fetchMock);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -92,8 +95,14 @@ describe("saving a quote", () => {
     expect(sentBodies()[1].body.data[0]).toMatchObject({ Source: "staff", CreatedBy: "staff@example.com" });
   });
 
+  it("still creates the row if SheetDB says the update matched 0 rows", async () => {
+    fetchMock.mockImplementation(async (url, init) => ({ ok: true, status: 200, json: async () => (init.method === "PATCH" ? { updated: 0 } : { created: 1 }) }));
+    await post({ action: "save", quote: QUOTE }, staffCookie);
+    expect(sentBodies().map((c) => c.method)).toEqual(["PATCH", "POST"]);
+  });
+
   it("reports a sheet failure without crashing", async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: "Sheet not found" }) });
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: "Sheet not found" }) });
     expect((await post({ action: "save", quote: QUOTE }, staffCookie)).statusCode).toBe(502);
   });
 });
@@ -105,6 +114,11 @@ describe("staff list and delete", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual([{ QuoteId: "qabc12345xyz" }]);
     expect(fetchMock.mock.calls[0][0]).toContain("?sheet=Quotes");
+  });
+
+  it("deleting a quote that's already gone isn't an error", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: "No results found" }) });
+    expect((await post({ action: "delete", id: QUOTE.id }, staffCookie)).statusCode).toBe(200);
   });
 
   it("deletes one quote by id", async () => {

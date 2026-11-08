@@ -29,9 +29,12 @@ function sheetdbHeaders() {
   return headers;
 }
 
-async function sheetdb(base, path, init = {}) {
+async function sheetdb(base, path, init = {}, { notFoundOk = false } = {}) {
   const response = await fetch(`${base}${path}`, { ...init, headers: sheetdbHeaders() });
   const payload = await response.json().catch(() => null);
+  // SheetDB answers an update or delete that matches no rows with
+  // 404 { error: "No results found" } rather than { updated: 0 }.
+  if (response.status === 404 && notFoundOk) return null;
   if (!response.ok) {
     console.error("quotes: SheetDB responded", response.status, payload);
     throw new Error("Sheet request failed");
@@ -86,7 +89,7 @@ async function save(base, body, who, res) {
   const fields = editableFields(body.quote);
   const path = `/QuoteId/${encodeURIComponent(id)}?sheet=${SHEET}`;
 
-  const updated = await sheetdb(base, path, { method: "PATCH", body: JSON.stringify({ data: fields }) });
+  const updated = await sheetdb(base, path, { method: "PATCH", body: JSON.stringify({ data: fields }) }, { notFoundOk: true });
   if (!updated?.updated) {
     const createdAt = /^\d{4}-\d{2}-\d{2}T/.test(String(body.quote.createdAt || "")) ? text(body.quote.createdAt, 40) : fields.UpdatedAt;
     const row = { QuoteId: id, CreatedAt: createdAt, Source: who.source, CreatedBy: who.name, ...fields };
@@ -132,7 +135,7 @@ export default async function handler(req, res) {
     if (body.action === "delete") {
       if (!requireStaff(req, res)) return;
       const id = cleanQuoteId(body.id);
-      await sheetdb(base, `/QuoteId/${encodeURIComponent(id)}?sheet=${SHEET}`, { method: "DELETE" });
+      await sheetdb(base, `/QuoteId/${encodeURIComponent(id)}?sheet=${SHEET}`, { method: "DELETE" }, { notFoundOk: true });
       return res.status(200).json({ ok: true });
     }
 
