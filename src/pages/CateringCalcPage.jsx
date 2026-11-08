@@ -7,7 +7,10 @@ import CateringListMode from "../components/CateringListMode.jsx";
 import CateringQuotes from "../components/CateringQuotes.jsx";
 import ShareCalculatorButton from "../components/ShareCalculatorButton.jsx";
 import { checkCalculatorToken } from "../api/calculatorLink.js";
-import { loadQuotes, saveQuotes, makeQuote, updateQuoteDishes } from "../lib/cateringQuotes.js";
+import { makeQuote, updateQuoteDishes, quoteLabel } from "../lib/cateringQuotes.js";
+import { useQuotes } from "../hooks/useQuotes.js";
+import { isDemo } from "../lib/demo.js";
+import Swal from "sweetalert2";
 import { CATERING_MENU, DEMO_PRICES, TRAY_SIZES } from "../lib/cateringMenu.js";
 import { pressDish, pressOp, pressDelete, pressEquals, evaluate, dishCounts, dishLines } from "../lib/cateringCalc.js";
 import { formatMoney } from "../lib/format.js";
@@ -46,6 +49,44 @@ export default function CateringCalcPage() {
     };
   }, [shared, linkToken]);
 
+  if (linkState !== "ok") return <LinkStatus state={linkState} />;
+  return <CalculatorView shared={shared} linkToken={linkToken} />;
+}
+
+const EMPLOYEE_NAME_KEY = "pim-calc-employee-name";
+function readEmployeeName() {
+  try {
+    return localStorage.getItem(EMPLOYEE_NAME_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+// Asks the employee's name (no-login link), so staff see who sent a quote.
+export async function askEmployeeName(current = "") {
+  const { value } = await Swal.fire({
+    theme: "dark",
+    title: current ? "Change your name" : "What's your name?",
+    text: "It's added to the quotes you save, so the office knows who sent them.",
+    input: "text",
+    inputValue: current,
+    inputAttributes: { maxlength: "60", autocapitalize: "words", "aria-label": "Your name" },
+    confirmButtonText: "Save",
+    confirmButtonColor: "#f1a33c",
+    allowOutsideClick: Boolean(current),
+    allowEscapeKey: Boolean(current),
+    inputValidator: (v) => (!v.trim() ? "Please type your name" : undefined),
+  });
+  const name = (value || current).trim();
+  try {
+    if (name) localStorage.setItem(EMPLOYEE_NAME_KEY, name);
+  } catch {
+    // Storage blocked: the name lasts until reload.
+  }
+  return name;
+}
+
+function CalculatorView({ shared, linkToken }) {
   const [mode, setMode] = useState("tap");
   const [listText, setListText] = useState("");
   const [tokens, setTokens] = useState([]);
@@ -77,15 +118,19 @@ export default function CateringCalcPage() {
   // "=" saves the order as a quote below the calculator. Carrying on after
   // "=" (adding more dishes, then "=" again) updates that same quote rather
   // than making a new one; starting over makes a new one.
-  const [quotes, setQuotes] = useState(loadQuotes);
+  // Quotes are shared with staff through the spreadsheet (useQuotes); the
+  // no-login link sends them along with the employee's name.
+  const [employeeName, setEmployeeName] = useState(readEmployeeName);
+  useEffect(() => {
+    if (shared && !employeeName && !isDemo()) askEmployeeName().then(setEmployeeName);
+  }, [shared, employeeName]);
+  const quoteMode = isDemo() ? "local" : shared ? "link" : "staff";
+  const { quotes, status: quoteStatus, addQuote, updateQuote, removeQuote, refresh: refreshQuotes } = useQuotes({
+    mode: quoteMode,
+    link: shared ? { token: linkToken, employeeName } : null,
+  });
   const [activeQuoteId, setActiveQuoteId] = useState(null);
   const [savedNote, setSavedNote] = useState(null);
-  const updateQuotes = (fn) =>
-    setQuotes((prev) => {
-      const next = fn(prev);
-      saveQuotes(next);
-      return next;
-    });
 
   const onEquals = () => {
     const next = pressEquals(tokens);
@@ -96,13 +141,13 @@ export default function CateringCalcPage() {
     let saved;
     if (continuing) {
       saved = updateQuoteDishes(quotes.find((q) => q.id === activeQuoteId), dishLinesNow, value);
-      updateQuotes((prev) => prev.map((q) => (q.id === saved.id ? saved : q)));
+      updateQuote(saved, { now: true });
     } else {
-      saved = makeQuote(dishLinesNow, value, quotes);
-      updateQuotes((prev) => [...prev, saved]);
+      saved = makeQuote(dishLinesNow, value);
+      addQuote(saved);
     }
     setActiveQuoteId(saved.id);
-    setSavedNote({ id: saved.id, number: saved.number, updated: continuing });
+    setSavedNote({ id: saved.id, label: quoteLabel(saved), updated: continuing });
     setTokens(next);
   };
 
@@ -125,7 +170,7 @@ export default function CateringCalcPage() {
   const calcRef = useRef(null);
   const openButtonRef = useRef(null);
   useEffect(() => {
-    if (!calcOpen || linkState !== "ok") return;
+    if (!calcOpen) return;
     const html = document.documentElement;
     const body = document.body;
     const before = { html: html.style.overflow, body: body.style.overflow };
@@ -141,7 +186,7 @@ export default function CateringCalcPage() {
       body.style.overflow = before.body;
       window.removeEventListener("keydown", onKey);
     };
-  }, [calcOpen, linkState]);
+  }, [calcOpen]);
 
   const closeCalc = () => {
     setCalcOpen(false);
@@ -181,8 +226,6 @@ export default function CateringCalcPage() {
 
   const totalText = formatMoney(total);
   const totalSize = totalText.length > 13 ? "text-4xl" : totalText.length > 10 ? "text-5xl" : "text-6xl";
-
-  if (linkState !== "ok") return <LinkStatus state={linkState} />;
 
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-teal w-64 h-64 bottom-0 -left-16 animate-float"]}>
@@ -289,7 +332,7 @@ export default function CateringCalcPage() {
           <p className="min-h-[1.25rem] px-1 text-right text-sm text-[#f1a33c]" role="status">
             {savedNote && (
               <button type="button" onClick={() => scrollToQuote(savedNote.id)} className="underline-offset-2 hover:underline">
-                <i className="fa-solid fa-check" aria-hidden="true"></i> {savedNote.updated ? "Updated" : "Saved as"} Quote #{savedNote.number} below{" "}
+                <i className="fa-solid fa-check" aria-hidden="true"></i> {savedNote.updated ? "Updated" : "Saved as"} {savedNote.label} below{" "}
                 <i className="fa-solid fa-arrow-down" aria-hidden="true"></i>
               </button>
             )}
@@ -403,12 +446,17 @@ export default function CateringCalcPage() {
       )}
 
       <CateringQuotes
+        mode={quoteMode}
         canInvoice={!shared}
         quotes={quotes}
+        status={quoteStatus}
+        onRefresh={refreshQuotes}
+        employeeName={employeeName}
+        onChangeName={() => askEmployeeName(employeeName).then(setEmployeeName)}
         highlightId={activeQuoteId}
-        onChange={(quote) => updateQuotes((prev) => prev.map((q) => (q.id === quote.id ? quote : q)))}
-        onDelete={(id) => {
-          updateQuotes((prev) => prev.filter((q) => q.id !== id));
+        onChange={(quote) => updateQuote(quote)}
+        onDelete={async (id) => {
+          await removeQuote(id);
           if (id === activeQuoteId) setActiveQuoteId(null);
         }}
       />

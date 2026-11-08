@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { TRAY_SIZES } from "../lib/cateringMenu.js";
-import { quoteToOrderForm } from "../lib/cateringQuotes.js";
+import { quoteToOrderForm, quoteLabel } from "../lib/cateringQuotes.js";
 import { hasDraft, writeDraft } from "../lib/orderDraft.js";
 import { formatMoney } from "../lib/format.js";
 
@@ -20,23 +20,87 @@ const when = (iso) => new Date(iso).toLocaleString(undefined, { month: "short", 
 // Saved quotes under the calculator, newest first. Each one keeps the
 // dishes and total from "=", takes the client's details, and can open the
 // order form filled in so it becomes an order and an invoice.
-export default function CateringQuotes({ quotes, onChange, onDelete, highlightId, canInvoice = true }) {
-  if (!quotes.length) return null;
+// mode: "staff" (shared list from the spreadsheet), "link" (an employee's
+// no-login link: their own quotes, also sent to the office), "local" (demo).
+export default function CateringQuotes({ mode = "local", quotes, status = {}, onRefresh, employeeName, onChangeName, onChange, onDelete, highlightId, canInvoice = true }) {
+  if (!quotes.length && mode !== "staff") return mode === "link" && employeeName ? <LinkNote employeeName={employeeName} onChangeName={onChangeName} /> : null;
   return (
     <section className="mt-8 w-full max-w-md stagger-in" aria-labelledby="quotes-heading">
-      <h2 id="quotes-heading" className="mb-3 text-center font-headings text-xl text-brand-navy">
-        <i className="fa-solid fa-receipt" aria-hidden="true"></i> Saved Quotes
-      </h2>
+      <div className="mb-3 flex items-center justify-center gap-3">
+        <h2 id="quotes-heading" className="font-headings text-xl text-brand-navy">
+          <i className="fa-solid fa-receipt" aria-hidden="true"></i> {mode === "staff" ? "Quotes" : "Saved Quotes"}
+        </h2>
+        {mode === "staff" && (
+          <button type="button" onClick={onRefresh} disabled={status.loading} className="fab !h-10 !w-10 disabled:opacity-60" aria-label="Check for new quotes" title="Check for new quotes">
+            <i className={`fa-solid fa-rotate text-brand-gold ${status.loading ? "fa-spin" : ""}`} aria-hidden="true"></i>
+          </button>
+        )}
+      </div>
+      {mode === "staff" && <p className="-mt-1 mb-3 text-center text-xs text-brand-muted/90">Shared by every staff login and the employee calculator link.</p>}
+      {mode === "link" && <LinkNote employeeName={employeeName} onChangeName={onChangeName} />}
+      {status.error === "load" && (
+        <p role="alert" className="glass-panel mb-3 p-3 text-center text-sm text-brand-error">
+          Couldn&apos;t load the shared quotes. Showing this device&apos;s copy. Check your connection and tap <i className="fa-solid fa-rotate" aria-hidden="true"></i>.
+        </p>
+      )}
+      {mode === "staff" && !quotes.length && !status.loading && !status.error && <p className="text-center text-sm text-brand-muted">No quotes yet. Press = on the calculator to save one.</p>}
       <div className="flex flex-col gap-4">
         {[...quotes].reverse().map((quote) => (
-          <QuoteCard key={quote.id} quote={quote} onChange={onChange} onDelete={onDelete} highlight={quote.id === highlightId} canInvoice={canInvoice} />
+          <QuoteCard key={quote.id} mode={mode} saveFailed={status.error === "save"} quote={quote} onChange={onChange} onDelete={onDelete} highlight={quote.id === highlightId} canInvoice={canInvoice} />
         ))}
       </div>
     </section>
   );
 }
 
-function QuoteCard({ quote, onChange, onDelete, highlight, canInvoice }) {
+function LinkNote({ employeeName, onChangeName }) {
+  return (
+    <p className="mb-3 text-center text-sm text-brand-muted">
+      Your quotes are sent to the office{employeeName ? <> as <b className="text-brand-navy">{employeeName}</b></> : null}.{" "}
+      <button type="button" onClick={onChangeName} className="font-semibold text-brand-navy underline">
+        Change name
+      </button>
+    </p>
+  );
+}
+
+// Who made a quote and whether the shared list has it yet.
+function SyncLine({ quote, mode, saveFailed }) {
+  if (mode === "local") return null;
+  let status = null;
+  if (quote.pending) {
+    status = saveFailed ? (
+      <span className="text-brand-error">
+        <i className="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Not sent yet, will retry
+      </span>
+    ) : (
+      <span>
+        <i className="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Saving…
+      </span>
+    );
+  } else if (mode === "link") {
+    status = (
+      <span className="text-brand-teal">
+        <i className="fa-solid fa-check" aria-hidden="true"></i> Sent to the office
+      </span>
+    );
+  }
+  const who = mode === "staff" && quote.createdBy ? (quote.source === "link" ? `From ${quote.createdBy} (employee link)` : `By ${quote.createdBy}`) : null;
+  if (!who && !status) return null;
+  return (
+    <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-brand-muted/90">
+      {who && (
+        <span>
+          <i className={`fa-solid ${quote.source === "link" ? "fa-link" : "fa-user"}`} aria-hidden="true"></i> {who}
+        </span>
+      )}
+      {status}
+    </p>
+  );
+}
+
+function QuoteCard({ quote, mode, saveFailed, onChange, onDelete, highlight, canInvoice }) {
+  const label = quoteLabel(quote);
   const navigate = useNavigate();
   const [open, setOpen] = useState(true);
   const set = (key) => (e) => onChange({ ...quote, [key]: e.target.value });
@@ -55,7 +119,7 @@ function QuoteCard({ quote, onChange, onDelete, highlight, canInvoice }) {
       });
       if (!isConfirmed) return;
     }
-    writeDraft(quoteToOrderForm(quote), `Catering Quote #${quote.number}`);
+    writeDraft(quoteToOrderForm(quote), `Catering ${label}`);
     onChange({ ...quote, sentAt: new Date().toISOString() });
     navigate("/");
   };
@@ -63,25 +127,30 @@ function QuoteCard({ quote, onChange, onDelete, highlight, canInvoice }) {
   const confirmDelete = async () => {
     const { isConfirmed } = await Swal.fire({
       theme: "dark",
-      title: `Delete Quote #${quote.number}?`,
-      text: "This can't be undone.",
+      title: `Delete ${label}?`,
+      text: mode === "link" ? "This removes it from this phone only. The office keeps its copy." : mode === "staff" ? "This deletes it for every staff login. It can't be undone." : "This can't be undone.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Delete",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#e23744",
     });
-    if (isConfirmed) onDelete(quote.id);
+    if (!isConfirmed) return;
+    try {
+      await onDelete(quote.id);
+    } catch {
+      Swal.fire({ theme: "dark", icon: "error", title: "Couldn't delete it", text: "Check your connection and try again." });
+    }
   };
 
   const idBase = `quote-${quote.id}`;
 
   return (
-    <article id={idBase} className={`glass-card p-5 transition-shadow ${highlight ? "ring-2 ring-brand-gold" : ""}`} aria-label={`Catering Quote #${quote.number}`}>
+    <article id={idBase} className={`glass-card p-5 transition-shadow ${highlight ? "ring-2 ring-brand-gold" : ""}`} aria-label={`Catering ${label}`}>
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-semibold text-brand-navy">
-            Quote #{quote.number}
+            {label}
             {quote.name.trim() && <span className="font-normal text-brand-muted"> · {quote.name.trim()}</span>}
           </h3>
           <p className="text-xs text-brand-muted/85">
@@ -95,6 +164,7 @@ function QuoteCard({ quote, onChange, onDelete, highlight, canInvoice }) {
         </div>
         <p className="shrink-0 text-2xl font-semibold text-brand-navy tabular-nums">{formatMoney(quote.total)}</p>
       </header>
+      <SyncLine quote={quote} mode={mode} saveFailed={saveFailed} />
 
       <ul className="mt-3 space-y-1 text-sm" aria-label="Dishes">
         {quote.lines.map((l, i) => (
@@ -142,7 +212,7 @@ function QuoteCard({ quote, onChange, onDelete, highlight, canInvoice }) {
       )}
 
       <div className="mt-4 flex gap-3">
-        <button type="button" onClick={confirmDelete} className="btn-3d flex-1 !px-4 !bg-none !bg-transparent border border-brand-error/60 text-brand-error" aria-label={`Delete Quote #${quote.number}`}>
+        <button type="button" onClick={confirmDelete} className="btn-3d flex-1 !px-4 !bg-none !bg-transparent border border-brand-error/60 text-brand-error" aria-label={`Delete ${label}`}>
           <i className="fa-solid fa-trash" aria-hidden="true"></i> Delete
         </button>
         {/* Making an order needs a staff login, so the no-login link hides it. */}
