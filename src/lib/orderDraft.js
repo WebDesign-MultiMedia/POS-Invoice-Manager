@@ -11,10 +11,19 @@ export const draftKey = () => (isDemo() ? "pim-order-draft-demo" : "pim-order-dr
 // "Filled in from Quote #N" note).
 export const draftSourceKey = () => `${draftKey()}-source`;
 
+// Nothing typed yet. Deposit starts at "0" on a new form, so a 0 deposit
+// alone doesn't count as a draft.
+export function isBlankForm(form) {
+  return Object.entries(form).every(([key, v]) => {
+    const value = String(v ?? "").trim();
+    return !value || (key === "Deposit" && Number(value) === 0);
+  });
+}
+
 export function readDraft() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(draftKey()));
-    if (saved && typeof saved === "object") return saved;
+    if (saved && typeof saved === "object" && !isBlankForm(saved)) return saved;
   } catch {
     // Storage blocked or corrupt draft.
   }
@@ -23,8 +32,7 @@ export function readDraft() {
 
 export function writeDraft(form, source = null) {
   try {
-    const isEmpty = Object.values(form).every((v) => !String(v ?? "").trim());
-    if (isEmpty) {
+    if (isBlankForm(form)) {
       sessionStorage.removeItem(draftKey());
       sessionStorage.removeItem(draftSourceKey());
     } else {
@@ -44,7 +52,4 @@ export function readDraftSource() {
   }
 }
 
-export const hasDraft = () => {
-  const d = readDraft();
-  return Boolean(d && Object.values(d).some((v) => String(v ?? "").trim()));
-};
+export const hasDraft = () => Boolean(readDraft());

@@ -87,8 +87,8 @@ export function quoteItemsText(quote) {
   return merged.map((l) => `${l.qty}x ${l.name} (${SIZE_LABEL[l.size] || l.size})`).join("\n");
 }
 
-// The order form's fields, filled in from a quote. Payment and Deposit are
-// left for staff to fill in.
+// The order form's fields, filled in from a quote. Payment is left for
+// staff to fill in; Deposit starts at 0, like a new order.
 export function quoteToOrderForm(quote) {
   return {
     Name: quote.name.trim(),
@@ -97,7 +97,7 @@ export function quoteToOrderForm(quote) {
     PickupDelivery: "Catering",
     Cost: quote.total.toFixed(2),
     Payment: "",
-    Deposit: "",
+    Deposit: "0",
     Items: quoteItemsText(quote),
     DueDate: quote.eventDate || "",
     Notes: quote.notes.trim(),

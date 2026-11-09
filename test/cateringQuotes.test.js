@@ -75,7 +75,7 @@ describe("catering quotes", () => {
       PickupDelivery: "Catering",
       Cost: "730.00",
       Payment: "",
-      Deposit: "",
+      Deposit: "0",
       Items: "2x Carnitas (Whole tray)\n1x Chivo (Whole tray)\n1x Frijoles (Half tray)",
       DueDate: "2026-11-20",
       Notes: "Party at 6",

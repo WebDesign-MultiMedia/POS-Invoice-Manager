@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
-import { submitOrder } from "../api/sheetdb.js";
-import { getCurrentDateTime, getTotalQuantity, formatDate } from "../lib/format.js";
+import { fetchAllOrders, submitOrder } from "../api/sheetdb.js";
+import { getCurrentDateTime, getTotalQuantity, formatDate, formatMoney, toNumber } from "../lib/format.js";
+import { findSubmittedOrder, ordersNewestFirst } from "../lib/recentOrder.js";
 import { getBrand } from "../lib/brand.js";
 import { readDraft, writeDraft, readDraftSource } from "../lib/orderDraft.js";
 import { friendlyMessage } from "../lib/errors.js";
@@ -16,7 +18,7 @@ const INITIAL_FORM = {
   PickupDelivery: "",
   Cost: "",
   Payment: "",
-  Deposit: "",
+  Deposit: "0",
   Items: "",
   DueDate: "",
   Notes: "",
@@ -38,6 +40,19 @@ function loadDraft() {
   return saved ? { ...INITIAL_FORM, ...saved } : null;
 }
 
+// The order just saved, for the success alert's "View invoice". The sheet
+// gives new orders their Id, so it's looked up after saving (the demo
+// returns it directly). Null if it can't be found; the order is still saved.
+async function lookUpSavedOrder(data, created) {
+  if (created?.id) return { ...data, Id: String(created.id) };
+  try {
+    return findSubmittedOrder(await fetchAllOrders(), data);
+  } catch (err) {
+    console.error("Couldn't look up the saved order:", err);
+    return null;
+  }
+}
+
 function fieldClass(value, validated) {
   if (!validated) return "input-3d text-center";
   return value.trim() ? "input-3d text-center field-valid" : "input-3d text-center field-error";
@@ -52,6 +67,22 @@ export default function OrderFormPage() {
   // A ref as well as state: two quick taps can land before React re-renders
   // the disabled button, and the ref stops the second one immediately.
   const savingRef = useRef(false);
+  const navigate = useNavigate();
+
+  // Saved orders, newest first, listed under the form for quick access.
+  const [recent, setRecent] = useState({ orders: [], loading: true, error: false });
+  useEffect(() => {
+    let live = true;
+    fetchAllOrders()
+      .then((rows) => live && setRecent({ orders: ordersNewestFirst(rows), loading: false, error: false }))
+      .catch((err) => {
+        console.error("Couldn't load recent orders:", err);
+        if (live) setRecent({ orders: [], loading: false, error: true });
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   // Set when the draft was filled in from a Catering Calculator quote.
   const [draftSource] = useState(() => (initialDraft ? readDraftSource() : null));
@@ -95,8 +126,10 @@ export default function OrderFormPage() {
 
     savingRef.current = true;
     setSaving(true);
+    let saved = null;
     try {
-      await submitOrder(data);
+      const created = await submitOrder(data);
+      saved = await lookUpSavedOrder(data, created);
     } catch (err) {
       // The form (and its draft) stay as they are, so nothing is retyped.
       console.error("submitOrder failed:", err);
@@ -113,10 +146,26 @@ export default function OrderFormPage() {
       setSaving(false);
     }
 
-    Swal.fire({ ...ALERT_BASE, title: "Successfully Stored", icon: "success", timer: 1500 });
     setForm(INITIAL_FORM);
     setValidated(false);
     setRestored(false);
+    if (saved) setRecent((r) => ({ ...r, orders: [saved, ...r.orders.filter((o) => String(o.Id) !== String(saved.Id))] }));
+
+    if (!saved) {
+      Swal.fire({ ...ALERT_BASE, title: "Successfully Stored", icon: "success", timer: 1500 });
+      return;
+    }
+    const { isConfirmed } = await Swal.fire({
+      ...ALERT_BASE,
+      title: "Successfully Stored",
+      text: `Order #${saved.Id} for ${saved.Name} is saved.`,
+      icon: "success",
+      showConfirmButton: true,
+      confirmButtonText: '<i class="fa-solid fa-file-invoice-dollar"></i> View invoice',
+      showCancelButton: true,
+      cancelButtonText: "New order",
+    });
+    if (isConfirmed) navigate(`/invoice?id=${encodeURIComponent(saved.Id)}`);
   };
 
   const brand = getBrand();
@@ -259,6 +308,62 @@ export default function OrderFormPage() {
           </button>
         </div>
       </TiltCard>
+
+      <RecentOrders {...recent} />
     </Layout>
+  );
+}
+
+const RECENT_PAGE = 5;
+
+// Under the form: the orders saved, newest first, each one tap from its
+// invoice. Shows a few at a time with "Show more" for older ones.
+function RecentOrders({ orders, loading, error }) {
+  const [shown, setShown] = useState(RECENT_PAGE);
+  if (loading || (!error && !orders.length)) return null;
+  return (
+    <section className="glass-card w-full max-w-3xl mt-8 p-5 sm:p-6 stagger-in" aria-label="Recent orders">
+      <h2 className="field-label !mb-3 justify-center">
+        <i className="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Recent orders
+      </h2>
+      {error ? (
+        <p className="text-center text-sm text-brand-navydeep/80">Couldn&apos;t load recent orders. They&apos;ll show next time the page opens.</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-brand-navydeep/15">
+          {orders.slice(0, shown).map((order) => (
+            <RecentOrderRow key={order.Id} order={order} />
+          ))}
+        </ul>
+      )}
+      {orders.length > shown && (
+        <div className="flex justify-center mt-4">
+          <button type="button" className="underline font-semibold text-sm text-brand-navy" onClick={() => setShown((n) => n + RECENT_PAGE * 2)}>
+            Show more ({orders.length - shown} older)
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RecentOrderRow({ order }) {
+  const items = getTotalQuantity(order.Items || "");
+  return (
+    <li className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between py-3 first:pt-0 last:pb-0">
+      <div className="text-center sm:text-left min-w-0">
+        <p className="font-semibold text-brand-navy truncate">
+          #{order.Id} · {order.Name || "No name"}
+        </p>
+        <p className="text-sm text-brand-navydeep/80">
+          {[order.Date, order.Time].filter(Boolean).join(" · ")}
+          {order.PickupDelivery ? ` · ${order.PickupDelivery}` : ""}
+          {items ? ` · ${items} item${items === 1 ? "" : "s"}` : ""}
+          {order.Cost !== undefined && order.Cost !== "" ? ` · ${formatMoney(toNumber(order.Cost))}` : ""}
+        </p>
+      </div>
+      <Link to={`/invoice?id=${encodeURIComponent(order.Id)}`} className="btn-3d !py-2 !px-4 text-sm shrink-0 self-center">
+        <i className="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> View invoice
+      </Link>
+    </li>
   );
 }
