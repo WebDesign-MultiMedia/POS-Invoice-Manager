@@ -33,7 +33,9 @@ export default function Layout({ blobs = [], children, mainClassName = "" }) {
       {blobs.map((cls, i) => (
         <div key={i} className={`blob ${cls}`} aria-hidden="true"></div>
       ))}
-      <main className={`relative z-10 flex flex-col items-center px-4 py-10 ${mainClassName}`.trim()}>
+      {/* pt-24 keeps the page (usually the round nav buttons) clear of the
+          log out / theme buttons in the top corners. */}
+      <main className={`relative z-10 flex flex-col items-center px-4 pt-24 pb-10 ${mainClassName}`.trim()}>
         <DemoBanner />
         {children}
       </main>
