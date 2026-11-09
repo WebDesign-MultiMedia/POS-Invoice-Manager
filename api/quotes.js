@@ -1,4 +1,5 @@
 import { isValidCalculatorToken, readSession, requireStaff } from "./_lib/auth.js";
+import { sheetdbHeaders } from "./_lib/sheetdb.js";
 
 // Vercel serverless function: Catering Calculator quotes, stored in the
 // "Quotes" tab of the order spreadsheet (through SheetDB, like api/sheets.js),
@@ -19,15 +20,6 @@ const SHEET = "Quotes";
 const MAX = { text: 300, notes: 2000, lines: 200, linesJson: 40000, items: 8000 };
 
 class BadRequest extends Error {}
-
-function sheetdbHeaders() {
-  const headers = { "Content-Type": "application/json" };
-  if (process.env.SHEETDB_USER && process.env.SHEETDB_PASS) {
-    const creds = Buffer.from(`${process.env.SHEETDB_USER}:${process.env.SHEETDB_PASS}`).toString("base64");
-    headers.Authorization = `Basic ${creds}`;
-  }
-  return headers;
-}
 
 async function sheetdb(base, path, init = {}, { notFoundOk = false } = {}) {
   const response = await fetch(`${base}${path}`, { ...init, headers: sheetdbHeaders() });

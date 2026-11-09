@@ -19,6 +19,7 @@
 // one invoice and its card payments, and only with a valid signed token.
 
 import { isValidShareToken, requireStaff, shareTokenFor } from "./_lib/auth.js";
+import { sheetdbHeaders } from "./_lib/sheetdb.js";
 
 const READ_ACTIONS = {
   orders: () => "",
@@ -39,17 +40,6 @@ function requireId(params, name) {
   const value = cleanId(params.get(name));
   if (!value) throw new BadRequest(`Missing or invalid ${name}`);
   return value;
-}
-
-function sheetdbHeaders() {
-  const headers = { "Content-Type": "application/json" };
-  // Sent once Basic Auth is switched on in SheetDB's API settings; until
-  // then the id alone works, so this can deploy before that toggle.
-  if (process.env.SHEETDB_USER && process.env.SHEETDB_PASS) {
-    const creds = Buffer.from(`${process.env.SHEETDB_USER}:${process.env.SHEETDB_PASS}`).toString("base64");
-    headers.Authorization = `Basic ${creds}`;
-  }
-  return headers;
 }
 
 // SheetDB's search treats * as a wildcard, so a bare "*" id would match
