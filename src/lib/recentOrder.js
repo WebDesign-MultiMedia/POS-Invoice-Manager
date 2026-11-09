@@ -32,3 +32,27 @@ export function findSubmittedOrder(rows, data) {
   const customer = (rows || []).filter((r) => same(r.Name, data.Name) && same(r.Contact, data.Contact));
   return newest(customer.filter((r) => same(r.Date, data.Date) && same(r.Time, data.Time))) || newest(customer);
 }
+
+// "11/09/2026" + "3:12 PM" → a sortable number, or -1 if unreadable.
+export function paymentTime(row) {
+  const d = String(row?.Date || "").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!d) return -1;
+  const t = String(row?.Time || "").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)?$/i);
+  let minutes = 0;
+  if (t) {
+    const ampm = (t[4] || "").toUpperCase();
+    const h = ampm ? (Number(t[1]) % 12) + (ampm === "PM" ? 12 : 0) : Number(t[1]);
+    minutes = h * 60 + Number(t[2]);
+  }
+  return Date.UTC(Number(d[3]), Number(d[1]) - 1, Number(d[2])) / 60000 + minutes;
+}
+
+// Card payments, newest first. The sheet adds rows at the bottom, so for
+// payments in the same minute (or with an unreadable date) the later row
+// wins.
+export function cardPaymentsNewestFirst(rows) {
+  return (rows || [])
+    .map((row, i) => ({ row, i, t: paymentTime(row) }))
+    .sort((a, b) => b.t - a.t || b.i - a.i)
+    .map((x) => x.row);
+}

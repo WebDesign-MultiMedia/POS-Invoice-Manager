@@ -6,7 +6,9 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import CardPaymentForm from "../components/CardPaymentForm.jsx";
 import DemoCardForm from "../components/DemoCardForm.jsx";
-import { getInvoiceById, getCardPaymentsForInvoice, recordCardPayment } from "../api/sheetdb.js";
+import { fetchAllCardPayments, fetchAllOrders, getInvoiceById, getCardPaymentsForInvoice, recordCardPayment } from "../api/sheetdb.js";
+import RecentCardPayments from "../components/RecentCardPayments.jsx";
+import { cardPaymentsNewestFirst } from "../lib/recentOrder.js";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
 import { getStripe } from "../lib/stripeClient.js";
 import { getTheme } from "../lib/theme.js";
@@ -111,6 +113,28 @@ export default function PayPage() {
     setReceipt(null);
   };
 
+  // Card payments taken, newest first, listed under the form.
+  const [recentPayments, setRecentPayments] = useState({ payments: [], loading: true, error: false });
+  useEffect(() => {
+    let live = true;
+    // Card payment rows don't store the order type (Delivery, Pick-up,
+    // Catering), so it comes from each payment's order. If the orders
+    // can't load, the list still shows, just without the type.
+    Promise.all([fetchAllCardPayments(), fetchAllOrders().catch(() => [])])
+      .then(([rows, orders]) => {
+        const types = new Map(orders.map((o) => [String(o.Id ?? ""), o.PickupDelivery || ""]));
+        const payments = cardPaymentsNewestFirst(rows).map((p) => ({ ...p, OrderType: types.get(String(p.InvoiceId ?? "")) || "" }));
+        if (live) setRecentPayments({ payments, loading: false, error: false });
+      })
+      .catch((err) => {
+        console.error("Couldn't load recent card payments:", err);
+        if (live) setRecentPayments({ payments: [], loading: false, error: true });
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
   const invoiceTotals = invoice ? invoiceBalance(invoice, invoicePayments) : null;
   const invoiceTotalDue = invoiceTotals ? invoiceTotals.balanceDue : 0;
 
@@ -162,8 +186,9 @@ export default function PayPage() {
   // never block the customer from seeing their (already successful) receipt.
   const handlePaid = async (result) => {
     const { date, time } = getCurrentDateTime();
+    let row;
     try {
-      await recordCardPayment({
+      row = {
         Date: date,
         Time: time,
         Amount: (result.baseAmountCents / 100).toFixed(2),
@@ -178,7 +203,9 @@ export default function PayPage() {
         InvoiceId: payInvoiceId || "",
         Items: mode === "amount" ? itemsForSheet : "",
         Note: mode === "amount" ? note.trim() : "",
-      });
+      };
+      await recordCardPayment(row);
+      setRecentPayments((r) => ({ ...r, payments: [{ ...row, OrderType: mode === "invoice" ? invoice?.PickupDelivery || "" : "" }, ...r.payments] }));
     } catch (err) {
       // The charge already went through, so the receipt still shows; staff
       // just need to know the sheet is missing this row.
@@ -567,6 +594,8 @@ export default function PayPage() {
           </div>
         )}
       </div>
+
+      <RecentCardPayments {...recentPayments} className="max-w-md" />
     </Layout>
   );
 }

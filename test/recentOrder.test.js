@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findSubmittedOrder, newestOrder, ordersNewestFirst } from "../src/lib/recentOrder.js";
+import { cardPaymentsNewestFirst, findSubmittedOrder, newestOrder, ordersNewestFirst } from "../src/lib/recentOrder.js";
 
 const rows = [
   { Id: "9", Date: "11/09/2026", Time: "10:00 AM", Name: "Ana", Contact: "555" },
@@ -26,5 +26,26 @@ describe("recent orders", () => {
     // Sheet showed the date differently: still the newest order for that customer.
     expect(findSubmittedOrder(rows, { Date: "2026-11-09", Time: "10:00", Name: "Ana", Contact: "555" }).Id).toBe("9");
     expect(findSubmittedOrder(rows, { Date: "11/09/2026", Time: "10:00 AM", Name: "Bea", Contact: "555" })).toBeNull();
+  });
+});
+
+describe("recent card payments", () => {
+  it("sorts by date and time, newest first", () => {
+    const rows = [
+      { InvoiceId: "a", Date: "11/08/2026", Time: "11:59 PM" },
+      { InvoiceId: "b", Date: "11/09/2026", Time: "12:05 AM" },
+      { InvoiceId: "c", Date: "11/09/2026", Time: "12:30 PM" },
+      { InvoiceId: "d", Date: "11/09/2026", Time: "9:15 AM" },
+      { InvoiceId: "e", Date: "", Time: "" },
+    ];
+    expect(cardPaymentsNewestFirst(rows).map((r) => r.InvoiceId)).toEqual(["c", "d", "b", "a", "e"]);
+  });
+
+  it("keeps the sheet's later row first within the same minute", () => {
+    const rows = [
+      { InvoiceId: "first", Date: "11/09/2026", Time: "1:00 PM" },
+      { InvoiceId: "second", Date: "11/09/2026", Time: "1:00 PM" },
+    ];
+    expect(cardPaymentsNewestFirst(rows)[0].InvoiceId).toBe("second");
   });
 });
