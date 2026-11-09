@@ -248,39 +248,39 @@ export default function InvoicePage() {
       {/* Receipt layout from the Figma file "POS Invoice Manager": phones
           follow the iPhone frame (node 41:3); sm: and up (desktop, and Save as
           Image, which renders at 900px wide) follow the Desktop frame
-          (node 42:10). Printing always uses the Desktop frame: every sm:
-          class has a matching print: class (in rem, not px, so the print CSS
-          can scale the whole invoice to the page width), because phones
-          print at their screen width and would otherwise print the narrow
-          phone layout. */}
-      <div ref={wrapRef} data-receipt-wrap className="receipt-wrap tilt-wrap w-full max-w-[368px] sm:max-w-[703px] print:max-w-[43.9375rem] stagger-in">
-        <div ref={cardRef} className="paper-card receipt-card animate-unfold font-receipt px-4 pt-3.5 pb-0.5 sm:px-7 print:px-7 sm:pt-[19px] print:pt-[1.1875rem] sm:pb-1 print:pb-1 overflow-hidden">
+          (node 42:10). Printing always uses the Desktop frame, sized to the
+          printed page: every length has a print: twin in cqw (a share of
+          the printed width; 100cqw = the 703px design), so the invoice fills
+          the page width on any device. Phones measure px, rem and vw against
+          their screen, not the page, so only cqw fits there. */}
+      <div ref={wrapRef} data-receipt-wrap className="receipt-wrap tilt-wrap w-full max-w-[368px] sm:max-w-[703px] stagger-in print:w-full print:max-w-[100cqw]">
+        <div ref={cardRef} className="paper-card receipt-card animate-unfold font-receipt px-4 pt-3.5 pb-0.5 sm:px-7 sm:pt-[19px] sm:pb-1 overflow-hidden print:px-[3.9829cqw] print:pt-[2.7027cqw] print:pb-[0.569cqw]">
           {/* Header: logo top-left; name, then tagline over a centred hairline */}
           <header className="relative">
             {brand.demo ? (
-              <span className="absolute left-[-7px] top-0 sm:left-[-6px] print:left-[-0.375rem] w-[57px] h-[49px] sm:w-[100px] print:w-[6.25rem] sm:h-[86px] print:h-[5.375rem] flex items-center justify-center" aria-hidden="true">
-                <i className="fa-solid fa-mug-saucer text-3xl sm:text-5xl print:text-5xl receipt-accent"></i>
+              <span className="absolute left-[-7px] top-0 sm:left-[-6px] w-[57px] h-[49px] sm:w-[100px] sm:h-[86px] flex items-center justify-center print:left-[-0.8535cqw] print:top-[0cqw] print:w-[14.2248cqw] print:h-[12.2333cqw]" aria-hidden="true">
+                <i className="fa-solid fa-mug-saucer text-3xl sm:text-5xl receipt-accent print:text-[6.8279cqw] print:leading-none"></i>
               </span>
             ) : (
-              <span className="absolute left-[-7px] top-0 sm:left-[-6px] print:left-[-0.375rem] w-[57px] h-[49px] sm:w-[100px] print:w-[6.25rem] sm:h-[86px] print:h-[5.375rem] overflow-hidden">
+              <span className="absolute left-[-7px] top-0 sm:left-[-6px] w-[57px] h-[49px] sm:w-[100px] sm:h-[86px] overflow-hidden print:left-[-0.8535cqw] print:top-[0cqw] print:w-[14.2248cqw] print:h-[12.2333cqw]">
                 <img
                   src="/imgs/invoice/blfm-logo.png"
                   alt={`${brand.name} logo`}
-                  className="absolute max-w-none h-[106.51%] w-[121.83%] left-[-7.11%] top-[-5.33%]"
+                  className="absolute max-w-none h-[106.51%] w-[121.83%] left-[-7.11%] top-[-5.33%] print:h-[106.51%] print:w-[121.83%] print:left-[-7.11%] print:top-[-5.33%]"
                 />
               </span>
             )}
-            <p className="relative pl-[49px] sm:pl-0 print:pl-0 mt-1 sm:mt-3 print:mt-3 text-center text-[20px] sm:text-[30px] print:text-[1.875rem] leading-tight">
+            <p className="relative pl-[49px] sm:pl-0 mt-1 sm:mt-3 text-center text-[20px] sm:text-[30px] leading-tight print:pl-[0cqw] print:mt-[1.707cqw] print:text-[4.2674cqw]">
               {brand.demo ? brand.name : "Buffet Lucia’s Fiesta Mexicana"}
             </p>
-            <p className="relative mx-[29px] sm:mx-[58px] print:mx-[3.625rem] mt-0.5 sm:mt-1.5 print:mt-1.5 pb-1.5 sm:pb-[7px] print:pb-[0.4375rem] text-center text-[10px] sm:text-[15px] print:text-[0.9375rem] uppercase receipt-rule">
+            <p className="relative mx-[29px] sm:mx-[58px] mt-0.5 sm:mt-1.5 pb-1.5 sm:pb-[7px] text-center text-[10px] sm:text-[15px] uppercase receipt-rule print:mx-[8.2504cqw] print:mt-[0.8535cqw] print:pb-[0.9957cqw] print:text-[2.1337cqw]">
               {brand.shortTagline} &bull; {brand.location}
             </p>
           </header>
 
           {/* Receipt #, date, time, order type: label over the bold value */}
           <dl
-            className={`relative grid ${invoice?.DueDate ? "grid-cols-5" : "grid-cols-4"} gap-1 ml-6 mr-[30px] sm:ml-[49px] print:ml-[3.0625rem] sm:mr-[60px] print:mr-[3.75rem] mt-[5px] sm:mt-2 print:mt-2 text-[10px] sm:text-[15px] print:text-[0.9375rem] text-center uppercase`}
+            className={`relative grid ${invoice?.DueDate ? "grid-cols-5" : "grid-cols-4"} gap-1 ml-6 mr-[30px] sm:ml-[49px] sm:mr-[60px] mt-[5px] sm:mt-2 text-[10px] sm:text-[15px] text-center uppercase print:gap-[0.569cqw] print:ml-[6.9701cqw] print:mr-[8.5349cqw] print:mt-[1.138cqw] print:text-[2.1337cqw]`}
           >
             {[
               ["Receipt #", invoice?.Id],
@@ -295,7 +295,7 @@ export default function InvoicePage() {
                   {label === "Receipt #" && !isShareView && (
                     <button
                       type="button"
-                      className="no-print ml-1 hover:text-[#3358b5]"
+                      className="no-print ml-1 hover:text-[#3358b5] print:ml-[0.569cqw]"
                       title="Look up another invoice"
                       aria-label="Look up another invoice"
                       aria-expanded={popupOpen}
@@ -305,21 +305,21 @@ export default function InvoicePage() {
                     </button>
                   )}
                 </dt>
-                <dd className="min-h-[1.4em] mt-0.5 px-1 font-bold normal-case">{value ?? ""}</dd>
+                <dd className="min-h-[1.4em] mt-0.5 px-1 font-bold normal-case print:mt-[0.2845cqw] print:px-[0.569cqw]">{value ?? ""}</dd>
               </div>
             ))}
             {popupOpen && (
-              <div className="no-print absolute z-20 top-full mt-2 left-0 glass-card !bg-white/95 p-3 flex flex-col gap-2 items-center shadow-depth-md font-form normal-case">
+              <div className="no-print absolute z-20 top-full mt-2 left-0 glass-card !bg-white/95 p-3 flex flex-col gap-2 items-center shadow-depth-md font-form normal-case print:top-full print:mt-[1.138cqw] print:left-[0cqw] print:p-[1.707cqw] print:gap-[1.138cqw]">
                 <input
                   type="text"
-                  className="w-28 text-base text-black text-center placeholder:text-gray-600 rounded-lg border border-black/10 px-2 py-1"
+                  className="w-28 text-base text-black text-center placeholder:text-gray-600 rounded-lg border border-black/10 px-2 py-1 print:w-[15.9317cqw] print:text-[2.276cqw] print:px-[1.138cqw] print:py-[0.569cqw]"
                   placeholder="Invoice #"
                   aria-label="Invoice number"
                   value={popupValue}
                   onChange={(e) => setPopupValue(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handlePopupLoad()}
                 />
-                <button className="btn-3d !py-1.5 !px-4 text-sm" onClick={handlePopupLoad}>
+                <button className="btn-3d !py-1.5 !px-4 text-sm print:text-[1.9915cqw]" onClick={handlePopupLoad}>
                   Load
                 </button>
               </div>
@@ -328,29 +328,29 @@ export default function InvoicePage() {
 
           {/* Bill to (indented, left) and, for the real restaurant, the SMS
               sign-up QR with its text beside it (right) */}
-          <div className="flex items-start gap-3 sm:gap-6 print:gap-6 mt-2 sm:mt-3 print:mt-3">
-            <div className="flex-1 min-w-0 ml-10 sm:ml-[79px] print:ml-[4.9375rem] text-[10px] sm:text-[15px] print:text-[0.9375rem]">
+          <div className="flex items-start gap-3 sm:gap-6 mt-2 sm:mt-3 print:gap-[3.4139cqw] print:mt-[1.707cqw]">
+            <div className="flex-1 min-w-0 ml-10 sm:ml-[79px] text-[10px] sm:text-[15px] print:ml-[11.2376cqw] print:text-[2.1337cqw]">
               <p>
-                BILL TO {invoice?.Name && <span className="ml-1 font-bold">{invoice.Name}</span>}
+                BILL TO {invoice?.Name && <span className="ml-1 font-bold print:ml-[0.569cqw]">{invoice.Name}</span>}
               </p>
-              <p className="flex items-center gap-1.5 mt-0.5 sm:mt-1 print:mt-1">
-                <span className="relative w-[10px] h-[10px] sm:w-[19px] print:w-[1.1875rem] sm:h-4 print:h-4 shrink-0 flex justify-center">
-                  <span className="relative h-full w-[60%] sm:w-[11px] print:w-[0.6875rem] overflow-hidden">
+              <p className="flex items-center gap-1.5 mt-0.5 sm:mt-1 print:gap-[0.8535cqw] print:mt-[0.569cqw]">
+                <span className="relative w-[10px] h-[10px] sm:w-[19px] sm:h-4 shrink-0 flex justify-center print:w-[2.7027cqw] print:h-[2.276cqw]">
+                  <span className="relative h-full w-[60%] sm:w-[11px] overflow-hidden print:h-full print:w-[1.5647cqw]">
                     <img
                       src="/imgs/invoice/pin.png"
                       alt="Address"
-                      className="absolute max-w-none h-full w-[166.67%] left-[-33.33%] sm:w-[145.45%] print:w-[145.45%] sm:left-[-22.73%] print:left-[-22.73%] top-0"
+                      className="absolute max-w-none h-full w-[166.67%] left-[-33.33%] sm:w-[145.45%] sm:left-[-22.73%] top-0 print:h-full print:w-[145.45%] print:left-[-22.73%] print:top-[0cqw]"
                     />
                   </span>
                 </span>
                 <span>{invoice?.Address ?? ""}</span>
               </p>
-              <p className="flex items-center gap-1.5 mt-0.5 sm:mt-1 print:mt-1">
-                <span className="relative w-[10px] h-[10px] sm:w-[19px] print:w-[1.1875rem] sm:h-4 print:h-4 shrink-0 overflow-hidden">
+              <p className="flex items-center gap-1.5 mt-0.5 sm:mt-1 print:gap-[0.8535cqw] print:mt-[0.569cqw]">
+                <span className="relative w-[10px] h-[10px] sm:w-[19px] sm:h-4 shrink-0 overflow-hidden print:w-[2.7027cqw] print:h-[2.276cqw]">
                   <img
                     src="/imgs/invoice/phone.png"
                     alt="Phone"
-                    className="absolute max-w-none w-full h-full left-0 top-0 sm:h-[118.75%] print:h-[118.75%] sm:top-[-9.375%] print:top-[-9.375%]"
+                    className="absolute max-w-none w-full h-full left-0 top-0 sm:h-[118.75%] sm:top-[-9.375%] print:w-full print:h-[118.75%] print:left-[0cqw] print:top-[-9.375%]"
                   />
                 </span>
                 <span>{invoice?.Contact ?? ""}</span>
@@ -361,10 +361,10 @@ export default function InvoicePage() {
             {!brand.demo && (
               <a
                 href="https://buffetluciasfiestamexicana.com/sms-consent/"
-                className="flex items-start gap-[5px] sm:gap-[9px] print:gap-[0.5625rem] shrink-0 mr-2 sm:-mr-1 print:-mr-1 text-[7px] sm:text-[10px] print:text-[0.625rem]"
+                className="flex items-start gap-[5px] sm:gap-[9px] shrink-0 mr-2 sm:-mr-1 text-[7px] sm:text-[10px] print:gap-[1.2802cqw] print:mr-[-0.569cqw] print:text-[1.4225cqw]"
               >
-                <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-9 h-9 sm:w-[63px] print:w-[3.9375rem] sm:h-[63px] print:h-[3.9375rem] shrink-0" />
-                <span className="block w-[134px] sm:w-[256px] print:w-[16rem] [overflow-wrap:anywhere]">
+                <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-9 h-9 sm:w-[63px] sm:h-[63px] shrink-0 print:w-[8.9616cqw] print:h-[8.9616cqw]" />
+                <span className="block w-[134px] sm:w-[256px] [overflow-wrap:anywhere] print:w-[36.4154cqw]">
                   <span className="block font-bold uppercase receipt-accent">¡Recibe nuestras ofertas por texto!</span>
                   Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
                 </span>
@@ -373,26 +373,26 @@ export default function InvoicePage() {
           </div>
 
           {/* Items: Qty | Description | Amount with hairline column rules */}
-          <table className="w-[calc(100%-8px)] sm:w-[calc(100%-18px)] print:w-[calc(100%-1.125rem)] mt-5 sm:mt-8 print:mt-8 text-[11px] sm:text-[15px] print:text-[0.9375rem] border-collapse">
+          <table className="w-[calc(100%-8px)] sm:w-[calc(100%-18px)] mt-5 sm:mt-8 text-[11px] sm:text-[15px] border-collapse print:w-[calc(100%-2.5605cqw)] print:mt-[4.5519cqw] print:text-[2.1337cqw]">
             <thead>
-              <tr className="text-left receipt-rule sm:text-[20px] print:text-[1.25rem]">
-                <th className="font-normal pb-0.5 pl-1.5 sm:pl-3 print:pl-3 pr-1 w-[52px] sm:w-[68px] print:w-[4.25rem]">Qty</th>
-                <th className="font-normal pb-0.5 px-1">Description</th>
-                <th className="font-normal pb-0.5 pl-1 sm:pr-1.5 print:pr-1.5 text-right w-[52px] sm:w-[110px] print:w-[6.875rem]">Amount</th>
+              <tr className="text-left receipt-rule sm:text-[20px] print:text-[2.845cqw]">
+                <th className="font-normal pb-0.5 pl-1.5 sm:pl-3 pr-1 w-[52px] sm:w-[68px] print:pb-[0.2845cqw] print:pl-[1.707cqw] print:pr-[0.569cqw] print:w-[9.6728cqw]">Qty</th>
+                <th className="font-normal pb-0.5 px-1 print:pb-[0.2845cqw] print:px-[0.569cqw]">Description</th>
+                <th className="font-normal pb-0.5 pl-1 sm:pr-1.5 text-right w-[52px] sm:w-[110px] print:pb-[0.2845cqw] print:pl-[0.569cqw] print:pr-[0.8535cqw] print:w-[15.6472cqw]">Amount</th>
               </tr>
             </thead>
             <tbody>
               {invoice &&
                 (itemList.length > 0 ? itemList : [{ qty: invoice.Quantity || 1, text: "" }]).map((item, i, rows) => (
                   <tr key={i}>
-                    <td className={`pl-1.5 sm:pl-3 print:pl-3 pr-1 align-top ${i === 0 ? "pt-2" : "pt-0.5"} ${i === rows.length - 1 ? "pb-4" : ""}`}>{item.qty}</td>
+                    <td className={`pl-1.5 sm:pl-3 pr-1 align-top print:pl-[1.707cqw] print:pr-[0.569cqw] ${i === 0 ? "pt-2 print:pt-[1.138cqw]" : "pt-0.5 print:pt-[0.2845cqw]"} ${i === rows.length - 1 ? "pb-4 print:pb-[2.276cqw]" : ""}`}>{item.qty}</td>
                     <td
-                      className={`px-2 align-top border-x-[0.5px] border-black ${i === 0 ? "pt-2" : "pt-0.5"} ${i === rows.length - 1 ? "pb-4" : ""}`}
+                      className={`px-2 align-top border-x-[0.5px] border-black print:px-[1.138cqw] ${i === 0 ? "pt-2 print:pt-[1.138cqw]" : "pt-0.5 print:pt-[0.2845cqw]"} ${i === rows.length - 1 ? "pb-4 print:pb-[2.276cqw]" : ""}`}
                     >
                       {item.text}
                     </td>
                     {i === 0 && (
-                      <td className="pl-1 sm:pr-1.5 print:pr-1.5 pt-2 text-right align-top font-bold" rowSpan={rows.length}>
+                      <td className="pl-1 sm:pr-1.5 pt-2 text-right align-top font-bold print:pl-[0.569cqw] print:pr-[0.8535cqw] print:pt-[1.138cqw]" rowSpan={rows.length}>
                         {formatMoney(cost)}
                       </td>
                     )}
@@ -400,7 +400,7 @@ export default function InvoicePage() {
                 ))}
               {!invoice && (
                 <tr>
-                  <td className="h-[63px] sm:h-[100px] print:h-[6.25rem]"></td>
+                  <td className="h-[63px] sm:h-[100px] print:h-[14.2248cqw]"></td>
                   <td className="border-x-[0.5px] border-black"></td>
                   <td></td>
                 </tr>
@@ -410,19 +410,19 @@ export default function InvoicePage() {
 
           {/* Notes + totals: labels on the left, full-width rule above the balance */}
           {invoice && (
-            <div className="mt-3 sm:mt-4 print:mt-4 mr-2 sm:mr-[18px] print:mr-[1.125rem] text-[11px] sm:text-[15px] print:text-[0.9375rem]">
+            <div className="mt-3 sm:mt-4 mr-2 sm:mr-[18px] text-[11px] sm:text-[15px] print:mt-[2.276cqw] print:mr-[2.5605cqw] print:text-[2.1337cqw]">
               {invoice.Notes && (
-                <div className="mb-2 px-1.5 sm:px-3 print:px-3">
+                <div className="mb-2 px-1.5 sm:px-3 print:mb-[1.138cqw] print:px-[1.707cqw]">
                   <p className="font-bold uppercase receipt-accent">Notes</p>
                   <p className="whitespace-pre-line">{invoice.Notes}</p>
                 </div>
               )}
-              <div className="flex justify-between py-0.5 px-1.5 sm:px-3 print:px-3">
+              <div className="flex justify-between py-0.5 px-1.5 sm:px-3 print:py-[0.2845cqw] print:px-[1.707cqw]">
                 <span>Subtotal</span>
                 <span>{formatMoney(cost)}</span>
               </div>
               {hasDeposit && (
-                <div className="flex justify-between py-0.5 px-1.5 sm:px-3 print:px-3">
+                <div className="flex justify-between py-0.5 px-1.5 sm:px-3 print:py-[0.2845cqw] print:px-[1.707cqw]">
                   <span>Deposit Paid</span>
                   <span>-{formatMoney(deposit)}</span>
                 </div>
@@ -430,14 +430,14 @@ export default function InvoicePage() {
               {cardPayments.map((p) => {
                 const fee = toNumber(p.Fee) || 0;
                 return (
-                  <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-0.5 px-1.5 sm:px-3 print:px-3">
-                    <div className="flex justify-between gap-2">
+                  <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-0.5 px-1.5 sm:px-3 print:py-[0.2845cqw] print:px-[1.707cqw]">
+                    <div className="flex justify-between gap-2 print:gap-[1.138cqw]">
                       <span>
                         {p.Funding === "debit" ? "Debit" : "Credit"} card payment{p.Card ? ` (${p.Card})` : ""} · {p.Date}
                       </span>
                       <span>-{formatMoney(p.Amount)}</span>
                     </div>
-                    <p className="text-[9px] sm:text-xs print:text-xs text-black/70">
+                    <p className="text-[9px] sm:text-xs text-black/70 print:text-[1.707cqw] print:leading-[1.333]">
                       {fee > 0
                         ? `Charged ${formatMoney(p.Total)} (incl. ${formatMoney(fee)} card processing fee)`
                         : `Charged ${formatMoney(p.Total)} (no card fee)`}
@@ -445,7 +445,7 @@ export default function InvoicePage() {
                   </div>
                 );
               })}
-              <div className="flex justify-between pt-1 sm:pt-2 print:pt-2 mt-0.5 px-1.5 sm:px-3 print:px-3 border-t-[0.5px] border-black font-bold sm:text-[17px] print:text-[1.0625rem]">
+              <div className="flex justify-between pt-1 sm:pt-2 mt-0.5 px-1.5 sm:px-3 border-t-[0.5px] border-black font-bold sm:text-[17px] print:pt-[1.138cqw] print:mt-[0.2845cqw] print:px-[1.707cqw] print:text-[2.4182cqw]">
                 <span>{hasPayments ? "Balance Due" : "Total Due"}</span>
                 <span>{formatMoney(totalDue)}</span>
               </div>
@@ -454,8 +454,8 @@ export default function InvoicePage() {
 
           {/* Terms (left) and the review quote + QR (right), both centred
               in their half and starting on the same line */}
-          <div className="grid grid-cols-2 gap-x-2 justify-items-center items-start mt-5 sm:mt-7 print:mt-7 text-[10px] sm:text-[15px] print:text-[0.9375rem] text-center">
-            <div className="w-full max-w-[154px] sm:max-w-[294px] print:max-w-[18.375rem]">
+          <div className="grid grid-cols-2 gap-x-2 justify-items-center items-start mt-5 sm:mt-7 text-[10px] sm:text-[15px] text-center print:gap-x-[1.138cqw] print:mt-[3.9829cqw] print:text-[2.1337cqw]">
+            <div className="w-full max-w-[154px] sm:max-w-[294px] print:w-full print:max-w-[41.8208cqw]">
               <p className="font-bold uppercase receipt-accent">Terms &amp; Conditions</p>
               <p>
                 {brand.demo
@@ -466,25 +466,25 @@ export default function InvoicePage() {
             {/* The review QR and the Welcome to the Bronx sign belong to the
                 real restaurant; the demo's sample café skips them. */}
             {!brand.demo && (
-              <div className="break-inside-avoid w-full max-w-[163px] sm:max-w-[311px] print:max-w-[19.4375rem] flex flex-col items-center">
+              <div className="break-inside-avoid w-full max-w-[163px] sm:max-w-[311px] flex flex-col items-center print:w-full print:max-w-[44.239cqw]">
                 <p className="font-bold uppercase receipt-accent">
                   "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
                 </p>
-                <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="block mt-0.5 sm:mt-1 print:mt-1 leading-[0]">
-                  <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-[51px] h-[51px] sm:w-[83px] print:w-[5.1875rem] sm:h-[83px] print:h-[5.1875rem]" />
+                <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="block mt-0.5 sm:mt-1 leading-[0] print:mt-[0.569cqw]">
+                  <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-[51px] h-[51px] sm:w-[83px] sm:h-[83px] print:w-[11.8065cqw] print:h-[11.8065cqw]" />
                 </a>
               </div>
             )}
           </div>
 
           {brand.demo ? (
-            <p className="mt-8 mb-4 text-center text-[10px] sm:text-xs print:text-xs">Thanks for trying the demo — this invoice belongs to a made-up business.</p>
+            <p className="mt-8 mb-4 text-center text-[10px] sm:text-xs print:mt-[4.5519cqw] print:mb-[2.276cqw] print:text-[1.707cqw] print:leading-[1.333]">Thanks for trying the demo — this invoice belongs to a made-up business.</p>
           ) : (
-            <span className="break-inside-avoid relative block mx-auto mt-1.5 sm:mt-0.5 print:mt-0.5 w-[205px] h-[126px] sm:w-[352px] print:w-[22rem] sm:h-[210px] print:h-[13.125rem] overflow-hidden">
+            <span className="break-inside-avoid relative block mx-auto mt-1.5 sm:mt-0.5 w-[205px] h-[126px] sm:w-[352px] sm:h-[210px] overflow-hidden print:mt-[0.2845cqw] print:w-[50.0711cqw] print:h-[29.872cqw]">
               <img
                 src="/imgs/invoice/welcome-bronx.png"
                 alt="Welcome to the Bronx: Buffet Lucia's Fiesta Mexicana"
-                className="absolute max-w-none left-0 w-full h-[162.77%] top-[-39.36%] sm:w-[102.27%] print:w-[102.27%] sm:h-[171.29%] print:h-[171.29%] sm:top-[-41.42%] print:top-[-41.42%]"
+                className="absolute max-w-none left-0 w-full h-[162.77%] top-[-39.36%] sm:w-[102.27%] sm:h-[171.29%] sm:top-[-41.42%] print:left-[0cqw] print:w-[102.27%] print:h-[171.29%] print:top-[-41.42%]"
               />
             </span>
           )}

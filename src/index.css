@@ -774,11 +774,11 @@
 }
 
 @media print {
-  /* No page margin from the browser: each page sets its own (the invoice
-     prints on white with a margin that scales with the page). */
+  /* A small page margin; the invoice fills the width inside it. (Phones
+     may use their own print margins instead.) */
   @page {
     size: 8.5in 11in;
-    margin: 0;
+    margin: 0.35in;
   }
   /* The invoice fades/unfolds in on screen, starting from opacity: 0.
      Some browsers (Safari on iPhone/iPad in particular) restart CSS
@@ -807,6 +807,11 @@
   }
   .no-print {
     display: none !important;
+  }
+  /* Dark themes set color-scheme: dark, which paints the page margins
+     around the printed content black. Paper is always light. */
+  :root {
+    color-scheme: light !important;
   }
   html,
   body {
@@ -862,21 +867,17 @@
   .paper-card {
     box-shadow: none !important;
   }
-  /* The printed invoice: the Desktop layout (the print: classes in
-     InvoicePage.jsx, all in rem), on white paper, filling the page width
-     on every device. In print the root font size is a share of the page
-     width (vw), so 1rem scales with the page and the 703px-wide design
-     (43.9375rem) always spans the page minus a 4vw margin each side, the
-     same proportions from a phone or a desktop, wherever the browser lays
-     the print out. */
-  html:has(.receipt-card) {
-    font-size: calc(92vw / 43.9375) !important;
-  }
+  /* The printed invoice fills the page width on every device. <main> is
+     the size container, so the receipt's print: classes (in cqw, see
+     InvoicePage.jsx) are shares of the printed width. A phone's vw and px
+     follow its screen rather than the page, which printed a small invoice;
+     cqw follows the page. */
   html:has(.receipt-card) main {
-    padding: 4vw !important;
+    padding: 0 !important;
+    container-type: inline-size;
   }
   .receipt-wrap {
-    width: 43.9375rem !important;
+    width: 100% !important;
     max-width: none !important;
   }
   .receipt-card .break-inside-avoid {
