@@ -1,5 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { isDemo } from "../lib/demo.js";
+import { hardRefresh } from "../lib/hardRefresh.js";
+import { useState } from "react";
 import TiltCard from "./TiltCard.jsx";
 
 // One circular icon-link button (the ".fab" footer nav repeated on all 4 pages).
@@ -54,6 +56,29 @@ export function SiteNav({ className = "" }) {
         <NavFab key={s.to} {...s} />
       ))}
       {!isDemo() && <NavFab href="/api/sheet-link" external title="Open spreadsheet" icon="fa-file-excel" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />}
+      <RefreshFab />
     </NavRow>
+  );
+}
+
+// Hard refresh: loads the newest version of the app (see lib/hardRefresh.js).
+function RefreshFab() {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      title="Refresh app"
+      aria-label="Refresh app"
+      className="nav-fab-link"
+      disabled={busy}
+      onClick={() => {
+        setBusy(true);
+        hardRefresh();
+      }}
+    >
+      <TiltCard maxDeg={10} className="fab glass-panel hover:shadow-glow-teal">
+        <i className={`fa-solid fa-arrows-rotate text-2xl text-brand-teal ${busy ? "fa-spin" : ""}`} aria-hidden="true"></i>
+      </TiltCard>
+    </button>
   );
 }
