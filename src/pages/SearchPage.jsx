@@ -3,7 +3,7 @@ import Swal from "sweetalert2";
 import { Link } from "react-router-dom";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
-import NavFab, { NavRow } from "../components/NavFab.jsx";
+import { SiteNav } from "../components/NavFab.jsx";
 import { fetchAllOrders, fetchAllCardPayments } from "../api/sheetdb.js";
 import { formatDate, formatMoney, parseStoredDate, escapeRegex } from "../lib/format.js";
 import { parseCardPaymentOrder } from "../lib/menu.js";
@@ -99,12 +99,7 @@ export default function SearchPage() {
     <Layout blobs={["bg-brand-teal w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-terracotta w-64 h-64 top-1/2 -left-16 animate-float"]}>
       <PageHeader title="Search Orders" subtitle="By phone, name, address, date, month, year, or order ID" />
 
-      <NavRow className="mb-8">
-        <NavFab to="/" title="Order form" icon="fa-house" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
-        <NavFab to="/invoice" title="View invoice" icon="fa-file-invoice-dollar" colorClass="text-brand-terracotta" glowClass="shadow-glow-terracotta" />
-        <NavFab to="/updates" title="What's new" icon="fa-wand-magic-sparkles" colorClass="text-brand-pink" glowClass="shadow-glow-pink" />
-        <NavFab to="/pay" title="Pay with Card" icon="fa-credit-card" colorClass="text-brand-cactus" glowClass="shadow-glow-teal" />
-      </NavRow>
+      <SiteNav className="mb-8" />
 
       <TiltCard maxDeg={3} wrapClassName="w-full max-w-lg stagger-in" className="glass-card p-5 flex flex-col sm:flex-row gap-3 sm:items-end">
         <div className="field-group w-full sm:w-36">

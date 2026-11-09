@@ -1,6 +1,6 @@
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
-import NavFab, { NavRow } from "../components/NavFab.jsx";
+import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
@@ -66,12 +66,7 @@ export default function UpdatesPage() {
         subtitle="POS-Invoice-Manager Updates"
       />
 
-      <NavRow className="mb-8">
-        <NavFab to="/" title="Order form" icon="fa-house" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
-        <NavFab to="/search" title="Search orders" icon="fa-magnifying-glass" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />
-        <NavFab to="/invoice" title="View invoice" icon="fa-file-invoice-dollar" colorClass="text-brand-terracotta" glowClass="shadow-glow-terracotta" />
-        <NavFab to="/pay" title="Pay with Card" icon="fa-credit-card" colorClass="text-brand-cactus" glowClass="shadow-glow-teal" />
-      </NavRow>
+      <SiteNav className="mb-8" />
 
       <div className="w-full max-w-2xl flex flex-col gap-4">
         {UPDATES.map((update, i) => (

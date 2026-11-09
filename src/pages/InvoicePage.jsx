@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import html2canvas from "html2canvas";
 import Layout from "../components/Layout.jsx";
-import NavFab, { NavRow } from "../components/NavFab.jsx";
+import { SiteNav } from "../components/NavFab.jsx";
 import { getInvoiceById, getCardPaymentsForInvoice, getShareToken, getSharedInvoice } from "../api/sheetdb.js";
 import { toNumber, formatMoney, splitItems } from "../lib/format.js";
 import { getBrand } from "../lib/brand.js";
@@ -218,12 +218,7 @@ export default function InvoicePage() {
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -left-10 animate-float-slow no-print", "bg-brand-pink w-80 h-80 top-1/2 -right-16 animate-float no-print"]}>
       {!isShareView && (
-        <NavRow className="no-print mb-6">
-          <NavFab to="/" title="Order form" icon="fa-house" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
-          <NavFab to="/search" title="Search orders" icon="fa-magnifying-glass" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />
-          <NavFab to="/updates" title="What's new" icon="fa-wand-magic-sparkles" colorClass="text-brand-goldlight" glowClass="shadow-glow-gold" />
-          <NavFab to="/pay" title="Pay with Card" icon="fa-credit-card" colorClass="text-brand-cactus" glowClass="shadow-glow-teal" />
-        </NavRow>
+        <SiteNav className="no-print mb-6" />
       )}
       {!isShareView && (
         <div className="no-print flex gap-4 mb-2 flex-wrap justify-center stagger-in">

@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { isDemo } from "../lib/demo.js";
 import TiltCard from "./TiltCard.jsx";
 
 // One circular icon-link button (the ".fab" footer nav repeated on all 4 pages).
@@ -28,4 +29,31 @@ export default function NavFab({ to, href, title, icon, colorClass, glowClass, e
 
 export function NavRow({ children, className = "" }) {
   return <section className={`flex flex-wrap justify-center gap-6 sm:gap-10 stagger-in ${className}`.trim()}>{children}</section>;
+}
+
+// Every section of the app, in one place, so all pages show the same buttons.
+const SECTIONS = [
+  { to: "/", title: "Order form", icon: "fa-house", colorClass: "text-brand-gold", glowClass: "shadow-glow-gold" },
+  { to: "/search", title: "Search orders", icon: "fa-magnifying-glass", colorClass: "text-brand-teal", glowClass: "shadow-glow-teal" },
+  { to: "/invoice", title: "View invoice", icon: "fa-file-invoice-dollar", colorClass: "text-brand-terracotta", glowClass: "shadow-glow-terracotta" },
+  { to: "/pay", title: "Pay with Card", icon: "fa-credit-card", colorClass: "text-brand-cactus", glowClass: "shadow-glow-teal" },
+  { to: "/catering", title: "Catering calculator", icon: "fa-calculator", colorClass: "text-brand-gold", glowClass: "shadow-glow-gold" },
+  { to: "/broadcast", title: "Text customers", icon: "fa-bullhorn", colorClass: "text-brand-pink", glowClass: "shadow-glow-pink" },
+  { to: "/updates", title: "What's new", icon: "fa-wand-magic-sparkles", colorClass: "text-brand-pink", glowClass: "shadow-glow-pink" },
+];
+
+// The nav row for every page: all sections except the one you're on, plus
+// the spreadsheet. The real Google Sheet isn't part of the demo; the link
+// goes through a staff-only redirect (api/sheet-link.js) so the sheet's
+// address isn't in the public bundle.
+export function SiteNav({ className = "" }) {
+  const { pathname } = useLocation();
+  return (
+    <NavRow className={className}>
+      {SECTIONS.filter((s) => s.to !== pathname).map((s) => (
+        <NavFab key={s.to} {...s} />
+      ))}
+      {!isDemo() && <NavFab href="/api/sheet-link" external title="Open spreadsheet" icon="fa-file-excel" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />}
+    </NavRow>
+  );
 }

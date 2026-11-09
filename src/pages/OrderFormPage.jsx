@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
-import NavFab, { NavRow } from "../components/NavFab.jsx";
+import { SiteNav } from "../components/NavFab.jsx";
 import { submitOrder } from "../api/sheetdb.js";
 import { getCurrentDateTime, getTotalQuantity, formatDate } from "../lib/format.js";
 import { getBrand } from "../lib/brand.js";
@@ -121,35 +121,12 @@ export default function OrderFormPage() {
 
   const brand = getBrand();
 
-  const navLinks = (
-    <>
-      {/* The real Google Sheet isn't part of the demo. The link goes through
-          a staff-only redirect (api/sheet-link.js) so the sheet's address
-          isn't in the public bundle. */}
-      {!brand.demo && (
-      <NavFab
-        href="/api/sheet-link"
-        external
-        title="Open spreadsheet"
-        icon="fa-file-excel"
-        colorClass="text-brand-teal"
-        glowClass="shadow-glow-teal"
-      />
-      )}
-      <NavFab to="/search" title="Search orders" icon="fa-magnifying-glass" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
-      <NavFab to="/invoice" title="View invoice" icon="fa-file-invoice-dollar" colorClass="text-brand-terracotta" glowClass="shadow-glow-terracotta" />
-      <NavFab to="/updates" title="What's new" icon="fa-wand-magic-sparkles" colorClass="text-brand-pink" glowClass="shadow-glow-pink" />
-      <NavFab to="/pay" title="Pay with Card" icon="fa-credit-card" colorClass="text-brand-cactus" glowClass="shadow-glow-teal" />
-      <NavFab to="/broadcast" title="Text customers" icon="fa-bullhorn" colorClass="text-brand-pink" glowClass="shadow-glow-pink" />
-      <NavFab to="/catering" title="Catering calculator" icon="fa-calculator" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
-    </>
-  );
 
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -left-10 animate-float-slow", "bg-brand-cactus w-80 h-80 top-1/3 -right-16 animate-float", "bg-brand-pink w-64 h-64 bottom-0 left-1/4 animate-float-slow"]}>
       <PageHeader logoSize="w-20 h-20" title={brand.name} subtitle={brand.tagline} />
 
-      <NavRow className="mb-8">{navLinks}</NavRow>
+      <SiteNav className="mb-8" />
 
       <TiltCard maxDeg={3} as="form" wrapClassName="w-full max-w-3xl" className="glass-card p-6 sm:p-10 stagger-in" onSubmit={handleSubmit}>
         <div className="flex items-center gap-2 mb-6 justify-center">

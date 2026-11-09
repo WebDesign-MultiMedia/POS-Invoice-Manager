@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import Layout, { PageHeader } from "../components/Layout.jsx";
-import NavFab, { NavRow } from "../components/NavFab.jsx";
+import { SiteNav } from "../components/NavFab.jsx";
 import CateringListMode from "../components/CateringListMode.jsx";
 import CateringQuotes from "../components/CateringQuotes.jsx";
 import ShareCalculatorButton from "../components/ShareCalculatorButton.jsx";
@@ -230,12 +230,7 @@ function CalculatorView({ shared, linkToken }) {
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-teal w-64 h-64 bottom-0 -left-16 animate-float"]}>
       {!shared && (
-      <NavRow className="mb-6">
-        <NavFab to="/" title="Order form" icon="fa-house" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
-        <NavFab to="/search" title="Search orders" icon="fa-magnifying-glass" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />
-        <NavFab to="/invoice" title="View invoice" icon="fa-file-invoice-dollar" colorClass="text-brand-terracotta" glowClass="shadow-glow-terracotta" />
-        <NavFab to="/pay" title="Pay with Card" icon="fa-credit-card" colorClass="text-brand-cactus" glowClass="shadow-glow-teal" />
-      </NavRow>
+      <SiteNav className="mb-6" />
       )}
 
       <PageHeader title="Catering Calculator" subtitle="Tap dishes to add them up" />

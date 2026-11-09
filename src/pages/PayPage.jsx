@@ -3,7 +3,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { Elements } from "@stripe/react-stripe-js";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
-import NavFab, { NavRow } from "../components/NavFab.jsx";
+import { SiteNav } from "../components/NavFab.jsx";
 import CardPaymentForm from "../components/CardPaymentForm.jsx";
 import DemoCardForm from "../components/DemoCardForm.jsx";
 import { getInvoiceById, getCardPaymentsForInvoice, recordCardPayment } from "../api/sheetdb.js";
@@ -219,11 +219,7 @@ export default function PayPage() {
 
   return (
     <Layout blobs={["bg-brand-teal w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-gold w-80 h-80 top-1/2 -left-16 animate-float"]}>
-      <NavRow className="mb-6">
-        <NavFab to="/" title="Order form" icon="fa-house" colorClass="text-brand-gold" glowClass="shadow-glow-gold" />
-        <NavFab to="/search" title="Search orders" icon="fa-magnifying-glass" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />
-        <NavFab to="/invoice" title="View invoice" icon="fa-file-invoice-dollar" colorClass="text-brand-terracotta" glowClass="shadow-glow-terracotta" />
-      </NavRow>
+      <SiteNav className="mb-6" />
 
       <PageHeader title="Pay with Card" subtitle={brand.name} />
 
