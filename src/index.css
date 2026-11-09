@@ -873,8 +873,20 @@
   /* Scale the whole receipt evenly (same proportions as the design) so a
      normal order fits one letter page; the sign and review block never get
      split across a page break. */
+  /* Every device prints the same invoice: always the Desktop layout (the
+     print: classes in InvoicePage.jsx) at its full 703px width, centred,
+     scaled to the page. Phones print at their screen width, so the scale
+     (--print-zoom, set by InvoicePage before printing) is 0.9 on a letter
+     page width and proportionally smaller on a narrower print width;
+     the margin is a share of the width for the same reason. The result is
+     the same picture on paper from a desktop or a phone. */
+  html:has(.receipt-card) main {
+    padding: 5vw !important;
+  }
   .receipt-wrap {
-    zoom: 0.9;
+    width: 703px !important;
+    max-width: none !important;
+    zoom: var(--print-zoom, 0.9);
   }
   .receipt-card .break-inside-avoid {
     break-inside: avoid;
