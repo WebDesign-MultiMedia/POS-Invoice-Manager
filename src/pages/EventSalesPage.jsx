@@ -7,7 +7,7 @@ import MenuPicker from "../components/MenuPicker.jsx";
 import CardPaymentForm from "../components/CardPaymentForm.jsx";
 import DemoCardForm from "../components/DemoCardForm.jsx";
 import { deleteEventSale, fetchAllEventSales, recordCardPayment, recordEventSale, updateEventSale } from "../api/sheetdb.js";
-import { RowButtons, RowEditor, confirmAndDelete, useMakeInvoice } from "../components/RowActions.jsx";
+import { RowButtons, RowEditor, SoldByTag, confirmAndDelete, useMakeInvoice } from "../components/RowActions.jsx";
 import { saleToOrderForm } from "../lib/saleToOrder.js";
 import { useAuth } from "../lib/auth.jsx";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
@@ -32,6 +32,8 @@ const METHOD_ICONS = { Card: "fa-credit-card", Cash: "fa-money-bill-wave", Zelle
 
 export default function EventSalesPage() {
   const brand = getBrand();
+  // Shown on the sale right away; the server stamps the real SoldBy itself.
+  const { name: sellerName } = useAuth() || {};
   const MENU = getMenu();
   const MENU_ITEMS = Object.fromEntries(MENU.flatMap((c) => c.items).map((item) => [item.id, item]));
 
@@ -101,6 +103,7 @@ export default function EventSalesPage() {
       Date: date,
       Time: time,
       SaleId: saleId,
+      SoldBy: sellerName || "",
       Name: customerName.trim(),
       Items: itemsForSheet,
       Note: note.trim(),
@@ -172,6 +175,7 @@ export default function EventSalesPage() {
       InvoiceId: saleId,
       Items: row.Items,
       Note: ["Event sale", row.Note].filter(Boolean).join(" — "),
+      SoldBy: row.SoldBy,
     };
     const results = await Promise.allSettled([recordEventSale(row), recordCardPayment(cardRow)]);
     if (results.some((r) => r.status === "rejected")) {
@@ -424,6 +428,23 @@ function TodaySales({ rows, loading, error, onUpdated, onDeleted }) {
               {summary.count} {summary.count === 1 ? "sale" : "sales"}
             </p>
           </div>
+          {summary.bySeller.length > 0 && (
+            <div className="glass-panel p-3 mb-4" aria-label="Sales by person">
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-navydeep/80 mb-2 text-center">
+                <i className="fa-solid fa-user-tag" aria-hidden="true"></i> Rung up by
+              </p>
+              <ul className="flex flex-col gap-1">
+                {summary.bySeller.map((p) => (
+                  <li key={p.name} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="font-semibold text-brand-navy truncate min-w-0">{p.name}</span>
+                    <span className="shrink-0 tabular-nums text-brand-navydeep/90">
+                      {p.count} {p.count === 1 ? "sale" : "sales"} · <span className="font-semibold">{formatMoney(p.total)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-2 mb-4">
             {Object.entries(summary.byMethod).map(([m, s]) => (
               <div key={m} className="glass-panel p-2 text-center">
@@ -510,6 +531,7 @@ function SaleRow({ sale: s, onUpdated, onDeleted }) {
       <p className="text-sm text-brand-navydeep/80">
         {s.Time} · {s.SaleId}
       </p>
+      {s.SoldBy && <SoldByTag name={s.SoldBy} />}
       {items && <p className="text-xs text-brand-navydeep/70">{items}</p>}
       <RowButtons
         label={`sale ${s.SaleId}`}

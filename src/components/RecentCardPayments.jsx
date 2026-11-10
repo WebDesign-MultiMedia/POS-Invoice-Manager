@@ -3,7 +3,7 @@ import { formatMoney } from "../lib/format.js";
 import { isDemo } from "../lib/demo.js";
 import { deleteCardPayment, updateCardPayment } from "../api/sheetdb.js";
 import { saleToOrderForm } from "../lib/saleToOrder.js";
-import { RowButtons, RowEditor, confirmAndDelete, useMakeInvoice } from "./RowActions.jsx";
+import { RowButtons, RowEditor, SoldByTag, confirmAndDelete, useMakeInvoice } from "./RowActions.jsx";
 
 const PAGE = 5;
 
@@ -94,6 +94,7 @@ function PaymentRow({ payment: p, onUpdated, onDeleted }) {
           {p.InvoiceId ? ` · ${invoiceId ? `Invoice #${invoiceId}` : `Order ID ${p.InvoiceId}`}` : ""}
         </p>
         {card && <p className="text-xs text-brand-navydeep/70">{card}</p>}
+        <SoldByTag name={p.SoldBy} />
       </div>
       <RowButtons
         label={label}

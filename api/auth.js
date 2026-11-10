@@ -6,11 +6,13 @@ import {
   isAuthConfigured,
   normalizeIdentifier,
   readSessionInfo,
+  sellerName,
   setSessionCookie,
 } from "./_lib/auth.js";
 
 // Vercel serverless function: staff login.
-//   GET                                          → { user, role } or 401
+//   GET                                          → { user, role, name } or 401
+//        name: an employee's name from the Employees tab, or the staff login
 //   POST { action: "login", identifier, password } → sets the session cookie
 //        Staff log in with email/phone + password. Employees log in with
 //        their phone + PIN and get role "event" (Event Sales only).
@@ -49,7 +51,9 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     const info = await readSessionInfo(req);
-    return info ? res.status(200).json({ user: info.login, role: info.role }) : res.status(401).json({ error: "Please log in" });
+    return info
+      ? res.status(200).json({ user: info.login, role: info.role, name: await sellerName(info) })
+      : res.status(401).json({ error: "Please log in" });
   }
 
   if (req.method !== "POST") {
@@ -96,5 +100,5 @@ export default async function handler(req, res) {
   failures.delete(ip);
   failures.delete(loginKey);
   setSessionCookie(res, login, role);
-  return res.status(200).json({ user: login, role });
+  return res.status(200).json({ user: login, role, name: await sellerName({ login, role }) });
 }

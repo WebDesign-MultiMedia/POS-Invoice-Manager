@@ -166,3 +166,14 @@ export function RowEditor({ idBase, fields, initial, note, onSave, onCancel }) {
     </form>
   );
 }
+
+// Who rang up a sale or took a card payment (an employee's name, or the
+// staff login), stamped by the server in the SoldBy column.
+export function SoldByTag({ name }) {
+  if (!name) return null;
+  return (
+    <p className="text-sm font-semibold text-brand-teal">
+      <i className="fa-solid fa-user-tag" aria-hidden="true"></i> Rung up by {name}
+    </p>
+  );
+}

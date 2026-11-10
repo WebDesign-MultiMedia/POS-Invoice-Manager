@@ -48,7 +48,19 @@ export function summarizeSales(sales) {
     }
   }
   for (const m of Object.values(byMethod)) m.total /= 100;
-  return { count: sales.length, total: total / 100, byMethod };
+  // Who rang up what, biggest total first. Sales from before SoldBy existed
+  // are grouped as "Not recorded".
+  const people = {};
+  for (const s of sales) {
+    const who = String(s.SoldBy || "").trim() || "Not recorded";
+    const p = (people[who] ||= { name: who, count: 0, total: 0 });
+    p.count += 1;
+    p.total += cents(s.Total || s.Amount);
+  }
+  const bySeller = Object.values(people)
+    .map((p) => ({ ...p, total: p.total / 100 }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  return { count: sales.length, total: total / 100, byMethod, bySeller };
 }
 
 // What editing a sale sends to the sheet. Name, Items and Note always;

@@ -70,6 +70,13 @@ export async function employeePinHash(phone) {
   return row && isActive(row) ? String(row.PinHash || "") || undefined : undefined;
 }
 
+// An employee's name as staff typed it, or their phone if it's blank.
+export async function employeeName(phone) {
+  const key = phoneKey(phone);
+  const row = (await listEmployees()).find((r) => r.Phone === key);
+  return String(row?.Name || "").trim() || key;
+}
+
 export async function addEmployee({ phone, name, pin, addedBy }) {
   const now = new Date().toISOString();
   const row = { Phone: phone, Name: name, PinHash: hashPin(pin), Active: "Yes", AddedBy: addedBy, AddedAt: now, UpdatedAt: now };

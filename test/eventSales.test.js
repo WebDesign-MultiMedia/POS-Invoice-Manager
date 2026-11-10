@@ -78,3 +78,19 @@ describe("making an invoice from a sale", () => {
     expect(form.Notes).toBe("Paid in full by cash. Sale EV-261109-120000.");
   });
 });
+
+describe("sales by person", () => {
+  it("totals each seller, biggest first, and groups unnamed old sales", () => {
+    const { bySeller } = summarizeSales([
+      { SoldBy: "Carlos", Total: "10.00" },
+      { SoldBy: "Ana", Total: "4.50" },
+      { SoldBy: "Carlos", Total: "2.25" },
+      { Total: "1.00" },
+    ]);
+    expect(bySeller).toEqual([
+      { name: "Carlos", count: 2, total: 12.25 },
+      { name: "Ana", count: 1, total: 4.5 },
+      { name: "Not recorded", count: 1, total: 1 },
+    ]);
+  });
+});

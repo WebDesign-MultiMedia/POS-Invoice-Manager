@@ -98,7 +98,7 @@ describe("employee login", () => {
     const res = mockRes();
     await auth(mockReq({ method: "POST", body: { action: "login", identifier: "347-555-0123", password: PIN }, headers: { "x-forwarded-for": "10.0.0.1" } }), res);
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ user: EMPLOYEE_PHONE, role: "event" });
+    expect(res.body).toEqual({ user: EMPLOYEE_PHONE, role: "event", name: "Carlos" });
     const info = await readSessionInfo(mockReq({ cookie: cookieFrom(res) }));
     expect(info).toEqual({ login: EMPLOYEE_PHONE, role: "event" });
   });
@@ -271,5 +271,37 @@ describe("managing employees (staff)", () => {
     expect((await staffCall({ body: { action: "delete", phone: "3475550123" } })).statusCode).toBe(200);
     expect(employeeRows).toHaveLength(0);
     expect((await staffCall({ body: { action: "delete", phone: "3475550123" } })).statusCode).toBe(404);
+  });
+});
+
+describe("who rang up a sale (SoldBy)", () => {
+  const bodyOf = (call) => JSON.parse(call[1].body);
+  const writes = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
+
+  it("stamps an employee's sales with their name from the Employees tab, ignoring what the phone sent", async () => {
+    await call(sheets, { method: "POST", url: "/api/sheets", body: { action: "recordEventSale", data: { SaleId: "EV-261110-120000", SoldBy: "The Boss" } } });
+    await call(sheets, { method: "POST", url: "/api/sheets", body: { action: "recordCardPayment", data: { InvoiceId: "EV-261110-120000", SoldBy: "The Boss" } } });
+    expect(writes().map((c) => bodyOf(c).SoldBy)).toEqual(["Carlos", "Carlos"]);
+  });
+
+  it("stamps a staff member's sales with their login", async () => {
+    const res = mockRes();
+    setSessionCookie(res, "staff@example.com");
+    await sheets(mockReq({ cookie: cookieFrom(res), method: "POST", url: "/api/sheets", body: { action: "recordEventSale", data: { SaleId: "EV-261110-120001" } } }), mockRes());
+    expect(bodyOf(writes()[0]).SoldBy).toBe("staff@example.com");
+  });
+
+  it("the login answer carries the employee's name", async () => {
+    const res = mockRes();
+    await auth(mockReq({ cookie: employeeCookie() }), res);
+    expect(res.body).toEqual({ user: EMPLOYEE_PHONE, role: "event", name: "Carlos" });
+  });
+
+  it("SoldBy can't be changed by editing a sale", async () => {
+    const res = mockRes();
+    setSessionCookie(res, "staff@example.com");
+    const out = mockRes();
+    await sheets(mockReq({ cookie: cookieFrom(res), method: "POST", url: "/api/sheets", body: { action: "updateCardPayment", id: "pi_1", data: { SoldBy: "Someone else" } } }), out);
+    expect(out.statusCode).toBe(400);
   });
 });

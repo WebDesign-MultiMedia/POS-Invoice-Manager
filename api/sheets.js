@@ -27,7 +27,7 @@
 // which serves a customer's read-only invoice link. It returns only that
 // one invoice and its card payments, and only with a valid signed token.
 
-import { ROLES, isValidShareToken, requireEventAccess, shareTokenFor } from "./_lib/auth.js";
+import { ROLES, isValidShareToken, requireEventAccess, sellerName, shareTokenFor } from "./_lib/auth.js";
 import { sheetdbHeaders } from "./_lib/sheetdb.js";
 
 const READ_ACTIONS = {
@@ -55,6 +55,9 @@ function isEmployeeAllowed(req, params) {
   if (action === "recordCardPayment") return /^EV-\d{6}-\d{6}$/.test(String(data?.InvoiceId || ""));
   return false;
 }
+
+// Rows that record who made the sale, in a "SoldBy" column.
+const SOLD_BY_ACTIONS = new Set(["recordEventSale", "recordCardPayment"]);
 
 class BadRequest extends Error {}
 
@@ -230,7 +233,10 @@ export default async function handler(req, res) {
       if (!Object.hasOwn(WRITE_ACTIONS, action)) throw new BadRequest("Unknown action");
       if (!data || typeof data !== "object") throw new BadRequest("Missing data");
       path = WRITE_ACTIONS[action];
-      init = { method: "POST", headers: sheetdbHeaders(), body: JSON.stringify(data) };
+      // Sales are stamped with who rang them up (SoldBy), from the login
+      // itself, so it can't be typed in or changed from the browser.
+      const row = SOLD_BY_ACTIONS.has(action) ? { ...data, SoldBy: await sellerName(session) } : data;
+      init = { method: "POST", headers: sheetdbHeaders(), body: JSON.stringify(row) };
     } else {
       res.setHeader("Allow", "GET, POST");
       return res.status(405).json({ error: "Method not allowed" });

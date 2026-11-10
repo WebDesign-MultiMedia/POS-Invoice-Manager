@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { hashPassword, verifyPassword } from "./passwords.js";
-import { employeePinHash } from "./employees.js";
+import { employeeName, employeePinHash } from "./employees.js";
 
 // Shared staff-login helpers for the /api functions. The leading underscore
 // keeps Vercel from deploying this folder as its own endpoint.
@@ -175,6 +175,18 @@ export function requireStaff(req, res) {
   if (parseSession(req)?.role === ROLES.EVENT) res.status(403).json({ error: "Employee logins can only use Event Sales." });
   else res.status(401).json({ error: "Please log in" });
   return null;
+}
+
+// Who to credit for a sale: an employee's name from the Employees tab, or
+// the staff login (email or phone).
+export async function sellerName(info) {
+  if (!info) return "";
+  if (info.role !== ROLES.EVENT) return info.login;
+  try {
+    return await employeeName(info.login);
+  } catch {
+    return info.login;
+  }
 }
 
 // Gate for what Event Sales needs: staff or an active employee. Resolves

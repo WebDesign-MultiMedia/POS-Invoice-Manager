@@ -8,6 +8,7 @@ import CardPaymentForm from "../components/CardPaymentForm.jsx";
 import DemoCardForm from "../components/DemoCardForm.jsx";
 import { fetchAllCardPayments, fetchAllOrders, getInvoiceById, getCardPaymentsForInvoice, recordCardPayment } from "../api/sheetdb.js";
 import RecentCardPayments from "../components/RecentCardPayments.jsx";
+import { useAuth } from "../lib/auth.jsx";
 import MenuPicker from "../components/MenuPicker.jsx";
 import { cardPaymentsNewestFirst } from "../lib/recentOrder.js";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
@@ -46,6 +47,7 @@ function formatPhone(raw) {
 }
 
 export default function PayPage() {
+  const { name: sellerName } = useAuth() || {};
   const [searchParams] = useSearchParams();
   const preselectedId = searchParams.get("id");
 
@@ -204,6 +206,8 @@ export default function PayPage() {
         InvoiceId: payInvoiceId || "",
         Items: mode === "amount" ? itemsForSheet : "",
         Note: mode === "amount" ? note.trim() : "",
+        // Shown right away; the server stamps the real SoldBy itself.
+        SoldBy: sellerName || "",
       };
       await recordCardPayment(row);
       setRecentPayments((r) => ({ ...r, payments: [{ ...row, OrderType: mode === "invoice" ? invoice?.PickupDelivery || "" : "" }, ...r.payments] }));
