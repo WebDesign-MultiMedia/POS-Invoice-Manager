@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Elements } from "@stripe/react-stripe-js";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
@@ -42,7 +43,7 @@ const receiptLines = (items) =>
 export default function EventSalesPage() {
   const brand = getBrand();
   // Shown on the sale right away; the server stamps the real SoldBy itself.
-  const { name: sellerName } = useAuth() || {};
+  const { name: sellerName, isEmployee } = useAuth() || {};
   const MENU = getMenu();
   const MENU_ITEMS = Object.fromEntries(MENU.flatMap((c) => c.items).map((item) => [item.id, item]));
 
@@ -63,6 +64,35 @@ export default function EventSalesPage() {
   const [paying, setPaying] = useState(null);
   const cardRef = useRef(null);
   const [theme, setTheme] = useState(getTheme());
+
+  // Full screen: Unpaid, the order and Today's sales in a popup over the
+  // page (like the catering calculator), so nothing else is in the way.
+  // Opens by itself for employees; the X (or Esc) closes it, and the
+  // "Open full screen" button brings it back. The page behind is locked
+  // while it's open.
+  const [fullOpen, setFullOpen] = useState(Boolean(isEmployee));
+  const openFullRef = useRef(null);
+  useEffect(() => {
+    if (!fullOpen) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const before = { html: html.style.overflow, body: body.style.overflow };
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    const onKey = (e) => {
+      if (e.key === "Escape" && !Swal.isVisible()) setFullOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      html.style.overflow = before.html;
+      body.style.overflow = before.body;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [fullOpen]);
+  const closeFull = () => {
+    setFullOpen(false);
+    requestAnimationFrame(() => openFullRef.current?.focus({ preventScroll: true }));
+  };
 
   // Keeps the Stripe card field's colors matched to the theme (see PayPage).
   useEffect(() => {
@@ -285,11 +315,10 @@ export default function EventSalesPage() {
     requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
-  return (
-    <Layout blobs={["bg-brand-terracotta w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-teal w-80 h-80 top-1/2 -left-16 animate-float"]}>
-      <SiteNav className="mb-6" />
-      <PageHeader title="Event Sales" subtitle={brand.name} />
-
+  // Unpaid list, the order card and Today's sales: shown in the page, or
+  // in the full-screen popup when it's open.
+  const salesScreen = (
+    <>
       <UnpaidSales rows={sales.rows} payingId={paying?.SaleId} onPay={startPaying} onDeleted={(id) => setSales((s) => ({ ...s, rows: s.rows.filter((r) => r.SaleId !== id) }))} />
 
       <div ref={cardRef} className="w-full max-w-md glass-card p-6 sm:p-8 stagger-in scroll-mt-4">
@@ -517,6 +546,43 @@ export default function EventSalesPage() {
         onUpdated={(id, fields) => setSales((s) => ({ ...s, rows: s.rows.map((r) => (r.SaleId === id ? { ...r, ...fields } : r)) }))}
         onDeleted={(id) => setSales((s) => ({ ...s, rows: s.rows.filter((r) => r.SaleId !== id) }))}
       />
+    </>
+  );
+
+  return (
+    <Layout blobs={["bg-brand-terracotta w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-teal w-80 h-80 top-1/2 -left-16 animate-float"]}>
+      <SiteNav className="mb-6" />
+      <PageHeader title="Event Sales" subtitle={brand.name} />
+
+      <button ref={openFullRef} type="button" onClick={() => setFullOpen(true)} className="btn-3d stagger-in w-full max-w-md !py-4 text-lg mb-6">
+        <i className="fa-solid fa-expand" aria-hidden="true"></i> Open full screen
+      </button>
+
+      {!fullOpen && salesScreen}
+
+      {/* Portaled to <body> so it covers the floating theme / log out
+          buttons too, like the catering calculator. */}
+      {fullOpen &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Event Sales"
+            className="fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-[rgb(var(--page-bg))]"
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 bg-[rgb(var(--page-bg))]">
+              <p className="font-semibold text-brand-navy truncate min-w-0">
+                <i className="fa-solid fa-store text-brand-teal" aria-hidden="true"></i> Event Sales
+                {isEmployee && sellerName ? <span className="font-normal text-brand-navydeep/80"> · {sellerName}</span> : null}
+              </p>
+              <button type="button" onClick={closeFull} className="fab shrink-0 !w-11 !h-11" aria-label="Close full screen" title="Close (Esc)">
+                <i className="fa-solid fa-xmark text-xl text-brand-gold" aria-hidden="true"></i>
+              </button>
+            </div>
+            <div className="flex flex-col items-center px-4 pt-2 pb-[max(2.5rem,env(safe-area-inset-bottom))]">{salesScreen}</div>
+          </div>,
+          document.body,
+        )}
     </Layout>
   );
 }

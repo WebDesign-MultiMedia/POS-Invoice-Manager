@@ -11,7 +11,7 @@ const PAGE_TIPS = {
   "/search": 'Try searching by phone "555", a name like "Alex", or switch to Order ID and type "CP".',
   "/invoice": "Tap the magnifying glass next to Receipt # to load an order (try 1001), then Print, Save as Image or Share.",
   "/pay": "Type an amount (or pick an invoice), then pay with the test card 4242 4242 4242 4242.",
-  "/event": "Tap items, press Save order, then take Card, Cash (shows the change) or Zelle. Today's totals are at the bottom.",
+  "/event": "Tap items, then Pay now (Card, Cash or Zelle) or Save order to let them pay later. Open full screen hides everything else; employees get it automatically.",
   "/broadcast": "Write a specials message to see the preview. In the demo nothing is actually texted.",
   "/updates": "A changelog of features added to the app over time.",
 };
