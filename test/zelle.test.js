@@ -26,6 +26,23 @@ describe("reading Chase's Zelle email", () => {
     expect(parseZelleEmail({ subject: "You received money with Zelle®", html })).toEqual({ amount: 1250, from: "JOSE R" });
   });
 
+  // Chase's real layout (Spanish), as Gmail forwards it.
+  const SPANISH_HTML =
+    '<td style="font-size:30px">MARIA LOPEZ RIVERA te envió dinero</td></tr>' +
+    '<tr><td>Aquí están los detalles:</td></tr>' +
+    '<tr><td><table><tr><td class="font14">Cantidad</td>\n<td align="right">$10.00</td></tr></table></td></tr>' +
+    '<tr><td>Número de transacción</td><td>31549525360</td></tr><tr><td>Nota</td><td>pay</td></tr>';
+  it("reads Chase's Spanish email (HTML and text)", () => {
+    expect(parseZelleEmail({ subject: "Recibiste dinero con Zelle®", html: SPANISH_HTML })).toEqual({ amount: 10, from: "MARIA LOPEZ RIVERA" });
+    const text = "[image: Chase Logo]\nPago de Zelle®\nMARIA LOPEZ RIVERA te envió dinero\nAquí están los detalles:\nCantidad $10.00\nSe envió en nov 8, 2026\nNúmero de transacción 31549525360\nNota pay";
+    expect(parseZelleEmail({ subject: "Recibiste dinero con Zelle®", text })).toEqual({ amount: 10, from: "MARIA LOPEZ RIVERA" });
+  });
+
+  it("ignores Spanish money-sent and request emails", () => {
+    expect(parseZelleEmail({ subject: "Enviaste dinero con Zelle®", text: "Enviaste $20.00 a Ana\nCantidad $20.00" })).toBeNull();
+    expect(parseZelleEmail({ subject: "Ana te solicitó dinero con Zelle®", text: "Cantidad $20.00" })).toBeNull();
+  });
+
   it("ignores money you sent, requests, and other alerts", () => {
     expect(parseZelleEmail({ subject: "You sent money with Zelle®", text: "You sent $20.00 to Ana" })).toBeNull();
     expect(parseZelleEmail({ subject: "Ana requested money with Zelle®", text: "Amount $20.00" })).toBeNull();

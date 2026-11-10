@@ -50,23 +50,25 @@ function htmlToText(html) {
     .replace(/\n\s*\n+/g, "\n");
 }
 
-// { amount, from } from a Chase "You received money with Zelle" email, or
-// null when it isn't one (sent money, requests, other alerts).
+// { amount, from } from a Chase "money received with Zelle" email, or null
+// when it isn't one (money sent, requests, other alerts). Chase writes them
+// in the account's language; both are read:
+//   English: "You received money with Zelle®" / "NAME sent you money" / "Amount $10.00"
+//   Spanish: "Recibiste dinero con Zelle®" / "NAME te envió dinero" / "Cantidad $10.00"
+const RECEIVED = /\breceived money\b|\bsent you\b|\brecibiste\b|\bte envi[oó](?=\s|$)/i;
+const NOT_RECEIVED = /\byou sent\b|\brequest|\bpayment to\b|\benviaste\b|\bsolicit/i;
 export function parseZelleEmail({ subject = "", text = "", html = "" } = {}) {
   const body = text?.trim() ? text : htmlToText(html);
   const all = `${subject}\n${body}`;
   if (!/zelle/i.test(all)) return null;
-  if (/\byou sent\b|\brequested\b|\brequest(ed)? (money|from)\b|\bpayment to\b/i.test(subject)) return null;
-  if (!/\breceived\b|\bsent you\b|\bdeposited\b/i.test(all)) return null;
-  const m = body.match(/amount[^$\d\n]{0,20}\$\s?([\d,]+\.\d{2})/i) || all.match(/\$\s?([\d,]+\.\d{2})/);
+  if (NOT_RECEIVED.test(subject)) return null;
+  if (!RECEIVED.test(all)) return null;
+  const m = body.match(/\b(?:amount|cantidad)\b[^$\d]{0,40}\$\s?([\d,]+\.\d{2})/i) || all.match(/\$\s?([\d,]+\.\d{2})/);
   if (!m) return null;
   const amount = Number(m[1].replace(/,/g, ""));
   if (!(amount > 0)) return null;
-  const name =
-    all.match(/(?:^|\n)\s*([^\n$]{2,60}?)\s+sent you\b/i)?.[1] ||
-    all.match(/\bfrom\s+([A-Za-z][A-Za-z .,'&-]{1,60}?)\s*(?:\n|$|\.(?:\s|$)|\bon\b)/im)?.[1] ||
-    "";
-  return { amount, from: name.replace(/^(you received money with zelle®?|zelle®?)\s*/i, "").trim() };
+  const name = all.match(/(?:^|\n)[ \t]*([^\n$]{2,60}?)[ \t]+(?:sent you|te envi[oó])(?=\s|$)/i)?.[1] || "";
+  return { amount, from: name.trim() };
 }
 
 async function resend(path) {
