@@ -24,7 +24,7 @@ async function ask(question, { hidden = false } = {}) {
 }
 
 const phone = normalizeIdentifier(await ask("Employee's phone number: "));
-const pin = (await ask("PIN (6 to 8 digits, hidden): ", { hidden: true })).trim();
+const pin = (await ask("4-digit PIN (hidden): ", { hidden: true })).trim();
 const confirm = (await ask("Type it again: ", { hidden: true })).trim();
 rl.close();
 
@@ -32,12 +32,13 @@ if (!/^\d{10}$/.test(phone)) {
   console.error("\nEnter a 10-digit phone number.");
   process.exit(1);
 }
-if (!/^\d{6,8}$/.test(pin)) {
-  console.error("\nThe PIN must be 6 to 8 digits.");
+if (!/^\d{4}$/.test(pin)) {
+  console.error("\nThe PIN must be exactly 4 digits.");
   process.exit(1);
 }
-if (/^(\d)\1+$/.test(pin) || "0123456789".includes(pin) || "9876543210".includes(pin)) {
-  console.error("\nThat PIN is too easy to guess (all the same digit, or in a row). Pick another.");
+// Skip the PINs people try first: all one digit, in a row, or a year.
+if (/^(\d)\1+$/.test(pin) || "0123456789".includes(pin) || "9876543210".includes(pin) || /^(19|20)\d\d$/.test(pin)) {
+  console.error("\nThat PIN is too easy to guess (all one digit, in a row, or a year). Pick another.");
   process.exit(1);
 }
 if (pin !== confirm) {

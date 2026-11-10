@@ -29,7 +29,7 @@ const quotes = (await import("../api/quotes.js")).default;
 const calculatorLink = (await import("../api/calculator-link.js")).default;
 
 // Throwaway test values only.
-const PIN = "482915";
+const PIN = "4829";
 const EMPLOYEE_PHONE = "3475550123";
 const fetchMock = vi.fn();
 
@@ -80,7 +80,7 @@ describe("employee login", () => {
   it("a PIN never works as a staff password, nor a staff password as a PIN", () => {
     expect(checkCredentials(EMPLOYEE_PHONE, PIN)).toBeNull();
     expect(checkEmployeeCredentials("staff@example.com", "a long staff test password")).toBeNull();
-    expect(checkEmployeeCredentials(EMPLOYEE_PHONE, "000000")).toBeNull();
+    expect(checkEmployeeCredentials(EMPLOYEE_PHONE, "0000")).toBeNull();
   });
 
   it("removing the employee ends their session", () => {
@@ -100,7 +100,7 @@ describe("employee login", () => {
   it("locks a phone number after repeated wrong PINs, from any device", async () => {
     for (let i = 0; i < 8; i++) {
       const res = mockRes();
-      await auth(mockReq({ method: "POST", body: { action: "login", identifier: "3475550123", password: "111111" }, headers: { "x-forwarded-for": `10.1.0.${i}` } }), res);
+      await auth(mockReq({ method: "POST", body: { action: "login", identifier: "3475550123", password: "1111" }, headers: { "x-forwarded-for": `10.1.0.${i}` } }), res);
       expect(res.statusCode).toBe(401);
     }
     const res = mockRes();

@@ -87,7 +87,7 @@ cp .env.example .env.local   # fill in your own values
 npm run dev                  # frontend on http://localhost:5173
 npm run dev:api              # /api functions on :3001 (Vite proxies /api to it)
 npm run hash-password        # make a STAFF_ACCOUNTS entry
-npm run hash-pin             # make an EMPLOYEE_ACCOUNTS entry (phone + PIN, Event Sales only)
+npm run hash-pin             # make an EMPLOYEE_ACCOUNTS entry (phone + 4-digit PIN, Event Sales only)
 ```
 
 Environment variable **names** (see [`.env.example`](.env.example) for a one-line description of each):

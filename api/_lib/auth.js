@@ -78,7 +78,7 @@ export function checkCredentials(identifier, password) {
   return ok && stored ? login : null;
 }
 
-// Employees log in with a phone number and a PIN. Returns the 10-digit
+// Employees log in with a phone number and a 4-digit PIN. Returns the 10-digit
 // phone, or null.
 export function checkEmployeeCredentials(identifier, pin) {
   const login = normalizeIdentifier(identifier);
