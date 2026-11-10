@@ -534,7 +534,14 @@ export default function PayPage() {
         )}
       </div>
 
-      <RecentCardPayments {...recentPayments} className="max-w-md" />
+      <RecentCardPayments
+        {...recentPayments}
+        className="max-w-md"
+        onUpdated={(id, fields) =>
+          setRecentPayments((r) => ({ ...r, payments: r.payments.map((p) => (p.PaymentIntentId === id ? { ...p, ...fields } : p)) }))
+        }
+        onDeleted={(id) => setRecentPayments((r) => ({ ...r, payments: r.payments.filter((p) => p.PaymentIntentId !== id) }))}
+      />
     </Layout>
   );
 }

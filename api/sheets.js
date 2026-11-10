@@ -3,9 +3,11 @@
 // (SHEETDB_ID, SHEETDB_USER, SHEETDB_PASS) and never reach the browser.
 //
 // Deliberately NOT a generic proxy: the browser can't pick the SheetDB path
-// or HTTP method, only one of the named actions below. The only updates and
-// deletes are of one order row by its numeric Id, and an update can change
-// only the order's own fields (never its Id, Date or Time).
+// or HTTP method, only one of the named actions below. Updates and deletes
+// target exactly one row by its key (an order's Id, a card payment's
+// PaymentIntentId, an event sale's SaleId) and can change only the fields
+// listed in ROW_TARGETS. Card charges already went through Stripe, so their
+// amounts can never be changed here.
 //   GET  ?action=orders
 //   GET  ?action=order&id=714
 //   GET  ?action=cardPayments
@@ -15,8 +17,8 @@
 //   POST { action: "createOrder", data }
 //   POST { action: "recordCardPayment", data }
 //   POST { action: "recordEventSale", data }
-//   POST { action: "updateOrder", id, data }
-//   POST { action: "deleteOrder", id }
+//   POST { action: "updateOrder" | "updateCardPayment" | "updateEventSale", id, data }
+//   POST { action: "deleteOrder" | "deleteCardPayment" | "deleteEventSale", id }
 //
 // Every action needs a staff login (api/_lib/auth.js) except one:
 //   GET  ?action=sharedInvoice&id=714&token=…
@@ -57,45 +59,89 @@ function cleanId(value) {
   return /^[A-Za-z0-9-]{1,40}$/.test(id) ? id : null;
 }
 
-// Fields staff can change on a saved order. Anything else sent is ignored.
-const EDITABLE_ORDER_FIELDS = [
-  "Name", "Contact", "Address", "PickupDelivery", "Items", "Quantity",
-  "Cost", "Deposit", "Payment", "DueDate", "Notes",
-];
+// Rows staff can edit or delete, each by its unique key column. Anything
+// sent outside `fields` is ignored.
+const ROW_TARGETS = {
+  Order: {
+    key: "Id",
+    sheet: "",
+    id: /^\d{1,12}$/,
+    fields: ["Name", "Contact", "Address", "PickupDelivery", "Items", "Quantity", "Cost", "Deposit", "Payment", "DueDate", "Notes"],
+  },
+  // The money was charged in Stripe: only who/what it was for can change.
+  CardPayment: {
+    key: "PaymentIntentId",
+    sheet: "CardPayments",
+    id: /^[A-Za-z0-9_]{1,80}$/,
+    fields: ["Name", "Email", "Phone", "Items", "Note", "InvoiceId"],
+  },
+  EventSale: {
+    key: "SaleId",
+    sheet: "EventSales",
+    id: /^EV-\d{6}-\d{6}$/,
+    fields: ["Name", "Items", "Note", "Method", "Amount", "Total", "CashReceived", "Change"],
+  },
+};
+const EVENT_MONEY_FIELDS = ["Method", "Amount", "Total", "CashReceived", "Change"];
+const MONEY = /^\d{1,7}(\.\d{1,2})?$/;
 
-function orderId(value) {
-  const id = String(value ?? "").trim();
-  if (!/^\d{1,12}$/.test(id)) throw new BadRequest("Missing or invalid id");
-  return id;
+// "updateOrder" → ["update", ROW_TARGETS.Order], etc.
+function rowAction(action) {
+  const m = /^(update|delete)(Order|CardPayment|EventSale)$/.exec(String(action || ""));
+  return m ? [m[1], ROW_TARGETS[m[2]], m[2]] : null;
 }
 
-function editableOrderFields(data) {
+function editableFields(target, data) {
   if (!data || typeof data !== "object") throw new BadRequest("Missing data");
   const fields = {};
-  for (const name of EDITABLE_ORDER_FIELDS) {
-    if (Object.hasOwn(data, name)) fields[name] = String(data[name] ?? "").slice(0, 5000);
+  for (const name of target.fields) {
+    if (Object.hasOwn(data, name)) fields[name] = String(data[name] ?? "").trim().slice(0, 5000);
   }
   if (!Object.keys(fields).length) throw new BadRequest("Nothing to update");
   return fields;
 }
 
-// Update or delete one order row. 404 when no row has that Id.
-async function changeOrder(base, body, res) {
-  const id = orderId(body.id);
-  const path = `/Id/${encodeURIComponent(id)}`;
-  const init =
-    body.action === "updateOrder"
-      ? { method: "PATCH", headers: sheetdbHeaders(), body: JSON.stringify({ data: editableOrderFields(body.data) }) }
-      : { method: "DELETE", headers: sheetdbHeaders() };
+// Event sales: Card sales keep their charged amounts; Cash/Zelle amounts
+// must be plain money values and the method stays Cash or Zelle.
+async function checkEventSaleEdit(base, id, fields) {
+  if (!EVENT_MONEY_FIELDS.some((f) => Object.hasOwn(fields, f))) return;
+  const rows = await sheetGet(base, `/search?SaleId=${encodeURIComponent(id)}&sheet=EventSales`);
+  const row = Array.isArray(rows) ? rows.find((r) => String(r.SaleId) === id) : null;
+  if (row && String(row.Method) === "Card") throw new BadRequest("A card sale's amount and method can't be changed.");
+  if (Object.hasOwn(fields, "Method") && !["Cash", "Zelle"].includes(fields.Method)) throw new BadRequest("Method must be Cash or Zelle.");
+  for (const f of ["Amount", "Total", "CashReceived", "Change"]) {
+    if (fields[f] && !MONEY.test(fields[f])) throw new BadRequest(`${f} must be an amount like 12.50`);
+  }
+}
+
+// Update or delete one row. 404 when no row has that key.
+async function changeRow(base, body, res) {
+  const [verb, target, kind] = rowAction(body.action);
+  const id = String(body.id ?? "").trim();
+  if (!target.id.test(id)) throw new BadRequest("Missing or invalid id");
+  if (kind === "CardPayment" && verb === "update" && body.data?.InvoiceId && !cleanId(body.data.InvoiceId)) {
+    throw new BadRequest("Invalid order ID");
+  }
+  const path = `/${target.key}/${encodeURIComponent(id)}${target.sheet ? `?sheet=${target.sheet}` : ""}`;
+  let init;
+  if (verb === "update") {
+    const fields = editableFields(target, body.data);
+    if (kind === "EventSale") await checkEventSaleEdit(base, id, fields);
+    init = { method: "PATCH", headers: sheetdbHeaders(), body: JSON.stringify({ data: fields }) };
+  } else {
+    init = { method: "DELETE", headers: sheetdbHeaders() };
+  }
   const response = await fetch(`${base}${path}`, init);
   const payload = await response.json().catch(() => null);
+  // SheetDB answers 404 when no row matches.
+  if (response.status === 404) return res.status(404).json({ error: "Not found" });
   if (!response.ok) {
     console.error("sheets: SheetDB responded", response.status, payload);
     return res.status(502).json({ error: "Sheet request failed" });
   }
   res.setHeader("Cache-Control", "no-store");
-  const count = body.action === "updateOrder" ? payload?.updated : payload?.deleted;
-  if (!Number(count)) return res.status(404).json({ error: "Order not found" });
+  const count = verb === "update" ? payload?.updated : payload?.deleted;
+  if (!Number(count)) return res.status(404).json({ error: "Not found" });
   return res.status(200).json(payload);
 }
 
@@ -160,8 +206,8 @@ export default async function handler(req, res) {
       if (!build) throw new BadRequest("Unknown action");
       path = build(params);
       init = { method: "GET", headers: sheetdbHeaders() };
-    } else if (req.method === "POST" && ["updateOrder", "deleteOrder"].includes(req.body?.action)) {
-      return await changeOrder(base, req.body, res);
+    } else if (req.method === "POST" && rowAction(req.body?.action)) {
+      return await changeRow(base, req.body, res);
     } else if (req.method === "POST") {
       const { action, data } = req.body || {};
       if (!Object.hasOwn(WRITE_ACTIONS, action)) throw new BadRequest("Unknown action");

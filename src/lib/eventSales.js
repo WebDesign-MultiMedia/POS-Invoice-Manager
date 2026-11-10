@@ -1,3 +1,5 @@
+import { ApiError } from "./errors.js";
+
 // Event Sales: quick checkout at a vendor event. Each sale is one row in the
 // "EventSales" sheet tab, paid by Card, Cash or Zelle.
 
@@ -47,4 +49,26 @@ export function summarizeSales(sales) {
   }
   for (const m of Object.values(byMethod)) m.total /= 100;
   return { count: sales.length, total: total / 100, byMethod };
+}
+
+// What editing a sale sends to the sheet. Name, Items and Note always;
+// a Cash or Zelle sale also its method and total (Amount = Total), with the
+// change worked out again from the cash received. A card sale's amounts
+// never change: the card was already charged.
+export function saleEdit(sale, values) {
+  const text = (k) => String(values[k] ?? "").trim();
+  const fields = { Name: text("Name"), Items: text("Items"), Note: text("Note") };
+  if (sale.Method === "Card") return fields;
+  const total = Math.round((Number(String(values.Total ?? "").replace(/[$,\s]/g, "")) || 0) * 100) / 100;
+  if (!(total > 0)) throw new ApiError(400, "Enter a total above $0.00.");
+  const method = values.Method === "Zelle" ? "Zelle" : "Cash";
+  const change = method === "Cash" && sale.CashReceived ? cashChange(total, sale.CashReceived) : null;
+  return {
+    ...fields,
+    Method: method,
+    Amount: total.toFixed(2),
+    Total: total.toFixed(2),
+    CashReceived: change == null ? "" : (Number(sale.CashReceived) || 0).toFixed(2),
+    Change: change == null ? "" : change.toFixed(2),
+  };
 }

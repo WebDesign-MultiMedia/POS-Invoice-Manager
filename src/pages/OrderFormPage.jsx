@@ -295,7 +295,7 @@ export default function OrderFormPage() {
           <p role="status" className="glass-panel p-3 mb-5 text-sm text-center">
             {draftSource ? (
               <>
-                <i className="fa-solid fa-calculator" aria-hidden="true"></i> Filled in from {draftSource}. Add the payment and deposit, then submit.{" "}
+                <i className="fa-solid fa-calculator" aria-hidden="true"></i> Filled in from {draftSource}. Check the details, fill in anything missing, then submit.{" "}
               </>
             ) : (
               <>

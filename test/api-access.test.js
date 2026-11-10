@@ -56,6 +56,10 @@ describe("staff-only routes return 401 without a session", () => {
     ["POST create order", sheets, { method: "POST", url: "/api/sheets", body: { action: "createOrder", data: { Name: "x" } } }],
     ["POST update order", sheets, { method: "POST", url: "/api/sheets", body: { action: "updateOrder", id: "1", data: { Name: "x" } } }],
     ["POST delete order", sheets, { method: "POST", url: "/api/sheets", body: { action: "deleteOrder", id: "1" } }],
+    ["POST update card payment", sheets, { method: "POST", url: "/api/sheets", body: { action: "updateCardPayment", id: "pi_1", data: { Name: "x" } } }],
+    ["POST delete card payment", sheets, { method: "POST", url: "/api/sheets", body: { action: "deleteCardPayment", id: "pi_1" } }],
+    ["POST update event sale", sheets, { method: "POST", url: "/api/sheets", body: { action: "updateEventSale", id: "EV-261109-120000", data: { Name: "x" } } }],
+    ["POST delete event sale", sheets, { method: "POST", url: "/api/sheets", body: { action: "deleteEventSale", id: "EV-261109-120000" } }],
     ["POST card payment log", sheets, { method: "POST", url: "/api/sheets", body: { action: "recordCardPayment", data: {} } }],
     ["POST charge a card", createPaymentIntent, { method: "POST", body: { paymentMethodId: "pm_1", baseAmountCents: 100 } }],
     ["GET receipt", receiptUrl, { url: "/api/receipt-url?pi=pi_123" }],
@@ -163,6 +167,76 @@ describe("editing and deleting an order (staff)", () => {
 
   it("refuses an update with no editable fields", async () => {
     expect((await post({ action: "updateOrder", id: "714", data: { Id: "1", Date: "x" } })).statusCode).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("editing and deleting card payments and event sales (staff)", () => {
+  function staffCookie() {
+    const res = mockRes();
+    setSessionCookie(res, "staff@example.com");
+    return cookieFrom(res);
+  }
+  const post = (body) => call(sheets, { method: "POST", url: "/api/sheets", body, cookie: staffCookie() });
+  const okWith = (payload) => ({ ok: true, status: 200, json: async () => payload });
+
+  it("a card payment can change who/what it was for, never its amounts", async () => {
+    fetchMock.mockResolvedValue(okWith({ updated: 1 }));
+    const res = await post({
+      action: "updateCardPayment",
+      id: "pi_3Abc",
+      data: { Name: "Pat", InvoiceId: "714", Amount: "1.00", Total: "1.00", Fee: "0", PaymentIntentId: "pi_other" },
+    });
+    expect(res.statusCode).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://sheetdb.io/api/v1/test-sheet/PaymentIntentId/pi_3Abc?sheet=CardPayments");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({ data: { Name: "Pat", InvoiceId: "714" } });
+  });
+
+  it("refuses a bad order ID on a card payment", async () => {
+    expect((await post({ action: "updateCardPayment", id: "pi_1", data: { InvoiceId: "*" } })).statusCode).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes a card payment row by its payment id", async () => {
+    fetchMock.mockResolvedValue(okWith({ deleted: 1 }));
+    expect((await post({ action: "deleteCardPayment", id: "pi_3Abc" })).statusCode).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://sheetdb.io/api/v1/test-sheet/PaymentIntentId/pi_3Abc?sheet=CardPayments");
+    expect(fetchMock.mock.calls[0][1].method).toBe("DELETE");
+  });
+
+  it("a cash event sale can change its total and method", async () => {
+    fetchMock.mockImplementation(async (url, init) =>
+      init.method === "GET" ? okWith([{ SaleId: "EV-261109-120000", Method: "Cash" }]) : okWith({ updated: 1 })
+    );
+    const res = await post({ action: "updateEventSale", id: "EV-261109-120000", data: { Method: "Zelle", Amount: "12.50", Total: "12.50", SaleId: "x" } });
+    expect(res.statusCode).toBe(200);
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toBe("https://sheetdb.io/api/v1/test-sheet/SaleId/EV-261109-120000?sheet=EventSales");
+    expect(JSON.parse(init.body)).toEqual({ data: { Method: "Zelle", Amount: "12.50", Total: "12.50" } });
+  });
+
+  it("a card event sale's amount and method can't change", async () => {
+    fetchMock.mockResolvedValue(okWith([{ SaleId: "EV-261109-120000", Method: "Card" }]));
+    const res = await post({ action: "updateEventSale", id: "EV-261109-120000", data: { Total: "1.00" } });
+    expect(res.statusCode).toBe(400);
+    expect(fetchMock.mock.calls.every(([, init]) => init.method === "GET")).toBe(true);
+  });
+
+  it("an event sale's method must be Cash or Zelle and amounts must be money", async () => {
+    fetchMock.mockResolvedValue(okWith([{ SaleId: "EV-261109-120000", Method: "Cash" }]));
+    expect((await post({ action: "updateEventSale", id: "EV-261109-120000", data: { Method: "Card" } })).statusCode).toBe(400);
+    expect((await post({ action: "updateEventSale", id: "EV-261109-120000", data: { Total: "lots" } })).statusCode).toBe(400);
+  });
+
+  it.each([
+    ["deleteCardPayment", "pi_1/../x"],
+    ["deleteCardPayment", "*"],
+    ["deleteEventSale", "714"],
+    ["deleteEventSale", "EV-*"],
+  ])("%s refuses id %j without calling SheetDB", async (action, id) => {
+    expect((await post({ action, id })).statusCode).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

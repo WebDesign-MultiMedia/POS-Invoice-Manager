@@ -224,6 +224,27 @@ function save() {
 }
 
 // Same shapes the real /api/sheets returns, so pages don't know the difference.
+const notFound = () => Promise.reject(new ApiError(404, "Not found"));
+
+// Edits one demo row by its key, leaving the `locked` fields as they were.
+function updateRow(list, key, id, data, locked) {
+  const db = load();
+  const row = (db[list] || []).find((r) => String(r[key]) === String(id));
+  if (!row) return notFound();
+  for (const [field, value] of Object.entries(data || {})) if (!locked.includes(field)) row[field] = value;
+  save();
+  return later({ updated: 1 });
+}
+
+function deleteRow(list, key, id) {
+  const db = load();
+  const rows = db[list] || [];
+  const kept = rows.filter((r) => String(r[key]) !== String(id));
+  if (kept.length === rows.length) return notFound();
+  db[list] = kept;
+  save();
+  return later({ deleted: 1 });
+}
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const later = (v) => new Promise((resolve) => setTimeout(() => resolve(clone(v)), 250));
 
@@ -237,23 +258,18 @@ export const demoApi = {
     save();
     return later({ created: 1, id: row.Id });
   },
-  updateOrder(id, data) {
-    const db = load();
-    const order = db.orders.find((o) => o.Id === String(id));
-    if (!order) return Promise.reject(new ApiError(404, "Order not found"));
-    const { Id: _id, Date: _date, Time: _time, ...fields } = data;
-    Object.assign(order, fields);
-    save();
-    return later({ updated: 1 });
+  updateOrder: (id, data) => updateRow("orders", "Id", id, data, ["Id", "Date", "Time"]),
+  deleteOrder: (id) => deleteRow("orders", "Id", id),
+  updateCardPayment: (id, data) =>
+    updateRow("cardPayments", "PaymentIntentId", id, data, ["PaymentIntentId", "Date", "Time", "Amount", "Fee", "Total", "Card", "Funding"]),
+  deleteCardPayment: (id) => deleteRow("cardPayments", "PaymentIntentId", id),
+  updateEventSale(id, data) {
+    const sale = (load().eventSales || []).find((r) => r.SaleId === String(id));
+    const locked = ["SaleId", "Date", "Time", "Fee", "Card", "Funding", "PaymentIntentId"];
+    if (sale?.Method === "Card") locked.push("Method", "Amount", "Total", "CashReceived", "Change");
+    return updateRow("eventSales", "SaleId", id, data, locked);
   },
-  deleteOrder(id) {
-    const db = load();
-    const before = db.orders.length;
-    db.orders = db.orders.filter((o) => o.Id !== String(id));
-    if (db.orders.length === before) return Promise.reject(new ApiError(404, "Order not found"));
-    save();
-    return later({ deleted: 1 });
-  },
+  deleteEventSale: (id) => deleteRow("eventSales", "SaleId", id),
   cardPayments: () => later(load().cardPayments.slice().reverse()),
   cardPaymentsFor: (invoiceId) => later(load().cardPayments.filter((p) => p.InvoiceId === String(invoiceId))),
   recordCardPayment(data) {

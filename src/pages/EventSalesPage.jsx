@@ -6,7 +6,9 @@ import { SiteNav } from "../components/NavFab.jsx";
 import MenuPicker from "../components/MenuPicker.jsx";
 import CardPaymentForm from "../components/CardPaymentForm.jsx";
 import DemoCardForm from "../components/DemoCardForm.jsx";
-import { fetchAllEventSales, recordCardPayment, recordEventSale } from "../api/sheetdb.js";
+import { deleteEventSale, fetchAllEventSales, recordCardPayment, recordEventSale, updateEventSale } from "../api/sheetdb.js";
+import { RowButtons, RowEditor, confirmAndDelete, useMakeInvoice } from "../components/RowActions.jsx";
+import { saleToOrderForm } from "../lib/saleToOrder.js";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
 import { formatCartLine } from "../lib/menu.js";
 import { getBrand, getMenu } from "../lib/brand.js";
@@ -16,7 +18,7 @@ import { isDemo } from "../lib/demo.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { cartTotal as sumCart, toCents } from "../lib/totals.js";
 import { cardPaymentsNewestFirst } from "../lib/recentOrder.js";
-import { cashChange, newEventSaleId, quickCashOptions, summarizeSales } from "../lib/eventSales.js";
+import { cashChange, newEventSaleId, quickCashOptions, saleEdit, summarizeSales } from "../lib/eventSales.js";
 
 // Event Sales: checkout for a vendor event booth.
 //   1. Build the order: tap menu items or type an amount, optional name.
@@ -388,7 +390,11 @@ export default function EventSalesPage() {
         )}
       </div>
 
-      <TodaySales {...sales} />
+      <TodaySales
+        {...sales}
+        onUpdated={(id, fields) => setSales((s) => ({ ...s, rows: s.rows.map((r) => (r.SaleId === id ? { ...r, ...fields } : r)) }))}
+        onDeleted={(id) => setSales((s) => ({ ...s, rows: s.rows.filter((r) => r.SaleId !== id) }))}
+      />
     </Layout>
   );
 }
@@ -396,7 +402,7 @@ export default function EventSalesPage() {
 const PAGE = 5;
 
 // Today's totals (all, and by Card / Cash / Zelle) and today's sales.
-function TodaySales({ rows, loading, error }) {
+function TodaySales({ rows, loading, error, onUpdated, onDeleted }) {
   const [shown, setShown] = useState(PAGE);
   if (loading) return null;
   const { date } = getCurrentDateTime();
@@ -431,7 +437,7 @@ function TodaySales({ rows, loading, error }) {
           {today.length > 0 && (
             <ul className="flex flex-col divide-y divide-brand-navydeep/15">
               {today.slice(0, shown).map((s, i) => (
-                <SaleRow key={`${s.SaleId}-${i}`} sale={s} />
+                <SaleRow key={`${s.SaleId}-${i}`} sale={s} onUpdated={onUpdated} onDeleted={onDeleted} />
               ))}
             </ul>
           )}
@@ -448,13 +454,45 @@ function TodaySales({ rows, loading, error }) {
   );
 }
 
-function SaleRow({ sale: s }) {
+const TEXT_FIELDS = [
+  { key: "Name", label: "Name", icon: "fa-user" },
+  { key: "Items", label: "Items", icon: "fa-clipboard-list", type: "textarea" },
+  { key: "Note", label: "Note", icon: "fa-note-sticky" },
+];
+const MONEY_FIELDS = [
+  { key: "Method", label: "Paid with", icon: "fa-wallet", type: "select", options: ["Cash", "Zelle"] },
+  { key: "Total", label: "Total", icon: "fa-dollar-sign", type: "money" },
+];
+
+function SaleRow({ sale: s, onUpdated, onDeleted }) {
+  const [editing, setEditing] = useState(false);
+  const makeInvoice = useMakeInvoice();
   const receipt = !isDemo() && /^pi_[A-Za-z0-9]+$/.test(s.PaymentIntentId || "") ? `/api/receipt-url?pi=${encodeURIComponent(s.PaymentIntentId)}` : null;
+  const isCard = s.Method === "Card";
+  const fields = isCard ? TEXT_FIELDS : [...MONEY_FIELDS, ...TEXT_FIELDS];
+  const key = /^EV-\d{6}-\d{6}$/.test(s.SaleId || "") ? s.SaleId : null;
   const items = (s.Items || "")
     .split("\n")
     .map((l) => l.replace(/\s*\(\$[\d,.]+\)$/, "").trim())
     .filter(Boolean)
     .join(", ");
+
+  const remove = async () => {
+    const gone = await confirmAndDelete({
+      title: `Delete sale ${s.SaleId}?`,
+      text: `${formatMoney(toNumber(s.Total || s.Amount))} (${s.Method}) will be removed from today's sales.${isCard ? " This does NOT refund the card. Refunds are done in Stripe, and the payment stays in Pay with Card's list." : ""}`,
+      remove: () => deleteEventSale(key),
+    });
+    if (gone) onDeleted?.(key);
+  };
+
+  const save = async (values) => {
+    const edit = saleEdit(s, values);
+    await updateEventSale(key, edit);
+    onUpdated?.(key, edit);
+    setEditing(false);
+  };
+
   return (
     <li className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
       <div className="flex items-center gap-2 min-w-0">
@@ -469,10 +507,23 @@ function SaleRow({ sale: s }) {
         {s.Time} · {s.SaleId}
       </p>
       {items && <p className="text-xs text-brand-navydeep/70">{items}</p>}
-      {receipt && (
-        <a href={receipt} target="_blank" rel="noopener noreferrer" className="btn-3d !py-2 !px-4 text-sm whitespace-nowrap self-start mt-1">
-          <i className="fa-solid fa-receipt" aria-hidden="true"></i> Receipt
-        </a>
+      <RowButtons
+        label={`sale ${s.SaleId}`}
+        onMakeInvoice={() => makeInvoice(saleToOrderForm(s, s.Method || "Cash"), `event sale ${s.SaleId}`)}
+        receiptHref={receipt}
+        onEdit={key ? () => setEditing(true) : null}
+        onDelete={key ? remove : null}
+        editing={editing}
+      />
+      {editing && (
+        <RowEditor
+          idBase={`ev-${key}`}
+          fields={fields}
+          initial={{ ...Object.fromEntries(fields.map((f) => [f.key, String(s[f.key] ?? "")])), Total: toNumber(s.Total || s.Amount).toFixed(2) }}
+          note={isCard ? `The amount (${formatMoney(toNumber(s.Total))}) can't change here: the card was already charged.` : null}
+          onSave={save}
+          onCancel={() => setEditing(false)}
+        />
       )}
     </li>
   );

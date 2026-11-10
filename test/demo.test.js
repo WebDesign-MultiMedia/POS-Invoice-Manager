@@ -52,6 +52,19 @@ describe("demo mode", () => {
     expect(sales).toHaveLength(before + 1);
     expect(sales[0].SaleId).toBe("EV-1");
 
+    const [pay] = await sheetdb.fetchAllCardPayments();
+    await sheetdb.updateCardPayment(pay.PaymentIntentId, { Name: "Edited", Total: "0.01" });
+    const edited = (await sheetdb.fetchAllCardPayments()).find((p) => p.PaymentIntentId === pay.PaymentIntentId);
+    expect(edited.Name).toBe("Edited");
+    expect(edited.Total).toBe(pay.Total);
+    await sheetdb.deleteCardPayment(pay.PaymentIntentId);
+    expect((await sheetdb.fetchAllCardPayments()).some((p) => p.PaymentIntentId === pay.PaymentIntentId)).toBe(false);
+
+    await sheetdb.updateEventSale("EV-1", { Total: "6.00", Name: "Sam" });
+    expect((await sheetdb.fetchAllEventSales()).find((r) => r.SaleId === "EV-1")).toMatchObject({ Total: "6.00", Name: "Sam" });
+    await sheetdb.deleteEventSale("EV-1");
+    expect(await sheetdb.fetchAllEventSales()).toHaveLength(before);
+
     await sheetdb.updateOrder(id, { Name: "Renamed", Id: "hijack", Date: "01/01/2000" });
     const renamed = await sheetdb.getInvoiceById(id);
     expect(renamed).toMatchObject({ Id: id, Name: "Renamed" });
@@ -66,7 +79,8 @@ describe("demo mode", () => {
     await expect(sheetdb.deleteOrder(id)).rejects.toMatchObject({ status: 404 });
 
     expect(fetchSpy).not.toHaveBeenCalled();
-  });
+    // Every demo call waits 250ms like a real request, and this test makes many.
+  }, 20000);
 
   it("uses only made-up sample data (555 phone numbers, example.com emails)", async () => {
     const orders = await demoApi.orders();

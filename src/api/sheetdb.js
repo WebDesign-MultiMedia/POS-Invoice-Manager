@@ -87,6 +87,32 @@ export function fetchAllCardPayments() {
   return readSheet("cardPayments");
 }
 
+// A logged card payment, found by its PaymentIntentId. Only who and what it
+// was for can change (Name, Email, Phone, Items, Note, InvoiceId); the
+// charged amounts can't. Deleting removes the sheet row only. It does NOT
+// refund the card; refunds are done in Stripe.
+export function updateCardPayment(paymentIntentId, data) {
+  if (isDemo()) return demoApi.updateCardPayment(paymentIntentId, data);
+  return postSheet({ action: "updateCardPayment", id: String(paymentIntentId), data });
+}
+
+export function deleteCardPayment(paymentIntentId) {
+  if (isDemo()) return demoApi.deleteCardPayment(paymentIntentId);
+  return postSheet({ action: "deleteCardPayment", id: String(paymentIntentId) });
+}
+
+// An event sale, found by its SaleId. Cash and Zelle sales can change their
+// amount and method; card sales keep theirs.
+export function updateEventSale(saleId, data) {
+  if (isDemo()) return demoApi.updateEventSale(saleId, data);
+  return postSheet({ action: "updateEventSale", id: String(saleId), data });
+}
+
+export function deleteEventSale(saleId) {
+  if (isDemo()) return demoApi.deleteEventSale(saleId);
+  return postSheet({ action: "deleteEventSale", id: String(saleId) });
+}
+
 // Event Sales: one row per sale in the "EventSales" tab (Card, Cash or Zelle).
 export function recordEventSale(data) {
   if (isDemo()) return demoApi.recordEventSale(data);
