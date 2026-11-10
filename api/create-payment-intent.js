@@ -30,7 +30,7 @@ export default async function handler(req, res) {
 
   // Logged-in only (staff, or an employee taking Event Sales card payments):
   // an open charge endpoint lets fraudsters test stolen cards.
-  const session = requireEventAccess(req, res);
+  const session = await requireEventAccess(req, res);
   if (!session) return;
 
   const { paymentMethodId, baseAmountCents, invoiceId, email, description, note } = req.body || {};

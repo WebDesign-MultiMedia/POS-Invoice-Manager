@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockReq, mockRes, cookieFrom } from "./helpers.js";
 
-// Employee logins (phone + PIN, EMPLOYEE_ACCOUNTS) may use only Event Sales.
+// Employee logins (phone + PIN, saved in the sheet's Employees tab) may use
+// only Event Sales.
 // Every other endpoint must refuse them, even though they're logged in.
 vi.mock("stripe", () => ({
   default: vi.fn(function Stripe() {
@@ -27,20 +28,49 @@ const sendBroadcast = (await import("../api/send-broadcast.js")).default;
 const sheetLink = (await import("../api/sheet-link.js")).default;
 const quotes = (await import("../api/quotes.js")).default;
 const calculatorLink = (await import("../api/calculator-link.js")).default;
+const employeesApi = (await import("../api/employees.js")).default;
+const { clearEmployeeCache } = await import("../api/_lib/employees.js");
 
 // Throwaway test values only.
 const PIN = "4829";
 const EMPLOYEE_PHONE = "3475550123";
 const fetchMock = vi.fn();
+const PIN_HASH = hashPassword(PIN);
+let employeeRows;
+
+// SheetDB stand-in: the Employees tab answers from employeeRows; every
+// other call answers [].
+function sheetFetch(url, init = {}) {
+  const u = String(url);
+  const json = (payload) => ({ ok: true, status: 200, json: async () => payload });
+  if (u.includes("sheet=Employees")) {
+    if ((init.method || "GET") === "GET") return json(employeeRows);
+    if (init.method === "POST") {
+      employeeRows.push(...JSON.parse(init.body).data);
+      return json({ created: 1 });
+    }
+    const phone = decodeURIComponent(u.match(/\/Phone\/([^?]+)/)?.[1] || "");
+    const row = employeeRows.find((r) => String(r.Phone) === phone);
+    if (!row) return { ok: false, status: 404, json: async () => ({}) };
+    if (init.method === "PATCH") {
+      Object.assign(row, JSON.parse(init.body).data);
+      return json({ updated: 1 });
+    }
+    employeeRows = employeeRows.filter((r) => r !== row);
+    return json({ deleted: 1 });
+  }
+  return json([]);
+}
 
 beforeEach(() => {
   vi.stubEnv("SESSION_SECRET", "test-session-secret");
   vi.stubEnv("STAFF_ACCOUNTS", JSON.stringify({ "staff@example.com": hashPassword("a long staff test password") }));
-  vi.stubEnv("EMPLOYEE_ACCOUNTS", JSON.stringify({ "(347) 555-0123": hashPassword(PIN) }));
   vi.stubEnv("SHEETDB_ID", "test-sheet");
   vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_x");
   vi.stubEnv("GOOGLE_SHEET_URL", "https://docs.google.com/spreadsheets/d/test/edit");
-  fetchMock.mockReset().mockResolvedValue({ ok: true, status: 200, json: async () => [] });
+  employeeRows = [{ Phone: "3475550123", Name: "Carlos", PinHash: PIN_HASH, Active: "Yes" }];
+  clearEmployeeCache();
+  fetchMock.mockReset().mockImplementation(async (url, init) => sheetFetch(url, init));
   vi.stubGlobal("fetch", fetchMock);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -69,7 +99,7 @@ describe("employee login", () => {
     await auth(mockReq({ method: "POST", body: { action: "login", identifier: "347-555-0123", password: PIN }, headers: { "x-forwarded-for": "10.0.0.1" } }), res);
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ user: EMPLOYEE_PHONE, role: "event" });
-    const info = readSessionInfo(mockReq({ cookie: cookieFrom(res) }));
+    const info = await readSessionInfo(mockReq({ cookie: cookieFrom(res) }));
     expect(info).toEqual({ login: EMPLOYEE_PHONE, role: "event" });
   });
 
@@ -77,24 +107,33 @@ describe("employee login", () => {
     expect(readSession(mockReq({ cookie: employeeCookie() }))).toBeNull();
   });
 
-  it("a PIN never works as a staff password, nor a staff password as a PIN", () => {
+  it("a PIN never works as a staff password, nor a staff password as a PIN", async () => {
     expect(checkCredentials(EMPLOYEE_PHONE, PIN)).toBeNull();
-    expect(checkEmployeeCredentials("staff@example.com", "a long staff test password")).toBeNull();
-    expect(checkEmployeeCredentials(EMPLOYEE_PHONE, "0000")).toBeNull();
+    expect(await checkEmployeeCredentials("staff@example.com", "a long staff test password")).toBeNull();
+    expect(await checkEmployeeCredentials(EMPLOYEE_PHONE, "0000")).toBeNull();
   });
 
-  it("removing the employee ends their session", () => {
+  it("deleting or turning off the employee in the sheet ends their session", async () => {
     const cookie = employeeCookie();
-    vi.stubEnv("EMPLOYEE_ACCOUNTS", "{}");
-    expect(readSessionInfo(mockReq({ cookie }))).toBeNull();
+    employeeRows[0].Active = "No";
+    clearEmployeeCache();
+    expect(await readSessionInfo(mockReq({ cookie }))).toBeNull();
+    employeeRows = [];
+    clearEmployeeCache();
+    expect(await readSessionInfo(mockReq({ cookie }))).toBeNull();
   });
 
-  it("a forged role in the cookie doesn't work", () => {
+  it("can't log in if the Employees tab can't be read", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+    expect(await checkEmployeeCredentials(EMPLOYEE_PHONE, PIN)).toBeNull();
+  });
+
+  it("a forged role in the cookie doesn't work", async () => {
     const cookie = employeeCookie();
     const [name, value] = cookie.split("=");
     const [payload, sig] = value.split(".");
     const forged = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(payload, "base64url")), role: "staff" })).toString("base64url");
-    expect(readSessionInfo(mockReq({ cookie: `${name}=${forged}.${sig}` }))).toBeNull();
+    expect(await readSessionInfo(mockReq({ cookie: `${name}=${forged}.${sig}` }))).toBeNull();
   });
 
   it("locks a phone number after repeated wrong PINs, from any device", async () => {
@@ -150,13 +189,15 @@ describe("what an employee can't use", () => {
   ])("sheets: %s", async (_name, opts) => {
     const res = await call(sheets, opts);
     expect(res.statusCode).toBe(403);
-    expect(fetchMock).not.toHaveBeenCalled();
+    // Only the Employees tab was read (to check the login), nothing else.
+    expect(fetchMock.mock.calls.every(([url]) => String(url).includes("sheet=Employees"))).toBe(true);
   });
 
   it.each([
     ["text customers", sendBroadcast, { method: "POST", body: { messageText: "hi" } }],
     ["catering quotes", quotes, { url: "/api/quotes?action=list" }],
     ["calculator link", calculatorLink, { url: "/api/calculator-link?action=token" }],
+    ["manage employees", employeesApi, { url: "/api/employees?action=list" }],
   ])("%s", async (_name, handler, opts) => {
     const res = await call(handler, opts);
     expect(res.statusCode).toBe(403);
@@ -167,5 +208,68 @@ describe("what an employee can't use", () => {
     const res = await call(sheetLink, { url: "/api/sheet-link" });
     expect(res.statusCode).toBe(401);
     expect(res.headers.location).toBeUndefined();
+  });
+});
+
+describe("managing employees (staff)", () => {
+  function staffCookie() {
+    const res = mockRes();
+    setSessionCookie(res, "staff@example.com");
+    return cookieFrom(res);
+  }
+  const staffCall = async (opts) => {
+    const res = mockRes();
+    await employeesApi(mockReq({ cookie: staffCookie(), method: opts.body ? "POST" : "GET", url: "/api/employees?action=list", ...opts }), res);
+    return res;
+  };
+
+  it("needs a login", async () => {
+    const res = mockRes();
+    await employeesApi(mockReq({ url: "/api/employees?action=list" }), res);
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("lists employees without their PIN hashes", async () => {
+    const res = await staffCall({});
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual([{ Phone: "3475550123", Name: "Carlos", Active: "Yes", AddedBy: "", AddedAt: "", UpdatedAt: "" }]);
+  });
+
+  it("adds an employee with a hashed PIN, who can then log in", async () => {
+    const res = await staffCall({ body: { action: "add", phone: "(718) 555-0199", name: "Ana", pin: "5821" } });
+    expect(res.statusCode).toBe(200);
+    const row = employeeRows.find((r) => r.Phone === "7185550199");
+    expect(row).toMatchObject({ Name: "Ana", Active: "Yes", AddedBy: "staff@example.com" });
+    expect(row.PinHash).not.toContain("5821");
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('"5821"');
+    expect(await checkEmployeeCredentials("7185550199", "5821")).toBe("7185550199");
+  });
+
+  it("refuses weak PINs, bad phones, missing names and duplicates", async () => {
+    for (const pin of ["1234", "1111", "1999", "12", "abcd"]) {
+      expect((await staffCall({ body: { action: "add", phone: "7185550199", name: "Ana", pin } })).statusCode).toBe(400);
+    }
+    expect((await staffCall({ body: { action: "add", phone: "555", name: "Ana", pin: "5821" } })).statusCode).toBe(400);
+    expect((await staffCall({ body: { action: "add", phone: "7185550199", name: " ", pin: "5821" } })).statusCode).toBe(400);
+    expect((await staffCall({ body: { action: "add", phone: "347-555-0123", name: "Dup", pin: "5821" } })).statusCode).toBe(409);
+  });
+
+  it("resets a PIN: the old one stops working", async () => {
+    expect((await staffCall({ body: { action: "setPin", phone: "3475550123", pin: "7395" } })).statusCode).toBe(200);
+    expect(await checkEmployeeCredentials(EMPLOYEE_PHONE, PIN)).toBeNull();
+    expect(await checkEmployeeCredentials(EMPLOYEE_PHONE, "7395")).toBe(EMPLOYEE_PHONE);
+  });
+
+  it("turning off blocks the login; turning on allows it again", async () => {
+    await staffCall({ body: { action: "setActive", phone: "3475550123", active: false } });
+    expect(await checkEmployeeCredentials(EMPLOYEE_PHONE, PIN)).toBeNull();
+    await staffCall({ body: { action: "setActive", phone: "3475550123", active: true } });
+    expect(await checkEmployeeCredentials(EMPLOYEE_PHONE, PIN)).toBe(EMPLOYEE_PHONE);
+  });
+
+  it("deletes an employee", async () => {
+    expect((await staffCall({ body: { action: "delete", phone: "3475550123" } })).statusCode).toBe(200);
+    expect(employeeRows).toHaveLength(0);
+    expect((await staffCall({ body: { action: "delete", phone: "3475550123" } })).statusCode).toBe(404);
   });
 });

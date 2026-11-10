@@ -7,6 +7,7 @@ import auth from "../api/auth.js";
 import sheetLink from "../api/sheet-link.js";
 import calculatorLink from "../api/calculator-link.js";
 import quotes from "../api/quotes.js";
+import employees from "../api/employees.js";
 
 // Local stand-in for Vercel's serverless runtime (see vite.config.js's proxy)
 // so `api/create-payment-intent.js` can be exercised with `npm run dev`
@@ -36,6 +37,7 @@ const ROUTES = {
   "/api/sheet-link": sheetLink,
   "/api/calculator-link": calculatorLink,
   "/api/quotes": quotes,
+  "/api/employees": employees,
 };
 
 const server = http.createServer(async (req, res) => {

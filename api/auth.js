@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
   if (req.method === "GET") {
-    const info = readSessionInfo(req);
+    const info = await readSessionInfo(req);
     return info ? res.status(200).json({ user: info.login, role: info.role }) : res.status(401).json({ error: "Please log in" });
   }
 
@@ -84,7 +84,7 @@ export default async function handler(req, res) {
   // Both are always checked, so the time taken doesn't reveal which kind of
   // account a login is. A login that's in both lists is staff.
   const staff = checkCredentials(identifier, password);
-  const employee = checkEmployeeCredentials(identifier, password);
+  const employee = await checkEmployeeCredentials(identifier, password);
   const login = staff || employee;
   const role = staff ? ROLES.STAFF : ROLES.EVENT;
   if (!login) {

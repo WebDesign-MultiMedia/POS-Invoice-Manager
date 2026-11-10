@@ -205,7 +205,7 @@ export default async function handler(req, res) {
       return await sharedInvoice(base, params, res);
     }
 
-    const session = requireEventAccess(req, res);
+    const session = await requireEventAccess(req, res);
     if (!session) return;
     if (session.role !== ROLES.STAFF && !isEmployeeAllowed(req, params)) {
       return res.status(403).json({ error: "Employee logins can only use Event Sales." });

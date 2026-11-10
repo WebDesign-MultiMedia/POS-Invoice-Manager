@@ -41,6 +41,7 @@ const SECTIONS = [
   { to: "/invoice", title: "View invoice", icon: "fa-file-invoice-dollar", colorClass: "text-brand-terracotta", glowClass: "shadow-glow-terracotta" },
   { to: "/pay", title: "Pay with Card", icon: "fa-credit-card", colorClass: "text-brand-cactus", glowClass: "shadow-glow-teal" },
   { to: "/event", title: "Event sales", icon: "fa-store", colorClass: "text-brand-terracotta", glowClass: "shadow-glow-terracotta" },
+  { to: "/employees", title: "Employees", icon: "fa-users", colorClass: "text-brand-teal", glowClass: "shadow-glow-teal" },
   { to: "/catering", title: "Catering calculator", icon: "fa-calculator", colorClass: "text-brand-gold", glowClass: "shadow-glow-gold" },
   { to: "/broadcast", title: "Text customers", icon: "fa-bullhorn", colorClass: "text-brand-pink", glowClass: "shadow-glow-pink" },
   { to: "/updates", title: "What's new", icon: "fa-wand-magic-sparkles", colorClass: "text-brand-pink", glowClass: "shadow-glow-pink" },

@@ -18,7 +18,7 @@ export default async function handler(req, res) {
 
   // Receipts show customer contact details, so logged-in only (staff, or an
   // employee opening the receipt of an Event Sales card payment).
-  if (!readSessionInfo(req)) return sendError(res, 401, "Please log in to the POS Invoice Manager first.");
+  if (!(await readSessionInfo(req))) return sendError(res, 401, "Please log in to the POS Invoice Manager first.");
 
   const pi = new URL(req.url, "http://localhost").searchParams.get("pi") || "";
   if (!/^pi_[A-Za-z0-9]+$/.test(pi)) {

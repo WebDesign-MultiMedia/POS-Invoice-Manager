@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import { hashPassword, verifyPassword } from "./passwords.js";
+import { employeePinHash } from "./employees.js";
 
 // Shared staff-login helpers for the /api functions. The leading underscore
 // keeps Vercel from deploying this folder as its own endpoint.
@@ -7,33 +9,19 @@ import crypto from "node:crypto";
 //   STAFF_ACCOUNTS  JSON map of login → password hash, e.g.
 //                   {"julio@example.com":"<salt>:<hash>","3475550100":"<salt>:<hash>"}
 //                   Make each hash with: npm run hash-password
-//   EMPLOYEE_ACCOUNTS  JSON map of phone number → PIN hash, for employees
-//                   who may ONLY use Event Sales, e.g.
-//                   {"3475550123":"<salt>:<hash>"}
-//                   Make each hash with: npm run hash-pin
+//   Employees (phone + 4-digit PIN, Event Sales only) aren't env vars:
+//                   they live in the order sheet's "Employees" tab, managed
+//                   from the app's Employees page (api/_lib/employees.js).
 //   SESSION_SECRET  long random string that signs session cookies and
 //                   invoice share links. Changing it logs everyone out and
 //                   breaks share links that were already sent.
 
 const COOKIE_NAME = "pim_session";
 const SESSION_DAYS = 7;
-const SCRYPT_KEYLEN = 64;
 
 // ---------- passwords ----------
 
-export function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.scryptSync(password, salt, SCRYPT_KEYLEN).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password, stored) {
-  const [salt, hash] = String(stored || "").split(":");
-  if (!salt || !hash) return false;
-  const expected = Buffer.from(hash, "hex");
-  const actual = crypto.scryptSync(String(password), salt, expected.length || SCRYPT_KEYLEN);
-  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
-}
+export { hashPassword } from "./passwords.js";
 
 // Emails are case-insensitive; phone numbers can be typed any way, so they
 // match on their last 10 digits.
@@ -60,12 +48,21 @@ function loadAccountMap(envName) {
 }
 
 const loadAccounts = () => loadAccountMap("STAFF_ACCOUNTS");
-const loadEmployees = () => loadAccountMap("EMPLOYEE_ACCOUNTS");
+// An employee's PIN hash from the sheet's Employees tab. Undefined if they
+// don't exist, are turned off, or the sheet can't be read (fail closed).
+async function employeeHash(phone) {
+  try {
+    return await employeePinHash(phone);
+  } catch (err) {
+    console.error("auth: couldn't check the Employees tab:", err.message);
+    return undefined;
+  }
+}
 
 // What each kind of login may use. "staff" is everything; "event" is an
 // employee who may only use Event Sales.
 export const ROLES = { STAFF: "staff", EVENT: "event" };
-const accountsFor = (role) => (role === ROLES.EVENT ? loadEmployees() : loadAccounts());
+
 
 // A throwaway hash so an unknown login takes as long to check as a known
 // one, which keeps response times from revealing which logins exist.
@@ -80,9 +77,9 @@ export function checkCredentials(identifier, password) {
 
 // Employees log in with a phone number and a 4-digit PIN. Returns the 10-digit
 // phone, or null.
-export function checkEmployeeCredentials(identifier, pin) {
+export async function checkEmployeeCredentials(identifier, pin) {
   const login = normalizeIdentifier(identifier);
-  const stored = /^\d{10}$/.test(login) ? loadEmployees().get(login) : undefined;
+  const stored = /^\d{10}$/.test(login) ? await employeeHash(login) : undefined;
   const ok = verifyPassword(pin, stored || DUMMY_HASH);
   return ok && stored ? login : null;
 }
@@ -132,8 +129,9 @@ export function clearSessionCookie(res) {
   res.setHeader("Set-Cookie", `${COOKIE_NAME}=; ${cookieAttributes(0)}`);
 }
 
-// Returns { login, role } for any valid session (staff or employee), or null.
-export function readSessionInfo(req) {
+// The signed cookie's { login, role }, if its signature and expiry are good.
+// Doesn't check the account still exists; the readers below do.
+function parseSession(req) {
   if (!process.env.SESSION_SECRET) return null;
   const raw = parseCookies(req)[COOKIE_NAME];
   if (!raw) return null;
@@ -141,13 +139,9 @@ export function readSessionInfo(req) {
   if (!payload || !signature || !safeEqual(signature, sign(`session:${payload}`))) return null;
   try {
     const { sub, exp, role: rawRole } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    // Sessions from before roles existed are staff sessions.
-    const role = rawRole === ROLES.EVENT ? ROLES.EVENT : ROLES.STAFF;
     if (!sub || !Number.isFinite(exp) || exp < Date.now()) return null;
-    // Removing someone from STAFF_ACCOUNTS / EMPLOYEE_ACCOUNTS ends their
-    // session right away.
-    if (!accountsFor(role).has(sub)) return null;
-    return { login: sub, role };
+    // Sessions from before roles existed are staff sessions.
+    return { login: sub, role: rawRole === ROLES.EVENT ? ROLES.EVENT : ROLES.STAFF };
   } catch {
     return null;
   }
@@ -155,27 +149,38 @@ export function readSessionInfo(req) {
 
 // Returns the logged-in STAFF login (email or 10-digit phone), or null.
 // Employee sessions don't count, so every staff-only check stays closed
-// to employees unless an endpoint lets them in on purpose.
+// to employees unless an endpoint lets them in on purpose. Removing
+// someone from STAFF_ACCOUNTS ends their session right away.
 export function readSession(req) {
-  const info = readSessionInfo(req);
-  return info?.role === ROLES.STAFF ? info.login : null;
+  const info = parseSession(req);
+  return info?.role === ROLES.STAFF && loadAccounts().has(info.login) ? info.login : null;
+}
+
+// Returns { login, role } for any valid session (staff, or an employee who
+// is still active), or null. Turning an employee off or deleting them ends
+// their session (within the Employees cache time).
+export async function readSessionInfo(req) {
+  const info = parseSession(req);
+  if (!info) return null;
+  if (info.role === ROLES.STAFF) return loadAccounts().has(info.login) ? info : null;
+  return (await employeeHash(info.login)) ? info : null;
 }
 
 // Gate for staff-only endpoints. Returns the login, or sends 401 (not
 // logged in) / 403 (an employee login) and returns null, so callers do:
 // `if (!requireStaff(req, res)) return;`
 export function requireStaff(req, res) {
-  const info = readSessionInfo(req);
-  if (info?.role === ROLES.STAFF) return info.login;
-  if (info) res.status(403).json({ error: "Employee logins can only use Event Sales." });
+  const login = readSession(req);
+  if (login) return login;
+  if (parseSession(req)?.role === ROLES.EVENT) res.status(403).json({ error: "Employee logins can only use Event Sales." });
   else res.status(401).json({ error: "Please log in" });
   return null;
 }
 
-// Gate for what Event Sales needs: staff or an employee. Returns
-// { login, role }, or sends a 401 and returns null.
-export function requireEventAccess(req, res) {
-  const info = readSessionInfo(req);
+// Gate for what Event Sales needs: staff or an active employee. Resolves
+// to { login, role }, or sends a 401 and resolves to null.
+export async function requireEventAccess(req, res) {
+  const info = await readSessionInfo(req);
   if (info) return info;
   res.status(401).json({ error: "Please log in" });
   return null;
