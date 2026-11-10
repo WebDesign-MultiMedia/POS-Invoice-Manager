@@ -43,14 +43,14 @@ export default function Layout({ blobs = [], children, mainClassName = "" }) {
   );
 }
 
-export function PageHeader({ logoSize = "w-16 h-16", title, subtitle, marginBottom = "mb-6" }) {
+export function PageHeader({ logoSize = "w-28 h-28 sm:w-32 sm:h-32", title, subtitle, marginBottom = "mb-6" }) {
   return (
     <div className={`flex flex-col items-center ${marginBottom} stagger-in`}>
       {/* The demo is a fictional business, so it shows a generic mark
           instead of the restaurant's logo. */}
       {isDemo() ? (
         <span className={`${logoSize} glass-panel !rounded-full flex items-center justify-center`} aria-hidden="true">
-          <i className="fa-solid fa-mug-saucer text-2xl text-brand-gold"></i>
+          <i className="fa-solid fa-mug-saucer text-4xl sm:text-5xl text-brand-gold"></i>
         </span>
       ) : (
         <img src="/imgs/BLFM-logo.PNG" alt="Buffet Lucia Fiesta Mexicana logo" className={`${logoSize} object-contain drop-shadow-lg`} />

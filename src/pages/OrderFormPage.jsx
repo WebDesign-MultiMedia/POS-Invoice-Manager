@@ -274,7 +274,7 @@ export default function OrderFormPage() {
 
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -left-10 animate-float-slow", "bg-brand-cactus w-80 h-80 top-1/3 -right-16 animate-float", "bg-brand-pink w-64 h-64 bottom-0 left-1/4 animate-float-slow"]}>
-      <PageHeader logoSize="w-20 h-20" title={brand.name} subtitle={brand.tagline} />
+      <PageHeader logoSize="w-36 h-36 sm:w-44 sm:h-44" title={brand.name} subtitle={brand.tagline} />
 
       <SiteNav className="mb-8" />
 
