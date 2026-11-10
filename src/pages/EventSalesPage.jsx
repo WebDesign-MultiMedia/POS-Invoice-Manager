@@ -29,8 +29,7 @@ import { cashChange, isUnpaid, newEventSaleId, quickCashOptions, saleEdit, summa
 // Card sales are also logged to CardPayments like every other card charge,
 // so they show in Recent card payments and the Order ID search.
 
-const METHOD_ICONS = { Card: "fa-credit-card", Cash: "fa-money-bill-wave", Zelle: "fa-building-columns", Later: "fa-clock" };
-const METHOD_LABELS = { Later: "Pay later" };
+const METHOD_ICONS = { Card: "fa-credit-card", Cash: "fa-money-bill-wave", Zelle: "fa-building-columns" };
 
 // "1x Coffee ($2.50)" sheet lines → "1x Coffee — $2.50" for the receipt.
 const receiptLines = (items) =>
@@ -182,17 +181,30 @@ export default function EventSalesPage() {
     }
   };
 
-  // "Pay later": saved as Unpaid with the customer's name, to be paid from
-  // the Unpaid list when they're ready.
+  // "Save order" (pay later): saved as Unpaid with the customer's name, to
+  // be paid from the Unpaid list when they're ready. Asks for the name if
+  // it wasn't typed, since that's how they're found again.
   const savePayLater = async () => {
     if (savingRef.current) return;
-    if (!customerName.trim()) {
-      Swal.fire({ title: "Add the customer's name", text: "You'll use it to find their order when they come back to pay.", icon: "info", theme: "dark" });
-      return;
+    let name = customerName.trim();
+    if (!name) {
+      const { value, isConfirmed } = await Swal.fire({
+        title: "Customer's name",
+        text: "You'll use it to find their order when they come back to pay.",
+        input: "text",
+        inputPlaceholder: "e.g. Maria",
+        showCancelButton: true,
+        confirmButtonText: "Save order",
+        theme: "dark",
+        inputValidator: (v) => (String(v || "").trim() ? undefined : "Enter a name"),
+      });
+      if (!isConfirmed) return;
+      name = String(value).trim();
+      setCustomerName(name);
     }
     savingRef.current = true;
     setSaving(true);
-    const row = { ...baseRow(), Status: "Unpaid" };
+    const row = { ...baseRow(), Name: name, Status: "Unpaid" };
     try {
       await recordEventSale(row);
       finish(row);
@@ -304,7 +316,7 @@ export default function EventSalesPage() {
             )}
             <div className="field-group">
               <label htmlFor="event-name" className="field-label">
-                <i className="fa-solid fa-user" aria-hidden="true"></i> Customer name (optional)
+                <i className="fa-solid fa-user" aria-hidden="true"></i> Customer name (needed to save for later)
               </label>
               <input type="text" className="input-3d" id="event-name" placeholder="e.g. Maria" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
             </div>
@@ -314,9 +326,22 @@ export default function EventSalesPage() {
               </label>
               <input type="text" className="input-3d" id="event-note" placeholder="e.g. extra salsa" value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
-            <button type="button" className="btn-3d justify-center text-lg disabled:opacity-60" disabled={totalCents <= 0} onClick={() => setStep("pay")}>
-              <i className="fa-solid fa-floppy-disk"></i> Save order{totalCents > 0 ? ` · ${formatMoney(total)}` : ""}
-            </button>
+            {!hasCart && totalCents > 0 && <p className="text-center font-semibold tabular-nums -mb-1">Total {formatMoney(total)}</p>}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="btn-3d justify-center !px-3 disabled:opacity-60"
+                disabled={totalCents <= 0 || saving}
+                aria-busy={saving}
+                onClick={savePayLater}
+              >
+                <i className="fa-solid fa-floppy-disk" aria-hidden="true"></i> {saving ? "Saving…" : "Save order"}
+              </button>
+              <button type="button" className="btn-3d justify-center !px-3 disabled:opacity-60" disabled={totalCents <= 0 || saving} onClick={() => setStep("pay")}>
+                <i className="fa-solid fa-credit-card" aria-hidden="true"></i> Pay now
+              </button>
+            </div>
+            <p className="text-xs text-center text-brand-navydeep/70 -mt-2">Save order = they pay later (it goes in the Unpaid list).</p>
           </div>
         )}
 
@@ -351,8 +376,8 @@ export default function EventSalesPage() {
               )}
             </div>
 
-            <div className={`grid ${paying ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"} gap-2`} role="group" aria-label="Payment method">
-              {(paying ? ["Card", "Cash", "Zelle"] : ["Card", "Cash", "Zelle", "Later"]).map((m) => (
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Payment method">
+              {["Card", "Cash", "Zelle"].map((m) => (
                 <button
                   key={m}
                   type="button"
@@ -361,7 +386,7 @@ export default function EventSalesPage() {
                   onClick={() => setMethod(m)}
                 >
                   <i className={`fa-solid ${METHOD_ICONS[m]} text-xl`} aria-hidden="true"></i>
-                  {METHOD_LABELS[m] || m}
+                  {m}
                 </button>
               ))}
             </div>
@@ -408,29 +433,6 @@ export default function EventSalesPage() {
                 <p className="glass-panel p-3 text-sm text-center">Check the {formatMoney(total)} Zelle payment arrived, then record it.</p>
                 <button type="button" className="btn-3d justify-center disabled:opacity-60" disabled={saving} aria-busy={saving} onClick={() => recordOffline("Zelle")}>
                   {saving ? "Saving…" : "Zelle received · record sale"}
-                </button>
-              </div>
-            )}
-
-            {method === "Later" && (
-              <div className="flex flex-col gap-3">
-                <p className="glass-panel p-3 text-sm text-center">
-                  The order is saved as <strong>Unpaid</strong>. When they come back, tap <strong>Take payment</strong> on it in the Unpaid list at the top.
-                </p>
-                <div className="field-group">
-                  <label htmlFor="event-later-name" className="field-label">
-                    <i className="fa-solid fa-user" aria-hidden="true"></i> Customer name (required)
-                  </label>
-                  <input type="text" className="input-3d" id="event-later-name" placeholder="e.g. Maria" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-                </div>
-                <div className="field-group">
-                  <label htmlFor="event-later-note" className="field-label">
-                    <i className="fa-solid fa-note-sticky" aria-hidden="true"></i> How to spot them (optional)
-                  </label>
-                  <input type="text" className="input-3d" id="event-later-note" placeholder="e.g. red shirt, table 3" value={note} onChange={(e) => setNote(e.target.value)} />
-                </div>
-                <button type="button" className="btn-3d justify-center disabled:opacity-60" disabled={saving || !customerName.trim()} aria-busy={saving} onClick={savePayLater}>
-                  <i className="fa-solid fa-clock" aria-hidden="true"></i> {saving ? "Saving…" : "Save as unpaid"}
                 </button>
               </div>
             )}
