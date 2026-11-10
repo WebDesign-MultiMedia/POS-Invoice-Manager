@@ -27,10 +27,12 @@
 //   GET  ?action=sharedInvoice&id=714&token=…
 // which serves a customer's read-only invoice link. It returns only that
 // one invoice and its card payments, and only with a valid signed token.
+// An Event Sales id (EV-…) works the same way: the sale shown as an invoice.
 
 import { NO_ACCESS, isValidShareToken, readSessionInfo, sellerName, shareTokenFor } from "./_lib/auth.js";
 import { can, canAny } from "./_lib/permissions.js";
 import { sheetdbHeaders } from "./_lib/sheetdb.js";
+import { saleToInvoice } from "../src/lib/saleToOrder.js";
 
 const READ_ACTIONS = {
   orders: () => "",
@@ -69,6 +71,8 @@ const isEventSaleId = (id) => /^EV-\d{6}-\d{6}$/.test(String(id || ""));
 // and are refused as bad requests further on.
 function allowed(session, req, params) {
   if (req.method === "GET") {
+    // Invoice links for event sales come from Event Sales' Text receipt.
+    if (params.get("action") === "shareToken" && isEventSaleId(params.get("id"))) return canAny(session, ["event", "search"]);
     const keys = READ_ACCESS[params.get("action")];
     return !keys || canAny(session, keys);
   }
@@ -292,11 +296,22 @@ async function sheetGet(base, path) {
   return payload;
 }
 
+async function findEventSale(base, id) {
+  const rows = await sheetGet(base, `/search?SaleId=${encodeURIComponent(id)}&sheet=EventSales`);
+  return Array.isArray(rows) ? rows.find((r) => String(r.SaleId) === id) || null : null;
+}
+
 // Public: one invoice for a customer's share link.
 async function sharedInvoice(base, params, res) {
   const id = cleanId(params.get("id"));
   if (!id || !isValidShareToken(id, params.get("token"))) {
     return res.status(404).json({ error: "Invoice not found" });
+  }
+  if (isEventSaleId(id)) {
+    const sale = await findEventSale(base, id);
+    if (!sale) return res.status(404).json({ error: "Invoice not found" });
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).json(saleToInvoice(sale));
   }
   const rows = await sheetGet(base, `/search?Id=${encodeURIComponent(id)}`);
   const invoice = Array.isArray(rows) ? rows.find((row) => String(row.Id) === id) : null;
@@ -336,7 +351,12 @@ export default async function handler(req, res) {
     if (req.method === "GET" && params.get("action") === "shareToken") {
       const id = cleanId(params.get("id"));
       if (!id) throw new BadRequest("Missing or invalid id");
-      if (!isStaff(session) && !(await ownsOrder(base, id, session))) return res.status(404).json({ error: "Not found" });
+      if (isEventSaleId(id)) {
+        if (!isStaff(session)) {
+          const sale = await findEventSale(base, id);
+          if (!sale || !isMine(session, sale.SoldBy)) return res.status(404).json({ error: "Not found" });
+        }
+      } else if (!isStaff(session) && !(await ownsOrder(base, id, session))) return res.status(404).json({ error: "Not found" });
       res.setHeader("Cache-Control", "no-store");
       return res.status(200).json({ token: shareTokenFor(id) });
     }

@@ -14,8 +14,8 @@ const sale = {
 };
 
 describe("text receipt", () => {
-  it("lists items, deal, fee, total and the card receipt link", () => {
-    const text = receiptMessage({ brandName: "Buffet Lucia", sale, receiptUrl: "https://pay.stripe.com/receipts/abc" });
+  it("lists items, deal, fee, total, the invoice link and the card receipt link", () => {
+    const text = receiptMessage({ brandName: "Buffet Lucia", sale, invoiceUrl: "https://x.test/invoice?id=EV-1", receiptUrl: "https://pay.stripe.com/receipts/abc" });
     expect(text).toBe(
       [
         "Buffet Lucia — Receipt",
@@ -27,6 +27,8 @@ describe("text receipt", () => {
         "Card fee — $0.47",
         "",
         "Total paid: $15.47 by card (Visa •4242)",
+        "",
+        "Invoice: https://x.test/invoice?id=EV-1",
         "Card receipt: https://pay.stripe.com/receipts/abc",
         "",
         "Thank you! ¡Gracias!",

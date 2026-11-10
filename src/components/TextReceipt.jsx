@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getBrand } from "../lib/brand.js";
 import { isDemo } from "../lib/demo.js";
+import { getShareToken } from "../api/sheetdb.js";
 import { receiptMessage, smsHref } from "../lib/textReceipt.js";
 
 // "Text receipt" for a paid sale (Card, Cash or Zelle): a screen with the
-// message, the customer's phone, Copy message, and Open Messages (the
-// phone's own texting app, number and text filled in). Nothing is sent
-// from the server; the employee sends it from their phone.
+// customer's phone and the message (with their invoice link, and the card
+// receipt link for card sales). Send text copies the message, then opens
+// the phone's own texting app with the number and text filled in. Nothing
+// is sent from the server; the employee sends it from their phone.
 //   sale: an EventSales row. receiptUrl: Stripe receipt link if known;
 //   otherwise card sales look it up from PaymentIntentId.
 export default function TextReceiptButton({ sale, receiptUrl: knownUrl = null, className = "" }) {
@@ -26,7 +28,9 @@ function TextReceiptDialog({ sale, knownUrl, onClose }) {
   const brand = getBrand();
   const [phone, setPhone] = useState(sale.Phone || "");
   const [receiptUrl, setReceiptUrl] = useState(knownUrl);
+  const [invoiceUrl, setInvoiceUrl] = useState(null);
   const [looking, setLooking] = useState(false);
+  const [lookingInvoice, setLookingInvoice] = useState(true);
   const [copied, setCopied] = useState(false);
   const phoneRef = useRef(null);
 
@@ -46,6 +50,21 @@ function TextReceiptDialog({ sale, knownUrl, onClose }) {
     };
   }, [knownUrl, pi, sale.Method]);
 
+  // The customer's invoice link: the same signed link the Invoice section
+  // shares, for this sale. Without it the text still goes, minus the link.
+  useEffect(() => {
+    let live = true;
+    getShareToken(sale.SaleId)
+      .then((token) => {
+        if (live && token) setInvoiceUrl(`${window.location.origin}/invoice?id=${encodeURIComponent(sale.SaleId)}&token=${encodeURIComponent(token)}&share=1`);
+      })
+      .catch((err) => console.error("Invoice link failed:", err))
+      .finally(() => live && setLookingInvoice(false));
+    return () => {
+      live = false;
+    };
+  }, [sale.SaleId]);
+
   useEffect(() => {
     phoneRef.current?.focus({ preventScroll: true });
     const onKey = (e) => {
@@ -58,16 +77,19 @@ function TextReceiptDialog({ sale, knownUrl, onClose }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
-  const message = receiptMessage({ brandName: brand.name, sale, receiptUrl });
+  const message = receiptMessage({ brandName: brand.name, sale, invoiceUrl, receiptUrl });
+  const busy = looking || lookingInvoice;
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(message);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    } catch {
-      setCopied(false);
-    }
+  // Copies first (so it can be pasted if the texting app leaves the text
+  // out), then the link itself opens Messages.
+  const copy = () => {
+    navigator.clipboard
+      ?.writeText(message)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 4000);
+      })
+      .catch(() => {});
   };
 
   return createPortal(
@@ -107,20 +129,20 @@ function TextReceiptDialog({ sale, knownUrl, onClose }) {
 
         <p className="field-label mt-4">
           <i className="fa-solid fa-message" aria-hidden="true"></i> Message
-          {looking && <span className="normal-case tracking-normal font-normal"> · getting the card receipt link…</span>}
+          {busy && <span className="normal-case tracking-normal font-normal"> · adding the links…</span>}
         </p>
         <pre className="glass-panel p-3 text-sm whitespace-pre-wrap break-words font-form1 leading-relaxed">{message}</pre>
 
-        <div className="grid grid-cols-2 gap-2 mt-4">
-          <button type="button" className="btn-3d justify-center !px-3" onClick={copy}>
-            <i className={`fa-solid ${copied ? "fa-check" : "fa-copy"}`} aria-hidden="true"></i> {copied ? "Copied" : "Copy message"}
-          </button>
-          <a href={smsHref(phone, message)} className="btn-3d justify-center !px-3" onClick={copy}>
-            <i className="fa-solid fa-paper-plane" aria-hidden="true"></i> Open Messages
-          </a>
-        </div>
+        <a
+          href={smsHref(phone, message)}
+          aria-disabled={busy}
+          className={`btn-3d justify-center w-full mt-4 !py-4 text-lg ${busy ? "opacity-60 pointer-events-none" : ""}`}
+          onClick={copy}
+        >
+          <i className={`fa-solid ${copied ? "fa-check" : "fa-paper-plane"}`} aria-hidden="true"></i> {copied ? "Copied · opening Messages…" : "Send text"}
+        </a>
         <p className="text-xs text-center text-brand-navydeep/70 mt-3">
-          Open Messages fills in the number and the text; tap Send there. If the text doesn&apos;t show up, paste it (it&apos;s copied too).
+          Copies the message, then opens Messages with the number and text filled in. Tap Send there. If the text is missing, paste it.
         </p>
       </div>
     </div>,

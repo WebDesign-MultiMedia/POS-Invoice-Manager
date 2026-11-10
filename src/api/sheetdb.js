@@ -5,6 +5,7 @@
 import { reportIfLoggedOut } from "../lib/auth.jsx";
 import { isDemo, demoApi } from "../lib/demo.js";
 import { apiErrorFrom } from "../lib/errors.js";
+import { saleToInvoice } from "../lib/saleToOrder.js";
 
 // In demo mode every call below is answered from the browser's sample data
 // (src/lib/demo.js) and never reaches the server.
@@ -144,6 +145,10 @@ export async function getShareToken(invoiceId) {
 // or null if the link's token doesn't match.
 export async function getSharedInvoice(invoiceId, token) {
   if (isDemo()) {
+    if (/^EV-/.test(String(invoiceId))) {
+      const sale = (await demoApi.eventSales()).find((r) => r.SaleId === String(invoiceId));
+      return sale ? saleToInvoice(sale) : null;
+    }
     const [invoice] = await demoApi.order(invoiceId);
     return invoice ? { invoice, cardPayments: await demoApi.cardPaymentsFor(invoiceId) } : null;
   }

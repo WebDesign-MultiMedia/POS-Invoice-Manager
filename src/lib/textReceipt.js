@@ -12,8 +12,10 @@ function itemLines(items) {
 }
 
 // sale: an EventSales row (Date, Time, SaleId, Items, Total, Fee, Method,
-// Card, Note). receiptUrl: the Stripe receipt link, for card sales.
-export function receiptMessage({ brandName, sale, receiptUrl }) {
+// Card, Note). invoiceUrl: the customer's invoice link (same page as the
+// Invoice section's share link). receiptUrl: the Stripe receipt link, for
+// card sales.
+export function receiptMessage({ brandName, sale, invoiceUrl, receiptUrl }) {
   const total = toNumber(sale.Total || sale.Amount) || 0;
   const fee = toNumber(sale.Fee) || 0;
   const method = sale.Method === "Card" && sale.Card ? `card (${sale.Card})` : String(sale.Method || "").toLowerCase();
@@ -25,6 +27,8 @@ export function receiptMessage({ brandName, sale, receiptUrl }) {
     fee > 0 ? `Card fee — ${formatMoney(fee)}` : null,
     "",
     `Total paid: ${formatMoney(total)}${method ? ` by ${method}` : ""}`,
+    "",
+    invoiceUrl ? `Invoice: ${invoiceUrl}` : null,
     receiptUrl ? `Card receipt: ${receiptUrl}` : null,
     "",
     "Thank you! ¡Gracias!",

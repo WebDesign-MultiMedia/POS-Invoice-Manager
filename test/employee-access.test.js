@@ -584,3 +584,49 @@ describe("pay later (unpaid event sales)", () => {
     expect(sales[1]).toMatchObject({ Status: "Paid", Method: "Zelle", PaidBy: "staff@example.com" });
   });
 });
+
+describe("invoice links for event sales (Text receipt)", () => {
+  const SALES = [
+    { SaleId: "EV-261110-120000", SoldBy: "Carlos", Date: "11/10/2026", Time: "12:00 PM", Items: "2x Water ($4.00)", Amount: "4.00", Total: "4.00", Method: "Cash", Status: "Paid" },
+    { SaleId: "EV-261110-120001", SoldBy: "Ana", Amount: "10.00", Fee: "0.30", Total: "10.30", Method: "Card", Card: "Visa •4242", Status: "Paid" },
+  ];
+  beforeEach(() => {
+    employeeRows[0].Access = "event";
+    clearEmployeeCache();
+    fetchMock.mockImplementation(async (url, init = {}) => {
+      const u = String(url);
+      if (u.includes("sheet=Employees")) return sheetFetch(url, init);
+      const sale = u.match(/SaleId=([^&]+)/)?.[1];
+      return { ok: true, status: 200, json: async () => (sale ? SALES.filter((r) => r.SaleId === decodeURIComponent(sale)) : []) };
+    });
+  });
+  const get = (url, cookie) => {
+    const res = mockRes();
+    return sheets(mockReq({ url, ...(cookie === undefined ? { cookie: employeeCookie() } : cookie ? { cookie } : {}) }), res).then(() => res);
+  };
+
+  it("an Event Sales employee gets a link for their own sale only", async () => {
+    expect((await get("/api/sheets?action=shareToken&id=EV-261110-120000")).statusCode).toBe(200);
+    expect((await get("/api/sheets?action=shareToken&id=EV-261110-120001")).statusCode).toBe(404);
+    // Order invoices still need the Order form or Search.
+    expect((await get("/api/sheets?action=shareToken&id=714")).statusCode).toBe(403);
+  });
+
+  it("the customer's link shows the sale as a paid invoice, with a valid token only", async () => {
+    const { shareTokenFor } = await import("../api/_lib/auth.js");
+    const bad = await get("/api/sheets?action=sharedInvoice&id=EV-261110-120000&token=nope", null);
+    expect(bad.statusCode).toBe(404);
+    const res = await get(`/api/sheets?action=sharedInvoice&id=EV-261110-120000&token=${shareTokenFor("EV-261110-120000")}`, null);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.invoice).toMatchObject({ Id: "EV-261110-120000", Cost: "4.00", Deposit: "4.00", Payment: "Cash", Items: "2x Water ($4.00)" });
+    expect(res.body.invoice.SoldBy).toBeUndefined();
+    expect(res.body.cardPayments).toEqual([]);
+  });
+
+  it("card sales show the charge as a card payment line", async () => {
+    const { shareTokenFor } = await import("../api/_lib/auth.js");
+    const res = await get(`/api/sheets?action=sharedInvoice&id=EV-261110-120001&token=${shareTokenFor("EV-261110-120001")}`, null);
+    expect(res.body.invoice).toMatchObject({ Cost: "10.00", Deposit: "" });
+    expect(res.body.cardPayments).toEqual([expect.objectContaining({ Amount: "10.00", Fee: "0.30", Total: "10.30", Card: "Visa •4242" })]);
+  });
+});
