@@ -6,6 +6,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Vercel serverless function: GET ?pi=pi_... → 302 redirect to the receipt
 // (a plain <a target="_blank"> link points here, so no popup juggling).
+// GET ?pi=pi_...&format=json → { receiptUrl } instead, for the Text receipt
+// screen, which puts the link in a text message.
 // Looks up the Stripe-hosted receipt for a logged card payment, so the
 // Search page can open receipts for every CardPayments row (including ones
 // logged before receipt links were saved) without storing URLs in the sheet.
@@ -19,20 +21,27 @@ export default async function handler(req, res) {
 
   // Receipts show customer contact details, so logged-in only, with a
   // section that shows card payments.
+  const params = new URL(req.url, "http://localhost").searchParams;
+  const json = params.get("format") === "json";
+  const fail = (status, message) => (json ? res.status(status).json({ error: message }) : sendError(res, status, message));
   const session = await readSessionInfo(req);
-  if (session && !canAny(session, ["pay", "search", "event"])) return sendError(res, 403, "You don't have access to receipts.");
-  if (!session) return sendError(res, 401, "Please log in to the POS Invoice Manager first.");
+  if (session && !canAny(session, ["pay", "search", "event"])) return fail(403, "You don't have access to receipts.");
+  if (!session) return fail(401, "Please log in to the POS Invoice Manager first.");
 
-  const pi = new URL(req.url, "http://localhost").searchParams.get("pi") || "";
+  const pi = params.get("pi") || "";
   if (!/^pi_[A-Za-z0-9]+$/.test(pi)) {
-    return sendError(res, 400, "Invalid payment id.");
+    return fail(400, "Invalid payment id.");
   }
 
   try {
     const paymentIntent = await stripe.paymentIntents.retrieve(pi, { expand: ["latest_charge"] });
     const receiptUrl = paymentIntent.latest_charge?.receipt_url;
     if (!receiptUrl?.startsWith("https://pay.stripe.com/receipts/")) {
-      return sendError(res, 404, "No receipt is available for this payment yet.");
+      return fail(404, "No receipt is available for this payment yet.");
+    }
+    if (json) {
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(200).json({ receiptUrl });
     }
     res.statusCode = 302;
     res.setHeader("Location", receiptUrl);
@@ -40,7 +49,7 @@ export default async function handler(req, res) {
     return res.end();
   } catch (err) {
     console.error("receipt-url error:", err);
-    return sendError(res, 404, "Payment not found.");
+    return fail(404, "Payment not found.");
   }
 }
 

@@ -12,6 +12,7 @@ import { RowButtons, RowEditor, SoldByTag, confirmAndDelete, useMakeInvoice } fr
 import { saleToOrderForm } from "../lib/saleToOrder.js";
 import { useAuth } from "../lib/auth.jsx";
 import ZelleQrCard from "../components/ZelleQrCard.jsx";
+import TextReceiptButton from "../components/TextReceipt.jsx";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
 import { formatCartLine, qtyStep } from "../lib/menu.js";
 import { getBrand, getMenu } from "../lib/brand.js";
@@ -499,6 +500,7 @@ export default function EventSalesPage() {
               <button type="button" className="btn-3d justify-center text-lg" onClick={nextCustomer}>
                 <i className="fa-solid fa-user-plus"></i> Next customer
               </button>
+              <TextReceiptButton sale={done} receiptUrl={done.receiptUrl || null} className="btn-3d justify-center" />
               {done.receiptUrl && (
                 <a href={done.receiptUrl} target="_blank" rel="noopener noreferrer" className="btn-3d justify-center">
                   <i className="fa-solid fa-receipt"></i> View receipt
@@ -916,6 +918,12 @@ function SaleRow({ sale: s, onUpdated, onDeleted }) {
         onDelete={key && can("manage") ? remove : null}
         editing={editing}
       />
+      {!editing && (
+        <TextReceiptButton
+          sale={s}
+          className="mt-1 inline-flex items-center justify-center gap-2 rounded-xl border border-brand-teal/60 px-3 py-2 text-sm font-semibold text-brand-teal"
+        />
+      )}
       {editing && (
         <RowEditor
           idBase={`ev-${key}`}
