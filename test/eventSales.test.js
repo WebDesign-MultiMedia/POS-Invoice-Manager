@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cashChange, newEventSaleId, quickCashOptions, saleEdit, summarizeSales } from "../src/lib/eventSales.js";
+import { cashChange, isUnpaid, newEventSaleId, quickCashOptions, saleEdit, summarizeSales } from "../src/lib/eventSales.js";
 import { saleToOrderForm } from "../src/lib/saleToOrder.js";
 
 describe("event sales", () => {
@@ -92,5 +92,28 @@ describe("sales by person", () => {
       { name: "Ana", count: 1, total: 4.5 },
       { name: "Not recorded", count: 1, total: 1 },
     ]);
+  });
+});
+
+describe("pay later", () => {
+  it("unpaid sales aren't money collected; they're totalled on their own", () => {
+    const summary = summarizeSales([
+      { Method: "Cash", Total: "10.00", Status: "Paid", SoldBy: "Ana" },
+      { Method: "Zelle", Total: "5.00" },
+      { Method: "", Total: "7.50", Status: "Unpaid", SoldBy: "Ana" },
+    ]);
+    expect(summary.total).toBe(15);
+    expect(summary.count).toBe(2);
+    expect(summary.unpaid).toEqual({ count: 1, total: 7.5 });
+    expect(summary.bySeller).toEqual([
+      { name: "Ana", count: 1, total: 10 },
+      { name: "Not recorded", count: 1, total: 5 },
+    ]);
+  });
+
+  it("only Status Unpaid counts as unpaid (old rows are paid)", () => {
+    expect(isUnpaid({ Status: "Unpaid" })).toBe(true);
+    expect(isUnpaid({ Status: "Paid" })).toBe(false);
+    expect(isUnpaid({})).toBe(false);
   });
 });

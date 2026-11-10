@@ -33,9 +33,17 @@ export function quickCashOptions(total) {
   return [...new Set(options)].sort((a, b) => a - b).slice(0, 5).map((c) => c / 100);
 }
 
+// "Pay later" sales are saved with Status "Unpaid" until someone takes
+// payment. Rows from before Status existed are paid.
+export const isUnpaid = (sale) => String(sale?.Status ?? "").trim() === "Unpaid";
+
 // Totals for one day's sales: count, everything collected, and per method.
+// Unpaid sales aren't money collected yet, so they're only in `unpaid`.
 // Card totals include card fees, since that's what was collected.
-export function summarizeSales(sales) {
+export function summarizeSales(allSales) {
+  const unpaidRows = allSales.filter(isUnpaid);
+  const sales = allSales.filter((s) => !isUnpaid(s));
+  const unpaid = { count: unpaidRows.length, total: unpaidRows.reduce((t, s) => t + cents(s.Total || s.Amount), 0) / 100 };
   const byMethod = Object.fromEntries(METHODS.map((m) => [m, { count: 0, total: 0 }]));
   let total = 0;
   for (const s of sales) {
@@ -60,7 +68,7 @@ export function summarizeSales(sales) {
   const bySeller = Object.values(people)
     .map((p) => ({ ...p, total: p.total / 100 }))
     .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
-  return { count: sales.length, total: total / 100, byMethod, bySeller };
+  return { count: sales.length, total: total / 100, byMethod, bySeller, unpaid };
 }
 
 // What editing a sale sends to the sheet. Name, Items and Note always;

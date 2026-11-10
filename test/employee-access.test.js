@@ -506,3 +506,81 @@ describe("employees see only their own orders and sales", () => {
     expect(out.statusCode).toBe(409);
   });
 });
+
+describe("pay later (unpaid event sales)", () => {
+  let sales;
+  beforeEach(() => {
+    employeeRows[0].Access = "event";
+    clearEmployeeCache();
+    sales = [
+      { SaleId: "EV-261110-120000", SoldBy: "Carlos", Status: "Unpaid", Amount: "12.00", Total: "12.00" },
+      { SaleId: "EV-261110-120001", SoldBy: "Ana", Status: "Unpaid", Amount: "8.00", Total: "8.00" },
+      { SaleId: "EV-261110-120002", SoldBy: "Carlos", Status: "Paid", Method: "Cash", Total: "5.00" },
+    ];
+    fetchMock.mockImplementation(async (url, init = {}) => {
+      const u = String(url);
+      if (u.includes("sheet=Employees")) return sheetFetch(url, init);
+      const json = (payload) => ({ ok: true, status: 200, json: async () => payload });
+      if (init.method === "PATCH") {
+        const id = decodeURIComponent(u.match(/SaleId\/([^?]+)/)[1]);
+        Object.assign(sales.find((r) => r.SaleId === id), JSON.parse(init.body).data);
+        return json({ updated: 1 });
+      }
+      if (init.method === "POST") return json({ created: 1 });
+      const id = u.match(/SaleId=([^&]+)/)?.[1];
+      return json(id ? sales.filter((r) => r.SaleId === id) : sales);
+    });
+  });
+  const post = (body) => call(sheets, { method: "POST", url: "/api/sheets", body });
+  const lastPost = () => JSON.parse(fetchMock.mock.calls.filter(([u, i]) => i?.method === "POST" && !String(u).includes("Employees")).at(-1)[1].body);
+
+  it("saving as unpaid needs a customer name, and clears any payment", async () => {
+    expect((await post({ action: "recordEventSale", data: { SaleId: "EV-261110-130000", Status: "Unpaid", Name: " " } })).statusCode).toBe(400);
+    expect((await post({ action: "recordEventSale", data: { SaleId: "EV-261110-130000", Status: "Unpaid", Name: "Maria", Method: "Cash" } })).statusCode).toBe(200);
+    expect(lastPost()).toMatchObject({ Status: "Unpaid", Method: "", SoldBy: "Carlos", PaidBy: "" });
+  });
+
+  it("a sale paid on the spot is Paid, paid by whoever rang it up", async () => {
+    await post({ action: "recordEventSale", data: { SaleId: "EV-261110-130001", Method: "Cash" } });
+    expect(lastPost()).toMatchObject({ Status: "Paid", PaidBy: "Carlos" });
+    expect(lastPost().PaidAt).toMatch(/^\d{4}-\d\d-\d\dT/);
+  });
+
+  it("takes cash on their own unpaid sale without Can edit & delete", async () => {
+    const res = await post({ action: "payEventSale", id: "EV-261110-120000", data: { Method: "Cash", CashReceived: "20.00", Change: "8.00" } });
+    expect(res.statusCode).toBe(200);
+    expect(sales[0]).toMatchObject({ Status: "Paid", Method: "Cash", CashReceived: "20.00", Change: "8.00", PaidBy: "Carlos" });
+  });
+
+  it("takes a card payment with its fee", async () => {
+    const res = await post({
+      action: "payEventSale",
+      id: "EV-261110-120000",
+      data: { Method: "Card", Fee: "0.36", Total: "12.36", Card: "Visa •••• 4242", Funding: "credit", PaymentIntentId: "pi_123" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(sales[0]).toMatchObject({ Status: "Paid", Method: "Card", Total: "12.36", PaymentIntentId: "pi_123", Amount: "12.00" });
+  });
+
+  it("can't pay another employee's unpaid sale, an already-paid one, or with a made-up method", async () => {
+    expect((await post({ action: "payEventSale", id: "EV-261110-120001", data: { Method: "Zelle" } })).statusCode).toBe(403);
+    expect((await post({ action: "payEventSale", id: "EV-261110-120002", data: { Method: "Zelle" } })).statusCode).toBe(409);
+    expect((await post({ action: "payEventSale", id: "EV-261110-120000", data: { Method: "IOU" } })).statusCode).toBe(400);
+    expect((await post({ action: "payEventSale", id: "EV-261110-120000", data: { Method: "Cash", CashReceived: "lots", Change: "0" } })).statusCode).toBe(400);
+  });
+
+  it("needs Event Sales", async () => {
+    employeeRows[0].Access = "orders";
+    clearEmployeeCache();
+    expect((await post({ action: "payEventSale", id: "EV-261110-120000", data: { Method: "Zelle" } })).statusCode).toBe(403);
+  });
+
+  it("the owner can take payment on anyone's unpaid sale", async () => {
+    const res = mockRes();
+    setSessionCookie(res, "staff@example.com");
+    const out = mockRes();
+    await sheets(mockReq({ cookie: cookieFrom(res), method: "POST", url: "/api/sheets", body: { action: "payEventSale", id: "EV-261110-120001", data: { Method: "Zelle" } } }), out);
+    expect(out.statusCode).toBe(200);
+    expect(sales[1]).toMatchObject({ Status: "Paid", Method: "Zelle", PaidBy: "staff@example.com" });
+  });
+});

@@ -108,6 +108,15 @@ export function updateEventSale(saleId, data) {
   return postSheet({ action: "updateEventSale", id: String(saleId), data });
 }
 
+// "Pay later": take payment on a sale saved as Unpaid. data: { Method,
+// CashReceived, Change } for cash, { Method } for Zelle, or { Method,
+// Fee, Total, Card, Funding, PaymentIntentId } for card. The server sets
+// Status "Paid", PaidAt and PaidBy, and answers { fields } it saved.
+export function payEventSale(saleId, data) {
+  if (isDemo()) return demoApi.payEventSale(saleId, data);
+  return postSheet({ action: "payEventSale", id: String(saleId), data });
+}
+
 export function deleteEventSale(saleId) {
   if (isDemo()) return demoApi.deleteEventSale(saleId);
   return postSheet({ action: "deleteEventSale", id: String(saleId) });

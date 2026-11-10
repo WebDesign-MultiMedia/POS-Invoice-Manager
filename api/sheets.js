@@ -19,6 +19,7 @@
 //   POST { action: "recordEventSale", data }
 //   POST { action: "updateOrder" | "updateCardPayment" | "updateEventSale", id, data }
 //   POST { action: "deleteOrder" | "deleteCardPayment" | "deleteEventSale", id }
+//   POST { action: "payEventSale", id, data }   take payment on an Unpaid event sale
 //
 // Every action needs a login. Staff may use them all; an employee only the
 // ones their ticked sections allow (ACTION_ACCESS below, sections in
@@ -75,6 +76,7 @@ function allowed(session, req, params) {
   const { action, data } = req.body || {};
   const row = rowAction(action);
   if (row) return canAny(session, ROW_ACCESS[row[2]]) && can(session, "manage");
+  if (action === "payEventSale") return can(session, "event");
   // Event Sales also logs the card payment of an event card sale.
   if (action === "recordCardPayment" && can(session, "event") && isEventSaleId(data?.InvoiceId)) return true;
   const keys = WRITE_ACCESS[action];
@@ -113,6 +115,57 @@ async function filterForEmployee(base, action, params, payload, session) {
   }
   const column = OWNER_COLUMN[action];
   return column ? mineOnly(payload, column, session) : payload;
+}
+
+// Event Sales "Pay later": a sale saved with Status "Unpaid" is paid later
+// with this. Needs only Event Sales (not "Can edit & delete"); employees may
+// take payment only on sales they rang up. Sets Status "Paid", PaidAt and
+// PaidBy (from the login), and the payment details for the method used.
+const PI_ID = /^[A-Za-z0-9_]{1,80}$/;
+async function payEventSale(base, body, res, session) {
+  const id = String(body.id ?? "").trim();
+  if (!isEventSaleId(id)) throw new BadRequest("Missing or invalid id");
+  const rows = await sheetGet(base, `/search?SaleId=${encodeURIComponent(id)}&sheet=EventSales`);
+  const row = Array.isArray(rows) ? rows.find((r) => String(r.SaleId) === id) : null;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (!isStaff(session) && !isMine(session, row.SoldBy)) return res.status(403).json({ error: "You can only take payment on sales you rang up." });
+  if (String(row.Status ?? "").trim() !== "Unpaid") return res.status(409).json({ error: "This sale is already paid." });
+
+  const d = body.data || {};
+  const money = (name) => {
+    const v = String(d[name] ?? "").trim();
+    if (!MONEY.test(v)) throw new BadRequest(`${name} must be an amount like 12.50`);
+    return v;
+  };
+  const fields = { Status: "Paid", PaidAt: new Date().toISOString(), PaidBy: await sellerName(session), CashReceived: "", Change: "" };
+  if (d.Method === "Cash") {
+    Object.assign(fields, { Method: "Cash", CashReceived: money("CashReceived"), Change: money("Change") });
+  } else if (d.Method === "Zelle") {
+    fields.Method = "Zelle";
+  } else if (d.Method === "Card") {
+    if (!PI_ID.test(String(d.PaymentIntentId || ""))) throw new BadRequest("Missing card payment id");
+    Object.assign(fields, {
+      Method: "Card",
+      Fee: money("Fee"),
+      Total: money("Total"),
+      Card: String(d.Card ?? "").slice(0, 60),
+      Funding: String(d.Funding ?? "").slice(0, 20),
+      PaymentIntentId: String(d.PaymentIntentId),
+    });
+  } else {
+    throw new BadRequest("Method must be Card, Cash or Zelle.");
+  }
+  const response = await fetch(`${base}/SaleId/${encodeURIComponent(id)}?sheet=EventSales`, {
+    method: "PATCH",
+    headers: sheetdbHeaders(),
+    body: JSON.stringify({ data: fields }),
+  });
+  if (!response.ok) {
+    console.error("sheets: SheetDB responded", response.status, await response.json().catch(() => null));
+    return res.status(502).json({ error: "Sheet request failed" });
+  }
+  res.setHeader("Cache-Control", "no-store");
+  return res.status(200).json({ ok: true, fields });
 }
 
 // Rows that record who made them: sales in a "SoldBy" column, orders in a
@@ -293,6 +346,8 @@ export default async function handler(req, res) {
       if (!build) throw new BadRequest("Unknown action");
       path = build(params);
       init = { method: "GET", headers: sheetdbHeaders() };
+    } else if (req.method === "POST" && req.body?.action === "payEventSale") {
+      return await payEventSale(base, req.body, res, session);
     } else if (req.method === "POST" && rowAction(req.body?.action)) {
       return await changeRow(base, req.body, res, session);
     } else if (req.method === "POST") {
@@ -303,7 +358,14 @@ export default async function handler(req, res) {
       // Sales and orders are stamped with who made them, from the login
       // itself, so it can't be typed in or changed from the browser.
       const column = STAMP_COLUMN[action];
-      const row = column ? { ...data, [column]: await sellerName(session) } : data;
+      const row = column ? { ...data, [column]: await sellerName(session) } : { ...data };
+      // Event sales: "Unpaid" (Pay later, needs a customer name) or "Paid".
+      // A sale paid on the spot is paid by whoever rang it up.
+      if (action === "recordEventSale") {
+        const unpaid = data.Status === "Unpaid";
+        if (unpaid && !String(data.Name ?? "").trim()) throw new BadRequest("Add the customer's name so you can find their order later.");
+        Object.assign(row, unpaid ? { Status: "Unpaid", Method: "", PaidAt: "", PaidBy: "" } : { Status: "Paid", PaidAt: new Date().toISOString(), PaidBy: row.SoldBy });
+      }
       init = { method: "POST", headers: sheetdbHeaders(), body: JSON.stringify(row) };
     } else {
       res.setHeader("Allow", "GET, POST");
