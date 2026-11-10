@@ -126,6 +126,16 @@ async function filterForEmployee(base, action, params, payload, session) {
 // take payment only on sales they rang up. Sets Status "Paid", PaidAt and
 // PaidBy (from the login), and the payment details for the method used.
 const PI_ID = /^[A-Za-z0-9_]{1,80}$/;
+
+// Zelle sales confirmed by Chase's email carry that email's id (ZelleRef),
+// so one Zelle payment can't be used for two sales.
+const ZELLE_REF = /^[0-9a-f-]{8,64}$/i;
+async function checkZelleRef(base, ref) {
+  if (!ZELLE_REF.test(String(ref))) throw new BadRequest("Invalid Zelle reference");
+  const rows = await sheetGet(base, `/search?ZelleRef=${encodeURIComponent(ref)}&sheet=EventSales`);
+  return Array.isArray(rows) && rows.some((r) => String(r.ZelleRef) === String(ref));
+}
+const ZELLE_USED = "That Zelle payment was already used for another sale.";
 async function payEventSale(base, body, res, session) {
   const id = String(body.id ?? "").trim();
   if (!isEventSaleId(id)) throw new BadRequest("Missing or invalid id");
@@ -146,6 +156,11 @@ async function payEventSale(base, body, res, session) {
     Object.assign(fields, { Method: "Cash", CashReceived: money("CashReceived"), Change: money("Change") });
   } else if (d.Method === "Zelle") {
     fields.Method = "Zelle";
+    if (d.ZelleRef) {
+      if (await checkZelleRef(base, d.ZelleRef)) return res.status(409).json({ error: ZELLE_USED });
+      fields.ZelleRef = String(d.ZelleRef);
+      fields.ZelleFrom = String(d.ZelleFrom ?? "").slice(0, 80);
+    }
   } else if (d.Method === "Card") {
     if (!PI_ID.test(String(d.PaymentIntentId || ""))) throw new BadRequest("Missing card payment id");
     Object.assign(fields, {
@@ -385,6 +400,8 @@ export default async function handler(req, res) {
         const unpaid = data.Status === "Unpaid";
         if (unpaid && !String(data.Name ?? "").trim()) throw new BadRequest("Add the customer's name so you can find their order later.");
         Object.assign(row, unpaid ? { Status: "Unpaid", Method: "", PaidAt: "", PaidBy: "" } : { Status: "Paid", PaidAt: new Date().toISOString(), PaidBy: row.SoldBy });
+        if (row.ZelleRef && (unpaid || row.Method !== "Zelle")) delete row.ZelleRef;
+        if (row.ZelleRef && (await checkZelleRef(base, row.ZelleRef))) return res.status(409).json({ error: ZELLE_USED });
       }
       init = { method: "POST", headers: sheetdbHeaders(), body: JSON.stringify(row) };
     } else {

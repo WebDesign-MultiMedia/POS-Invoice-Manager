@@ -22,6 +22,7 @@ A point-of-sale and invoicing app built for a real Bronx catering business: orde
 - **Search:** find orders by phone, name, address, date, month or year, and card payments by Order ID.
 - **Invoices:** printable one-page invoices that subtract deposits and earlier card payments from the balance. Save as an image, or share a signed read-only link with the customer.
 - **Card payments:** Stripe PaymentIntents for walk-up sales (tap-to-add menu) or an invoice balance. A compliant card fee (≤ 3%, credit only, never debit) is calculated on the server. Receipts can be texted.
+- **Event Sales:** a booth register (full screen on tablets and computers) with deals like 3 for $5, Pay later, Card / Cash / Zelle, text receipts with an invoice link, and Zelle auto-confirm: Chase's "You received money with Zelle" email, forwarded by Gmail to a private Resend address and checked for genuine Chase DKIM/DMARC, records the matching sale by itself.
 - **SMS broadcast:** staff text specials to customers who opted in on the restaurant's website, with STOP handling. The page shows the live subscriber count and newest sign-up.
 - **Sign-up alerts:** the restaurant's opt-in form (a separate Cloudflare Worker) records each consent, copies a signed row to the sheet, texts the customer a confirmation and emails the owner a short alert from the restaurant's own domain.
 - **Staff login:** the whole app and every API route sit behind a staff session. The "Open spreadsheet" button goes through a staff-only redirect, so the sheet's link never ships to the browser.

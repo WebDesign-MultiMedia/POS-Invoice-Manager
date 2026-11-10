@@ -13,6 +13,7 @@ import { saleToOrderForm } from "../lib/saleToOrder.js";
 import { useAuth } from "../lib/auth.jsx";
 import ZelleQrCard from "../components/ZelleQrCard.jsx";
 import TextReceiptButton from "../components/TextReceipt.jsx";
+import { fetchZelleAlerts } from "../api/zelle.js";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
 import { formatCartLine, qtyStep } from "../lib/menu.js";
 import { getBrand, getMenu } from "../lib/brand.js";
@@ -207,11 +208,12 @@ export default function EventSalesPage() {
 
   // Cash and Zelle: nothing is charged, so a failed save stays on this
   // screen to try again.
-  const recordOffline = async (m) => {
+  // extra: for a Zelle confirmed by Chase's email, { ZelleRef, ZelleFrom }.
+  const recordOffline = async (m, extra = {}) => {
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
-    const payment = { Method: m };
+    const payment = { Method: m, ...extra };
     if (m === "Cash") {
       payment.CashReceived = toNumber(cashInput).toFixed(2);
       payment.Change = change.toFixed(2);
@@ -428,6 +430,7 @@ export default function EventSalesPage() {
             {method === "Zelle" && (
               <div className="flex flex-col gap-3">
                 <ZelleQrCard amount={total} />
+                <ZelleWatcher amount={total} saving={saving} onMatch={(alert) => recordOffline("Zelle", { ZelleRef: alert.id, ZelleFrom: alert.from || "" })} />
                 <p className="glass-panel p-3 text-sm text-center">Check the {formatMoney(total)} Zelle payment arrived, then record it.</p>
                 <button type="button" className="btn-3d justify-center disabled:opacity-60" disabled={saving} aria-busy={saving} onClick={() => recordOffline("Zelle")}>
                   {saving ? "Saving…" : "Zelle received · record sale"}
@@ -494,6 +497,11 @@ export default function EventSalesPage() {
               {done.Card ? ` · ${done.Card}` : ""}
               {done.Name ? ` · ${done.Name}` : ""}
             </p>
+            {done.ZelleRef && (
+              <p className="text-sm font-semibold text-emerald-600">
+                <i className="fa-solid fa-envelope-circle-check" aria-hidden="true"></i> Confirmed by Chase&apos;s Zelle email{done.ZelleFrom ? ` · from ${done.ZelleFrom}` : ""}
+              </p>
+            )}
             {done.Method === "Cash" && <p className="glass-panel px-4 py-2 font-semibold text-lg">Change: {formatMoney(toNumber(done.Change))}</p>}
             <p className="text-xs text-brand-navydeep/75">Order ID: {done.SaleId}</p>
             <div className="grid grid-cols-1 gap-3 w-full mt-2">
@@ -772,6 +780,78 @@ export default function EventSalesPage() {
           buttons too, like the catering calculator. */}
       {fullOpen && createPortal(wide ? registerScreen : phoneScreen, document.body)}
     </Layout>
+  );
+}
+
+// While the Zelle QR shows: checks every few seconds for Chase's "You
+// received money with Zelle" email (api/zelle-alerts.js). A payment for
+// exactly this total, received after the screen opened (with 2 minutes of
+// slack), records the sale by itself. Other amounts are listed so the
+// employee can decide. Shows nothing until the Resend setup is done; the
+// "Zelle received" button always works by hand.
+const ZELLE_POLL_MS = 4000;
+function ZelleWatcher({ amount, saving, onMatch }) {
+  const [state, setState] = useState({ enabled: null, alerts: [], error: false, matched: null });
+  const startedAt = useRef(Date.now());
+  const tried = useRef(new Set());
+  const latest = useRef({ saving, onMatch });
+  latest.current = { saving, onMatch };
+  const cents = toCents(amount);
+
+  useEffect(() => {
+    let live = true;
+    let timer;
+    const since = startedAt.current - 2 * 60 * 1000;
+    const tick = async () => {
+      try {
+        const r = await fetchZelleAlerts({ since, startedAt: startedAt.current, amount });
+        if (!live) return;
+        if (!r.enabled) return setState((s) => ({ ...s, enabled: false }));
+        const alerts = r.alerts || [];
+        const match = alerts.find((a) => toCents(a.amount) === cents && !tried.current.has(a.id));
+        setState((s) => ({ ...s, enabled: true, alerts, error: false, matched: match || s.matched }));
+        if (match && !latest.current.saving) {
+          tried.current.add(match.id);
+          latest.current.onMatch(match);
+        }
+      } catch {
+        if (live) setState((s) => ({ ...s, error: true }));
+      }
+      if (live) timer = setTimeout(tick, ZELLE_POLL_MS);
+    };
+    tick();
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [amount, cents]);
+
+  if (!state.enabled) return null;
+  const others = state.alerts.filter((a) => toCents(a.amount) !== cents);
+  return (
+    <div className="glass-panel p-3 text-sm text-center flex flex-col gap-1" role="status" aria-live="polite">
+      {state.matched ? (
+        <p className="font-semibold text-emerald-600">
+          <i className="fa-solid fa-circle-check" aria-hidden="true"></i> Zelle received: {formatMoney(state.matched.amount)}
+          {state.matched.from ? ` from ${state.matched.from}` : ""}
+          {saving ? " · recording…" : ""}
+        </p>
+      ) : state.error ? (
+        <p className="text-brand-terracotta">
+          <i className="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Can&apos;t check for the Zelle email right now. Check the phone, then tap Zelle received.
+        </p>
+      ) : (
+        <p className="font-semibold">
+          <i className="fa-solid fa-circle-notch fa-spin text-brand-teal" aria-hidden="true"></i> Waiting for the Chase Zelle email for {formatMoney(amount)}…
+        </p>
+      )}
+      {others.map((a) => (
+        <p key={a.id} className="text-xs text-brand-navydeep/80">
+          Zelle {formatMoney(a.amount)}
+          {a.from ? ` from ${a.from}` : ""} came in, but it doesn&apos;t match {formatMoney(amount)}.
+        </p>
+      ))}
+    </div>
   );
 }
 
