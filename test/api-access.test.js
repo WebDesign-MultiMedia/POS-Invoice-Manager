@@ -49,6 +49,8 @@ describe("staff-only routes return 401 without a session", () => {
     ["GET orders", sheets, { url: "/api/sheets?action=orders" }],
     ["GET one order", sheets, { url: "/api/sheets?action=order&id=1" }],
     ["GET card payments", sheets, { url: "/api/sheets?action=cardPayments" }],
+    ["GET event sales", sheets, { url: "/api/sheets?action=eventSales" }],
+    ["POST event sale", sheets, { method: "POST", url: "/api/sheets", body: { action: "recordEventSale", data: {} } }],
     ["GET share token", sheets, { url: "/api/sheets?action=shareToken&id=1" }],
     ["POST create order", sheets, { method: "POST", url: "/api/sheets", body: { action: "createOrder", data: { Name: "x" } } }],
     ["POST card payment log", sheets, { method: "POST", url: "/api/sheets", body: { action: "recordCardPayment", data: {} } }],

@@ -46,6 +46,12 @@ describe("demo mode", () => {
     expect(await sheetdb.getCardPaymentsForInvoice(id)).toHaveLength(1);
     expect((await sheetdb.fetchAllCardPayments()).length).toBeGreaterThan(0);
 
+    const before = (await sheetdb.fetchAllEventSales()).length;
+    await sheetdb.recordEventSale({ SaleId: "EV-1", Method: "Cash", Total: "5.00" });
+    const sales = await sheetdb.fetchAllEventSales();
+    expect(sales).toHaveLength(before + 1);
+    expect(sales[0].SaleId).toBe("EV-1");
+
     expect(await sheetdb.getShareToken(id)).toBe("demo");
     expect((await sheetdb.getSharedInvoice(id, "demo")).invoice.Id).toBe(id);
     expect(await sheetdb.getSharedInvoice("does-not-exist", "demo")).toBeNull();

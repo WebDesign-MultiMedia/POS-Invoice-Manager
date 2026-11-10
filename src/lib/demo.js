@@ -171,7 +171,37 @@ function seed() {
     },
   ];
 
-  return { orders, cardPayments, nextId: 1001 + orders.length };
+  const sale = (time, Name, Items, Amount, Method, extra = {}) => ({
+    Date: daysAgo(0),
+    Time: time,
+    SaleId: cpId(0, time.replace(/\D/g, "").padStart(4, "0") + "00").replace("CP-", "EV-"),
+    Name,
+    Items,
+    Note: "",
+    Amount,
+    Fee: "0.00",
+    Total: Amount,
+    Method,
+    CashReceived: "",
+    Change: "",
+    Card: "",
+    Funding: "",
+    PaymentIntentId: "",
+    ...extra,
+  });
+  const eventSales = [
+    sale("10:05 AM", "", "2x Classic Burger ($22.00)\n2x Lemonade ($7.00)", "29.00", "Cash", { CashReceived: "40.00", Change: "11.00" }),
+    sale("10:20 AM", "Pat", "1x Chicken Wrap ($9.50)\n1x Coffee ($2.50)", "12.00", "Zelle"),
+    sale("10:42 AM", "", "1x Veggie Burger ($10.00)\n1x Fries ($4.00)", "14.00", "Card", {
+      Fee: "0.42",
+      Total: "14.42",
+      Card: "Visa •••• 4242",
+      Funding: "credit",
+      PaymentIntentId: "demo_pi_3",
+    }),
+  ];
+
+  return { orders, cardPayments, eventSales, nextId: 1001 + orders.length };
 }
 
 function load() {
@@ -211,6 +241,14 @@ export const demoApi = {
   recordCardPayment(data) {
     const db = load();
     db.cardPayments.push({ ...data });
+    save();
+    return later({ created: 1 });
+  },
+  // Demo data saved before Event Sales existed has no eventSales list.
+  eventSales: () => later((load().eventSales || []).slice().reverse()),
+  recordEventSale(data) {
+    const db = load();
+    db.eventSales = [...(db.eventSales || []), { ...data }];
     save();
     return later({ created: 1 });
   },

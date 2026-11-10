@@ -9,9 +9,11 @@
 //   GET  ?action=order&id=714
 //   GET  ?action=cardPayments
 //   GET  ?action=cardPaymentsFor&invoiceId=714
+//   GET  ?action=eventSales
 //   GET  ?action=shareToken&id=714
 //   POST { action: "createOrder", data }
 //   POST { action: "recordCardPayment", data }
+//   POST { action: "recordEventSale", data }
 //
 // Every action needs a staff login (api/_lib/auth.js) except one:
 //   GET  ?action=sharedInvoice&id=714&token=…
@@ -27,11 +29,13 @@ const READ_ACTIONS = {
   cardPayments: () => "?sheet=CardPayments",
   cardPaymentsFor: (q) =>
     `/search?InvoiceId=${encodeURIComponent(requireId(q, "invoiceId"))}&sheet=CardPayments`,
+  eventSales: () => "?sheet=EventSales",
 };
 
 const WRITE_ACTIONS = {
   createOrder: "",
   recordCardPayment: "?sheet=CardPayments",
+  recordEventSale: "?sheet=EventSales",
 };
 
 class BadRequest extends Error {}
@@ -43,7 +47,8 @@ function requireId(params, name) {
 }
 
 // SheetDB's search treats * as a wildcard, so a bare "*" id would match
-// every row. Ids are digits, or CP-YYMMDD-HHMMSS for walk-up card sales.
+// every row. Ids are digits, CP-YYMMDD-HHMMSS for walk-up card sales, or
+// EV-YYMMDD-HHMMSS for event sales.
 function cleanId(value) {
   const id = String(value || "").trim();
   return /^[A-Za-z0-9-]{1,40}$/.test(id) ? id : null;

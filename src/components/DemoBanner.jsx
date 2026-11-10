@@ -11,6 +11,7 @@ const PAGE_TIPS = {
   "/search": 'Try searching by phone "555", a name like "Alex", or switch to Order ID and type "CP".',
   "/invoice": "Tap the magnifying glass next to Receipt # to load an order (try 1001), then Print, Save as Image or Share.",
   "/pay": "Tap menu items or type an amount, then pay with the test card 4242 4242 4242 4242.",
+  "/event": "Tap items, press Save order, then take Card, Cash (shows the change) or Zelle. Today's totals are at the bottom.",
   "/broadcast": "Write a specials message to see the preview. In the demo nothing is actually texted.",
   "/updates": "A changelog of features added to the app over time.",
 };
@@ -20,6 +21,7 @@ const GUIDE_STEPS = [
   ["fa-magnifying-glass", "Search orders", "Find any order by phone, name, address, date, month, year — or a card payment by its Order ID."],
   ["fa-file-invoice-dollar", "Make an invoice", "Every search result has Generate Invoice: a printable receipt with deposits and card payments taken off the balance."],
   ["fa-credit-card", "Take card payments", "Pay with Card charges a walk-up sale or an invoice balance, adds the card fee for credit cards and logs it."],
+  ["fa-store", "Event sales", "Quick checkout at a vendor event: tap items, then record Card, Cash or Zelle, with today's totals."],
   ["fa-bullhorn", "Text customers", "Text weekend specials to customers who signed up, and see how many there are."],
   ["fa-droplet", "Pick a theme", "The top-right button switches between blue, green, red, black, white and gray."],
 ];

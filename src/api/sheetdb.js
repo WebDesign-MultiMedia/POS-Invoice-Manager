@@ -71,6 +71,17 @@ export function fetchAllCardPayments() {
   return readSheet("cardPayments");
 }
 
+// Event Sales: one row per sale in the "EventSales" tab (Card, Cash or Zelle).
+export function recordEventSale(data) {
+  if (isDemo()) return demoApi.recordEventSale(data);
+  return writeSheet("recordEventSale", data);
+}
+
+export async function fetchAllEventSales() {
+  const rows = isDemo() ? await demoApi.eventSales() : await readSheet("eventSales");
+  return Array.isArray(rows) ? rows : [];
+}
+
 // Staff: the signed token that goes in a customer's read-only invoice link.
 export async function getShareToken(invoiceId) {
   if (isDemo()) return "demo";

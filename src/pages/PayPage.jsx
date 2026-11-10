@@ -8,11 +8,12 @@ import CardPaymentForm from "../components/CardPaymentForm.jsx";
 import DemoCardForm from "../components/DemoCardForm.jsx";
 import { fetchAllCardPayments, fetchAllOrders, getInvoiceById, getCardPaymentsForInvoice, recordCardPayment } from "../api/sheetdb.js";
 import RecentCardPayments from "../components/RecentCardPayments.jsx";
+import MenuPicker from "../components/MenuPicker.jsx";
 import { cardPaymentsNewestFirst } from "../lib/recentOrder.js";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
 import { getStripe } from "../lib/stripeClient.js";
 import { getTheme } from "../lib/theme.js";
-import { qtyStep, formatCartLine } from "../lib/menu.js";
+import { formatCartLine } from "../lib/menu.js";
 import { getBrand, getMenu } from "../lib/brand.js";
 import { copyText } from "../lib/clipboard.js";
 import { friendlyMessage } from "../lib/errors.js";
@@ -283,69 +284,7 @@ export default function PayPage() {
 
         {!receipt && mode === "amount" && (
           <div className="flex flex-col gap-4">
-            <div className="field-group">
-              <span className="field-label">
-                <i className="fa-solid fa-utensils"></i> Order items (tap to add)
-              </span>
-              <div className="flex flex-col gap-3">
-                {MENU.map((group) => (
-                  <div key={group.category}>
-                    <p className="text-xs uppercase tracking-widest text-brand-teal font-semibold mb-1.5">{group.category}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {group.items.map((item) => {
-                        const qty = cart[item.id] || 0;
-                        return (
-                          <div
-                            key={item.id}
-                            className={`glass-panel p-2 text-sm flex flex-col gap-1 border-2 transition-colors ${qty ? "border-brand-gold" : "border-transparent"}`}
-                          >
-                            <button type="button" className="text-left" onClick={() => changeQty(item.id, qtyStep(item))}>
-                              <span className="block font-semibold leading-tight">{item.name}</span>
-                              <span className="text-xs text-brand-navydeep/80">
-                                {formatMoney(item.price)}
-                                {item.unit === "lb" ? " / lb" : ""}
-                              </span>
-                            </button>
-                            {qty > 0 && (
-                              <div className="flex items-center justify-between mt-1">
-                                <button
-                                  type="button"
-                                  className="w-7 h-7 rounded-full bg-brand-navydeep/10 font-bold"
-                                  aria-label={`Remove ${item.name}`}
-                                  onClick={() => changeQty(item.id, -qtyStep(item))}
-                                >
-                                  −
-                                </button>
-                                <span className="font-semibold">
-                                  {qty}
-                                  {item.unit === "lb" ? " lb" : ""}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="w-7 h-7 rounded-full bg-brand-gold text-white font-bold"
-                                  aria-label={`Add ${item.name}`}
-                                  onClick={() => changeQty(item.id, qtyStep(item))}
-                                >
-                                  +
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {hasCart && (
-                <div className="flex justify-between items-center mt-2 text-sm">
-                  <span className="font-semibold">Items total: {formatMoney(cartTotal)}</span>
-                  <button type="button" className="text-xs text-brand-navydeep/75 underline" onClick={() => setCart({})}>
-                    Clear items
-                  </button>
-                </div>
-              )}
-            </div>
+            <MenuPicker menu={MENU} cart={cart} onChange={changeQty} onClear={() => setCart({})} total={cartTotal} />
             {!hasCart && (
               <div className="field-group">
                 <label htmlFor="pay-amount" className="field-label">
