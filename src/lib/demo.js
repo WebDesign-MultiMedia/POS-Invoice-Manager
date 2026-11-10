@@ -65,7 +65,7 @@ export const DEMO_BRAND = {
   smsPrefix: "Demo Café: ",
 };
 
-// Generic sample menu for Pay with Card in the demo.
+// Generic sample menu for Event Sales in the demo.
 export const DEMO_MENU = [
   {
     category: "Mains",

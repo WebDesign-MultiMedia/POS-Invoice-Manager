@@ -9,16 +9,14 @@ import DemoCardForm from "../components/DemoCardForm.jsx";
 import { fetchAllCardPayments, fetchAllOrders, getInvoiceById, getCardPaymentsForInvoice, recordCardPayment } from "../api/sheetdb.js";
 import RecentCardPayments from "../components/RecentCardPayments.jsx";
 import { useAuth } from "../lib/auth.jsx";
-import MenuPicker from "../components/MenuPicker.jsx";
 import { cardPaymentsNewestFirst } from "../lib/recentOrder.js";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
 import { getStripe } from "../lib/stripeClient.js";
 import { getTheme } from "../lib/theme.js";
-import { formatCartLine } from "../lib/menu.js";
-import { getBrand, getMenu } from "../lib/brand.js";
+import { getBrand } from "../lib/brand.js";
 import { copyText } from "../lib/clipboard.js";
 import { friendlyMessage } from "../lib/errors.js";
-import { invoiceBalance, cartTotal as sumCart, toCents } from "../lib/totals.js";
+import { invoiceBalance, toCents } from "../lib/totals.js";
 
 // Two entry points into the same card-payment flow:
 //  - "amount": staff types a dollar figure on the spot (pop-up/street
@@ -63,7 +61,6 @@ export default function PayPage() {
   const [customerName, setCustomerName] = useState("");
   const [note, setNote] = useState("");
   // { [menuItemId]: qty } — tapped items from the quick-pick menu.
-  const [cart, setCart] = useState({});
   const [cardPaymentId, setCardPaymentId] = useState(newCardPaymentId);
 
   const [email, setEmail] = useState("");
@@ -141,42 +138,15 @@ export default function PayPage() {
   const invoiceTotals = invoice ? invoiceBalance(invoice, invoicePayments) : null;
   const invoiceTotalDue = invoiceTotals ? invoiceTotals.balanceDue : 0;
 
-  // The real menu, or the sample café's in demo mode.
   const brand = getBrand();
-  const MENU = getMenu();
-  const MENU_ITEMS = Object.fromEntries(MENU.flatMap((c) => c.items).map((item) => [item.id, item]));
 
-  const changeQty = (id, delta) => {
-    setCart((prev) => {
-      const qty = Math.max(0, (prev[id] || 0) + delta);
-      const next = { ...prev };
-      if (qty > 0) next[id] = qty;
-      else delete next[id];
-      return next;
-    });
-  };
+  // Item-by-item sales are rung up on Event Sales; here a walk-up charge is
+  // just an amount (with an optional name and note). Stripe's receipt gets
+  // the Order ID set apart on top; the trailing "\n" leaves a blank line
+  // before the fee line the server appends.
+  const receiptDescription = `Order ID: ${cardPaymentId}\n`;
 
-  // Once anything is picked from the menu, the cart drives the charge amount
-  // and the item list is prepended to the note so it lands in Stripe's
-  // description and the CardPayments sheet.
-  const cartEntries = Object.entries(cart)
-    .filter(([id]) => MENU_ITEMS[id])
-    .map(([id, qty]) => ({ item: MENU_ITEMS[id], qty }));
-  const hasCart = cartEntries.length > 0;
-  const cartTotal = sumCart(cart, MENU_ITEMS);
-  // Sheet "Items" column: one priced line per item so later lookups
-  // (Search → Order ID) show what was actually charged even after menu
-  // prices change. Parsed by parseCardPaymentOrder() in lib/menu.js — keep
-  // the two in sync. The typed note goes in its own "Note" column.
-  const itemsForSheet = cartEntries.map(({ item, qty }) => `${formatCartLine(item, qty)} (${formatMoney(item.price * qty)})`).join("\n");
-  // Stripe's receipt keeps line breaks (and blank lines) in the description,
-  // so the receipt gets the Order ID set apart on top, then one priced line
-  // per item. The trailing "\n" leaves a blank line before the fee line the
-  // server appends when there are no items.
-  const receiptItemLines = cartEntries.map(({ item, qty }) => `${formatCartLine(item, qty)} — ${formatMoney(item.price * qty)}`).join("\n");
-  const receiptDescription = `Order ID: ${cardPaymentId}\n${receiptItemLines ? `\n${receiptItemLines}` : ""}`;
-
-  const customAmount = hasCart ? cartTotal : toNumber(amountInput) || 0;
+  const customAmount = toNumber(amountInput) || 0;
   const totalDue = mode === "invoice" ? invoiceTotalDue : customAmount;
   // The exact cents sent to the server; the Pay button shows this same number.
   const baseAmountCents = toCents(totalDue);
@@ -204,7 +174,7 @@ export default function PayPage() {
         Email: email,
         Phone: formatPhone(phone),
         InvoiceId: payInvoiceId || "",
-        Items: mode === "amount" ? itemsForSheet : "",
+        Items: "",
         Note: mode === "amount" ? note.trim() : "",
         // Shown right away; the server stamps the real SoldBy itself.
         SoldBy: sellerName || "",
@@ -288,24 +258,30 @@ export default function PayPage() {
 
         {!receipt && mode === "amount" && (
           <div className="flex flex-col gap-4">
-            <MenuPicker menu={MENU} cart={cart} onChange={changeQty} onClear={() => setCart({})} total={cartTotal} />
-            {!hasCart && (
-              <div className="field-group">
-                <label htmlFor="pay-amount" className="field-label">
-                  <i className="fa-solid fa-dollar-sign" aria-hidden="true"></i> Or enter amount to charge
-                </label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.01"
-                  className="input-3d text-lg"
-                  id="pay-amount"
+            <div className="field-group">
+              <label htmlFor="pay-amount" className="field-label">
+                <i className="fa-solid fa-dollar-sign" aria-hidden="true"></i> Amount to charge
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                className="input-3d text-lg"
+                id="pay-amount"
                 placeholder="0.00"
-                  value={amountInput}
-                  onChange={(e) => setAmountInput(e.target.value)}
-                />
-              </div>
+                value={amountInput}
+                onChange={(e) => setAmountInput(e.target.value)}
+              />
+            </div>
+            {can("event") && (
+              <p className="text-xs text-center text-brand-navydeep/75">
+                Selling menu items one by one? Use{" "}
+                <Link to="/event" className="underline font-semibold">
+                  Event Sales
+                </Link>
+                .
+              </p>
             )}
             <div className="field-group">
               <label htmlFor="pay-name" className="field-label">
@@ -517,7 +493,6 @@ export default function PayPage() {
                     setAmountInput("");
                     setCustomerName("");
                     setNote("");
-                    setCart({});
                     setCardPaymentId(newCardPaymentId());
                     // Cleared so the next customer's receipt can't go to
                     // the previous customer's email or phone.
