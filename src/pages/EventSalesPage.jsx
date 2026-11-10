@@ -33,7 +33,7 @@ const METHOD_ICONS = { Card: "fa-credit-card", Cash: "fa-money-bill-wave", Zelle
 export default function EventSalesPage() {
   const brand = getBrand();
   // Shown on the sale right away; the server stamps the real SoldBy itself.
-  const { name: sellerName } = useAuth() || {};
+  const { name: sellerName, isEmployee } = useAuth() || {};
   const MENU = getMenu();
   const MENU_ITEMS = Object.fromEntries(MENU.flatMap((c) => c.items).map((item) => [item.id, item]));
 
@@ -206,6 +206,13 @@ export default function EventSalesPage() {
   return (
     <Layout blobs={["bg-brand-terracotta w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-teal w-80 h-80 top-1/2 -left-16 animate-float"]}>
       <SiteNav className="mb-6" />
+      {/* Employees see whose login this is, above the heading, so the right
+          person's name goes on every sale. */}
+      {isEmployee && sellerName && (
+        <p role="status" className="glass-panel !rounded-full px-5 py-2 mb-4 text-center text-brand-navy font-semibold stagger-in max-w-full truncate">
+          <i className="fa-solid fa-user-tag text-brand-teal" aria-hidden="true"></i> Logged in as <span className="text-brand-teal">{sellerName}</span>
+        </p>
+      )}
       <PageHeader title="Event Sales" subtitle={brand.name} />
 
       <div className="w-full max-w-md glass-card p-6 sm:p-8 stagger-in">
