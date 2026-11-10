@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   formatDate,
+  toDateInput,
   time12Hour,
   getCurrentDateTime,
   toNumber,
@@ -41,6 +42,14 @@ describe("dates and times", () => {
   it("turns a date input (YYYY-MM-DD) into MM/DD/YYYY", () => {
     expect(formatDate("2026-11-06")).toBe("11/06/2026");
     expect(formatDate("")).toBe("");
+  });
+
+  it("toDateInput reverses formatDate for the date picker", () => {
+    expect(toDateInput("11/06/2026")).toBe("2026-11-06");
+    expect(toDateInput(formatDate("2026-01-09"))).toBe("2026-01-09");
+    expect(toDateInput("1/9/2026")).toBe("2026-01-09");
+    expect(toDateInput("")).toBe("");
+    expect(toDateInput("next week")).toBe("");
   });
 
   it("converts 24-hour time to 12-hour", () => {

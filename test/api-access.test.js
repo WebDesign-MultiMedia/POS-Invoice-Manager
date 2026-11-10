@@ -18,7 +18,8 @@ const sendBroadcast = (await import("../api/send-broadcast.js")).default;
 const sheetLink = (await import("../api/sheet-link.js")).default;
 const auth = (await import("../api/auth.js")).default;
 const calculatorLink = (await import("../api/calculator-link.js")).default;
-const { shareTokenFor, calculatorTokenFor } = await import("../api/_lib/auth.js");
+const { shareTokenFor, calculatorTokenFor, setSessionCookie } = await import("../api/_lib/auth.js");
+const { cookieFrom } = await import("./helpers.js");
 
 const fetchMock = vi.fn();
 
@@ -53,6 +54,8 @@ describe("staff-only routes return 401 without a session", () => {
     ["POST event sale", sheets, { method: "POST", url: "/api/sheets", body: { action: "recordEventSale", data: {} } }],
     ["GET share token", sheets, { url: "/api/sheets?action=shareToken&id=1" }],
     ["POST create order", sheets, { method: "POST", url: "/api/sheets", body: { action: "createOrder", data: { Name: "x" } } }],
+    ["POST update order", sheets, { method: "POST", url: "/api/sheets", body: { action: "updateOrder", id: "1", data: { Name: "x" } } }],
+    ["POST delete order", sheets, { method: "POST", url: "/api/sheets", body: { action: "deleteOrder", id: "1" } }],
     ["POST card payment log", sheets, { method: "POST", url: "/api/sheets", body: { action: "recordCardPayment", data: {} } }],
     ["POST charge a card", createPaymentIntent, { method: "POST", body: { paymentMethodId: "pm_1", baseAmountCents: 100 } }],
     ["GET receipt", receiptUrl, { url: "/api/receipt-url?pi=pi_123" }],
@@ -115,5 +118,51 @@ describe("public routes", () => {
     const res = await call(auth, { method: "POST", body: { action: "login", identifier: "staff@example.com", password: "nope" } });
     expect(res.statusCode).toBe(401);
     expect(res.headers["set-cookie"]).toBeUndefined();
+  });
+});
+
+describe("editing and deleting an order (staff)", () => {
+  function staffCookie() {
+    const res = mockRes();
+    setSessionCookie(res, "staff@example.com");
+    return cookieFrom(res);
+  }
+  const post = (body) => call(sheets, { method: "POST", url: "/api/sheets", body, cookie: staffCookie() });
+
+  it("updates only the order's own fields, on the row with that Id", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ updated: 1 }) });
+    const res = await post({ action: "updateOrder", id: "714", data: { Name: "New", Cost: "20", Id: "999", Date: "01/01/2000", Evil: "x" } });
+    expect(res.statusCode).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://sheetdb.io/api/v1/test-sheet/Id/714");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({ data: { Name: "New", Cost: "20" } });
+  });
+
+  it("deletes the row with that Id", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ deleted: 1 }) });
+    const res = await post({ action: "deleteOrder", id: "714" });
+    expect(res.statusCode).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://sheetdb.io/api/v1/test-sheet/Id/714");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("404s when no order has that Id", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ deleted: 0 }) });
+    expect((await post({ action: "deleteOrder", id: "714" })).statusCode).toBe(404);
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ updated: 0 }) });
+    expect((await post({ action: "updateOrder", id: "714", data: { Name: "x" } })).statusCode).toBe(404);
+  });
+
+  it.each(["*", "", "7 14", "CP-261109-120000", "1/../2"])("refuses a non-numeric id %j without calling SheetDB", async (id) => {
+    expect((await post({ action: "deleteOrder", id })).statusCode).toBe(400);
+    expect((await post({ action: "updateOrder", id, data: { Name: "x" } })).statusCode).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses an update with no editable fields", async () => {
+    expect((await post({ action: "updateOrder", id: "714", data: { Id: "1", Date: "x" } })).statusCode).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

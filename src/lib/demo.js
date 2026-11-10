@@ -9,6 +9,7 @@
 //
 // Security: demo mode only swaps the browser's data layer. It grants no
 // server access — every /api endpoint still requires a real staff session.
+import { ApiError } from "./errors.js";
 
 const FLAG_KEY = "pim-demo";
 const DATA_KEY = "pim-demo-data";
@@ -235,6 +236,23 @@ export const demoApi = {
     db.orders.push(row);
     save();
     return later({ created: 1, id: row.Id });
+  },
+  updateOrder(id, data) {
+    const db = load();
+    const order = db.orders.find((o) => o.Id === String(id));
+    if (!order) return Promise.reject(new ApiError(404, "Order not found"));
+    const { Id: _id, Date: _date, Time: _time, ...fields } = data;
+    Object.assign(order, fields);
+    save();
+    return later({ updated: 1 });
+  },
+  deleteOrder(id) {
+    const db = load();
+    const before = db.orders.length;
+    db.orders = db.orders.filter((o) => o.Id !== String(id));
+    if (db.orders.length === before) return Promise.reject(new ApiError(404, "Order not found"));
+    save();
+    return later({ deleted: 1 });
   },
   cardPayments: () => later(load().cardPayments.slice().reverse()),
   cardPaymentsFor: (invoiceId) => later(load().cardPayments.filter((p) => p.InvoiceId === String(invoiceId))),

@@ -5,6 +5,13 @@ export function formatDate(inputDate) {
   return `${month}/${day}/${year}`;
 }
 
+// The reverse of formatDate: a saved "MM/DD/YYYY" back to the "YYYY-MM-DD"
+// a date input needs. "" for anything else.
+export function toDateInput(saved) {
+  const m = String(saved || "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}` : "";
+}
+
 // TIME FORMAT 12-HOUR
 export function time12Hour(timeStr) {
   if (!timeStr) return "";

@@ -3,8 +3,9 @@
 // (SHEETDB_ID, SHEETDB_USER, SHEETDB_PASS) and never reach the browser.
 //
 // Deliberately NOT a generic proxy: the browser can't pick the SheetDB path
-// or HTTP method, only one of the named actions below. Updates and deletes
-// aren't exposed at all.
+// or HTTP method, only one of the named actions below. The only updates and
+// deletes are of one order row by its numeric Id, and an update can change
+// only the order's own fields (never its Id, Date or Time).
 //   GET  ?action=orders
 //   GET  ?action=order&id=714
 //   GET  ?action=cardPayments
@@ -14,6 +15,8 @@
 //   POST { action: "createOrder", data }
 //   POST { action: "recordCardPayment", data }
 //   POST { action: "recordEventSale", data }
+//   POST { action: "updateOrder", id, data }
+//   POST { action: "deleteOrder", id }
 //
 // Every action needs a staff login (api/_lib/auth.js) except one:
 //   GET  ?action=sharedInvoice&id=714&token=…
@@ -52,6 +55,48 @@ function requireId(params, name) {
 function cleanId(value) {
   const id = String(value || "").trim();
   return /^[A-Za-z0-9-]{1,40}$/.test(id) ? id : null;
+}
+
+// Fields staff can change on a saved order. Anything else sent is ignored.
+const EDITABLE_ORDER_FIELDS = [
+  "Name", "Contact", "Address", "PickupDelivery", "Items", "Quantity",
+  "Cost", "Deposit", "Payment", "DueDate", "Notes",
+];
+
+function orderId(value) {
+  const id = String(value ?? "").trim();
+  if (!/^\d{1,12}$/.test(id)) throw new BadRequest("Missing or invalid id");
+  return id;
+}
+
+function editableOrderFields(data) {
+  if (!data || typeof data !== "object") throw new BadRequest("Missing data");
+  const fields = {};
+  for (const name of EDITABLE_ORDER_FIELDS) {
+    if (Object.hasOwn(data, name)) fields[name] = String(data[name] ?? "").slice(0, 5000);
+  }
+  if (!Object.keys(fields).length) throw new BadRequest("Nothing to update");
+  return fields;
+}
+
+// Update or delete one order row. 404 when no row has that Id.
+async function changeOrder(base, body, res) {
+  const id = orderId(body.id);
+  const path = `/Id/${encodeURIComponent(id)}`;
+  const init =
+    body.action === "updateOrder"
+      ? { method: "PATCH", headers: sheetdbHeaders(), body: JSON.stringify({ data: editableOrderFields(body.data) }) }
+      : { method: "DELETE", headers: sheetdbHeaders() };
+  const response = await fetch(`${base}${path}`, init);
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    console.error("sheets: SheetDB responded", response.status, payload);
+    return res.status(502).json({ error: "Sheet request failed" });
+  }
+  res.setHeader("Cache-Control", "no-store");
+  const count = body.action === "updateOrder" ? payload?.updated : payload?.deleted;
+  if (!Number(count)) return res.status(404).json({ error: "Order not found" });
+  return res.status(200).json(payload);
 }
 
 async function sheetGet(base, path) {
@@ -115,6 +160,8 @@ export default async function handler(req, res) {
       if (!build) throw new BadRequest("Unknown action");
       path = build(params);
       init = { method: "GET", headers: sheetdbHeaders() };
+    } else if (req.method === "POST" && ["updateOrder", "deleteOrder"].includes(req.body?.action)) {
+      return await changeOrder(base, req.body, res);
     } else if (req.method === "POST") {
       const { action, data } = req.body || {};
       if (!Object.hasOwn(WRITE_ACTIONS, action)) throw new BadRequest("Unknown action");

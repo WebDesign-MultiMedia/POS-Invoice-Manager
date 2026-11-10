@@ -52,9 +52,18 @@ describe("demo mode", () => {
     expect(sales).toHaveLength(before + 1);
     expect(sales[0].SaleId).toBe("EV-1");
 
+    await sheetdb.updateOrder(id, { Name: "Renamed", Id: "hijack", Date: "01/01/2000" });
+    const renamed = await sheetdb.getInvoiceById(id);
+    expect(renamed).toMatchObject({ Id: id, Name: "Renamed" });
+    expect(renamed.Date).toBe(created.Date);
+
     expect(await sheetdb.getShareToken(id)).toBe("demo");
     expect((await sheetdb.getSharedInvoice(id, "demo")).invoice.Id).toBe(id);
     expect(await sheetdb.getSharedInvoice("does-not-exist", "demo")).toBeNull();
+
+    await sheetdb.deleteOrder(id);
+    expect(await sheetdb.getInvoiceById(id)).toBeNull();
+    await expect(sheetdb.deleteOrder(id)).rejects.toMatchObject({ status: 404 });
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });

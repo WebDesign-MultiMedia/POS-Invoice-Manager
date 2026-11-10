@@ -23,10 +23,14 @@ async function readSheet(action, params = {}) {
   return res.json();
 }
 
-async function writeSheet(action, data) {
+function writeSheet(action, data) {
+  return postSheet({ action, data });
+}
+
+async function postSheet(body) {
   const res = await fetch(SHEETS_API, {
     method: "POST",
-    body: JSON.stringify({ action, data }),
+    body: JSON.stringify(body),
     headers: { "Content-Type": "application/json" },
   });
   if (!res.ok) {
@@ -39,6 +43,18 @@ async function writeSheet(action, data) {
 export function submitOrder(data) {
   if (isDemo()) return demoApi.createOrder(data);
   return writeSheet("createOrder", data);
+}
+
+// Change a saved order's fields (not its Id, Date or Time). A 404 means
+// no order with that Id exists any more.
+export function updateOrder(id, data) {
+  if (isDemo()) return demoApi.updateOrder(id, data);
+  return postSheet({ action: "updateOrder", id: String(id), data });
+}
+
+export function deleteOrder(id) {
+  if (isDemo()) return demoApi.deleteOrder(id);
+  return postSheet({ action: "deleteOrder", id: String(id) });
 }
 
 export function fetchAllOrders() {

@@ -4,8 +4,8 @@ import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
-import { fetchAllOrders, submitOrder } from "../api/sheetdb.js";
-import { getCurrentDateTime, getTotalQuantity, formatDate, formatMoney, toNumber } from "../lib/format.js";
+import { deleteOrder, fetchAllOrders, submitOrder, updateOrder } from "../api/sheetdb.js";
+import { getCurrentDateTime, getTotalQuantity, formatDate, formatMoney, toDateInput, toNumber } from "../lib/format.js";
 import { findSubmittedOrder, ordersNewestFirst } from "../lib/recentOrder.js";
 import { getBrand } from "../lib/brand.js";
 import { readDraft, writeDraft, readDraftSource } from "../lib/orderDraft.js";
@@ -34,6 +34,20 @@ const ALERT_BASE = {
     no-repeat
   `,
 };
+
+// A saved order's fields, as the form shows them.
+function orderToForm(order) {
+  const form = {};
+  for (const key of Object.keys(INITIAL_FORM)) form[key] = String(order[key] ?? "");
+  form.DueDate = toDateInput(order.DueDate);
+  return form;
+}
+
+// A select's options, plus the order's current value if it isn't one of
+// them (e.g. an older order paid another way), so editing doesn't blank it.
+function withCurrent(options, value) {
+  return value && !options.includes(value) ? [...options, value] : options;
+}
 
 function loadDraft() {
   const saved = readDraft();
@@ -68,6 +82,9 @@ export default function OrderFormPage() {
   // the disabled button, and the ref stops the second one immediately.
   const savingRef = useRef(false);
   const navigate = useNavigate();
+  // The saved order being edited, or null when the form makes a new order.
+  const [editing, setEditing] = useState(null);
+  const formRef = useRef(null);
 
   // Saved orders, newest first, listed under the form for quick access.
   const [recent, setRecent] = useState({ orders: [], loading: true, error: false });
@@ -87,9 +104,58 @@ export default function OrderFormPage() {
   // Set when the draft was filled in from a Catering Calculator quote.
   const [draftSource] = useState(() => (initialDraft ? readDraftSource() : null));
 
+  // The new-order draft is kept while an order is being edited, and comes
+  // back when the edit is saved or cancelled.
   useEffect(() => {
-    writeDraft(form);
-  }, [form]);
+    if (!editing) writeDraft(form);
+  }, [form, editing]);
+
+  const startEdit = (order) => {
+    setEditing(order);
+    setForm(orderToForm(order));
+    setValidated(false);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const stopEdit = () => {
+    const draft = loadDraft();
+    setEditing(null);
+    setForm(draft || INITIAL_FORM);
+    setRestored(Boolean(draft));
+    setValidated(false);
+  };
+
+  const removeFromRecent = (id) =>
+    setRecent((r) => ({ ...r, orders: r.orders.filter((o) => String(o.Id) !== String(id)) }));
+
+  const handleDelete = async (order) => {
+    const { isConfirmed } = await Swal.fire({
+      ...ALERT_BASE,
+      title: `Delete order #${order.Id}?`,
+      text: `${order.Name || "This order"} will be removed from the sheet. This can't be undone. Card payments already logged for it stay in Card Payments.`,
+      icon: "warning",
+      showConfirmButton: true,
+      confirmButtonText: '<i class="fa-solid fa-trash"></i> Delete',
+      confirmButtonColor: "#dc2626",
+      showCancelButton: true,
+      cancelButtonText: "Keep it",
+      focusCancel: true,
+    });
+    if (!isConfirmed) return;
+    try {
+      await deleteOrder(order.Id);
+    } catch (err) {
+      if (err?.status !== 404) {
+        console.error("deleteOrder failed:", err);
+        Swal.fire({ ...ALERT_BASE, showConfirmButton: true, title: "Order not deleted", text: friendlyMessage(err, "Couldn't delete the order."), icon: "error" });
+        return;
+      }
+      // Already gone from the sheet: just drop it from the list.
+    }
+    removeFromRecent(order.Id);
+    if (editing && String(editing.Id) === String(order.Id)) stopEdit();
+    Swal.fire({ ...ALERT_BASE, title: `Order #${order.Id} deleted`, icon: "success", timer: 1500 });
+  };
 
   const setField = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
 
@@ -121,6 +187,11 @@ export default function OrderFormPage() {
     if (hasBlank) {
       setValidated(true);
       Swal.fire({ ...ALERT_BASE, title: "Fill in Blanks", icon: "error", timer: 1000 });
+      return;
+    }
+
+    if (editing) {
+      await saveEdit(data);
       return;
     }
 
@@ -168,6 +239,36 @@ export default function OrderFormPage() {
     if (isConfirmed) navigate(`/invoice?id=${encodeURIComponent(saved.Id)}`);
   };
 
+  // Saves changes to the order being edited. Its Id, Date and Time stay.
+  async function saveEdit(data) {
+    const { Date: _date, Time: _time, ...fields } = data;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await updateOrder(editing.Id, fields);
+    } catch (err) {
+      console.error("updateOrder failed:", err);
+      const gone = err?.status === 404;
+      if (gone) removeFromRecent(editing.Id);
+      Swal.fire({
+        ...ALERT_BASE,
+        showConfirmButton: true,
+        title: "Changes not saved",
+        text: gone ? `Order #${editing.Id} isn't in the sheet any more.` : `${friendlyMessage(err, "Couldn't save the changes.")} Your changes are still here — press Save changes again.`,
+        icon: "error",
+      });
+      if (gone) stopEdit();
+      return;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+    const updated = { ...editing, ...fields };
+    setRecent((r) => ({ ...r, orders: r.orders.map((o) => (String(o.Id) === String(updated.Id) ? updated : o)) }));
+    stopEdit();
+    Swal.fire({ ...ALERT_BASE, title: `Order #${updated.Id} updated`, icon: "success", timer: 1500 });
+  }
+
   const brand = getBrand();
 
 
@@ -177,13 +278,20 @@ export default function OrderFormPage() {
 
       <SiteNav className="mb-8" />
 
-      <TiltCard maxDeg={3} as="form" wrapClassName="w-full max-w-3xl" className="glass-card p-6 sm:p-10 stagger-in" onSubmit={handleSubmit}>
+      <div ref={formRef} className="w-full max-w-3xl scroll-mt-4">
+      <TiltCard maxDeg={3} as="form" wrapClassName="w-full" className={`glass-card p-6 sm:p-10 stagger-in ${editing ? "ring-2 ring-brand-gold" : ""}`} onSubmit={handleSubmit}>
         <div className="flex items-center gap-2 mb-6 justify-center">
-          <i className="fa-solid fa-utensils text-brand-gold text-xl"></i>
-          <h2 className="text-xl sm:text-2xl font-semibold text-brand-navy">Customer Order</h2>
+          <i className={`fa-solid ${editing ? "fa-pen-to-square" : "fa-utensils"} text-brand-gold text-xl`}></i>
+          <h2 className="text-xl sm:text-2xl font-semibold text-brand-navy">{editing ? `Edit Order #${editing.Id}` : "Customer Order"}</h2>
         </div>
 
-        {restored && (
+        {editing && (
+          <p role="status" className="glass-panel p-3 mb-5 text-sm text-center">
+            <i className="fa-solid fa-pen" aria-hidden="true"></i> Editing the order saved {[editing.Date, editing.Time].filter(Boolean).join(" at ")}. Change what you need, then press Save changes.
+          </p>
+        )}
+
+        {restored && !editing && (
           <p role="status" className="glass-panel p-3 mb-5 text-sm text-center">
             {draftSource ? (
               <>
@@ -236,9 +344,11 @@ export default function OrderFormPage() {
             </label>
             <select name="PickupDelivery" id="PickupDelivery" className={fieldClass(form.PickupDelivery, validated)} value={form.PickupDelivery} onChange={setField("PickupDelivery")}>
               <option value="">Type</option>
-              <option value="Delivery">Delivery</option>
-              <option value="Pick-up">Pick-up</option>
-              <option value="Catering">Catering</option>
+              {withCurrent(["Delivery", "Pick-up", "Catering"], form.PickupDelivery).map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
             </select>
           </div>
           <div className="field-group">
@@ -253,8 +363,11 @@ export default function OrderFormPage() {
             </label>
             <select id="Payment" name="Payment" className={fieldClass(form.Payment, validated)} value={form.Payment} onChange={setField("Payment")}>
               <option value="">Paid w/</option>
-              <option value="Cash">Cash</option>
-              <option value="Zelle">Zelle</option>
+              {withCurrent(["Cash", "Zelle"], form.Payment).map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
             </select>
           </div>
           <div className="field-group">
@@ -302,14 +415,21 @@ export default function OrderFormPage() {
           ></textarea>
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex flex-wrap justify-center gap-3">
+          {editing && (
+            <button type="button" className="btn-3d !bg-none !bg-transparent border border-brand-navy/40 text-brand-navy" onClick={stopEdit} disabled={saving}>
+              <i className="fa-solid fa-xmark" aria-hidden="true"></i> Cancel
+            </button>
+          )}
           <button id="addDate" type="submit" className="btn-3d disabled:opacity-60" disabled={saving} aria-busy={saving}>
-            <i className={`fa-solid ${saving ? "fa-spinner fa-spin" : "fa-paper-plane"}`} aria-hidden="true"></i> {saving ? "Saving…" : "Submit Order"}
+            <i className={`fa-solid ${saving ? "fa-spinner fa-spin" : editing ? "fa-floppy-disk" : "fa-paper-plane"}`} aria-hidden="true"></i>{" "}
+            {saving ? "Saving…" : editing ? "Save changes" : "Submit Order"}
           </button>
         </div>
       </TiltCard>
+      </div>
 
-      <RecentOrders {...recent} />
+      <RecentOrders {...recent} editingId={editing?.Id} onEdit={startEdit} onDelete={handleDelete} />
     </Layout>
   );
 }
@@ -318,7 +438,7 @@ const RECENT_PAGE = 5;
 
 // Under the form: the orders saved, newest first, each one tap from its
 // invoice. Shows a few at a time with "Show more" for older ones.
-function RecentOrders({ orders, loading, error }) {
+function RecentOrders({ orders, loading, error, editingId, onEdit, onDelete }) {
   const [shown, setShown] = useState(RECENT_PAGE);
   if (loading || (!error && !orders.length)) return null;
   return (
@@ -331,7 +451,7 @@ function RecentOrders({ orders, loading, error }) {
       ) : (
         <ul className="flex flex-col divide-y divide-brand-navydeep/15">
           {orders.slice(0, shown).map((order) => (
-            <RecentOrderRow key={order.Id} order={order} />
+            <RecentOrderRow key={order.Id} order={order} editing={String(order.Id) === String(editingId)} onEdit={onEdit} onDelete={onDelete} />
           ))}
         </ul>
       )}
@@ -346,7 +466,7 @@ function RecentOrders({ orders, loading, error }) {
   );
 }
 
-function RecentOrderRow({ order }) {
+function RecentOrderRow({ order, editing, onEdit, onDelete }) {
   const items = getTotalQuantity(order.Items || "");
   return (
     <li className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between py-3 first:pt-0 last:pb-0">
@@ -361,9 +481,29 @@ function RecentOrderRow({ order }) {
           {order.Cost !== undefined && order.Cost !== "" ? ` · ${formatMoney(toNumber(order.Cost))}` : ""}
         </p>
       </div>
-      <Link to={`/invoice?id=${encodeURIComponent(order.Id)}`} className="btn-3d !py-2 !px-4 text-sm shrink-0 self-center">
-        <i className="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> View invoice
-      </Link>
+      <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:w-auto shrink-0 self-center [&>*]:justify-center">
+        <Link to={`/invoice?id=${encodeURIComponent(order.Id)}`} className="btn-3d !py-2 !px-2 sm:!px-4 text-sm">
+          <i className="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> <span className="sm:hidden">Invoice</span>
+          <span className="hidden sm:inline">View invoice</span>
+        </Link>
+        <button
+          type="button"
+          className="btn-3d !py-2 !px-2 sm:!px-4 text-sm !bg-none !bg-transparent border border-brand-navy/40 text-brand-navy disabled:opacity-60"
+          onClick={() => onEdit(order)}
+          disabled={editing}
+          aria-label={`Edit order #${order.Id}`}
+        >
+          <i className="fa-solid fa-pen" aria-hidden="true"></i> {editing ? "Editing" : "Edit"}
+        </button>
+        <button
+          type="button"
+          className="btn-3d !py-2 !px-2 sm:!px-4 text-sm !bg-none !bg-transparent border border-brand-error/60 text-brand-error"
+          onClick={() => onDelete(order)}
+          aria-label={`Delete order #${order.Id}`}
+        >
+          <i className="fa-solid fa-trash" aria-hidden="true"></i> Delete
+        </button>
+      </div>
     </li>
   );
 }
