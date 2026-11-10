@@ -2,7 +2,7 @@
 // picker, running total and receipt all read from this.
 // `unit: "lb"` items are sold by weight and step in half-pound increments.
 // `deal: "<key>"` items share a mix-and-match deal from DEALS below, e.g.
-// any 3 drinks for $5 (a horchata and two sodas count).
+// any 3 cans/waters for $5 (a soda and two waters count).
 export const MENU = [
   {
     category: "Tacos",
@@ -36,12 +36,11 @@ export const MENU = [
   },
   {
     category: "Aguas Frescas",
-    deal: "drinks",
     items: [
-      { id: "agua-limonada", name: "Agua de Limonada", price: 2, deal: "drinks" },
-      { id: "agua-horchata", name: "Agua de Horchata", price: 2, deal: "drinks" },
-      { id: "agua-sandia", name: "Agua de Sandía", price: 2, deal: "drinks" },
-      { id: "agua-tamarindo", name: "Agua de Tamarindo", price: 2, deal: "drinks" },
+      { id: "agua-limonada", name: "Agua de Limonada", price: 5 },
+      { id: "agua-horchata", name: "Agua de Horchata", price: 5 },
+      { id: "agua-sandia", name: "Agua de Sandía", price: 5 },
+      { id: "agua-tamarindo", name: "Agua de Tamarindo", price: 5 },
     ],
   },
   {
@@ -56,7 +55,7 @@ export const MENU = [
 
 // Mix-and-match deals: every `qty` items sharing the key cost `price`.
 export const DEALS = {
-  drinks: { qty: 3, price: 5, label: "Drinks 3 for $5" },
+  drinks: { qty: 3, price: 5, label: "Cans & water 3 for $5" },
 };
 
 export const MENU_ITEMS = Object.fromEntries(MENU.flatMap((c) => c.items).map((item) => [item.id, item]));

@@ -120,11 +120,15 @@ describe("reading logged card payment orders", () => {
   });
 });
 
-describe("drinks 3 for $5", () => {
+describe("cans & water 3 for $5", () => {
   it("prices the new items", () => {
     expect(MENU_ITEMS["flautas"]).toMatchObject({ price: 3 });
     expect(MENU_ITEMS["lb-carnitas"]).toMatchObject({ price: 16 });
-    for (const id of ["agua-limonada", "agua-horchata", "agua-sandia", "agua-tamarindo", "can-soda", "water"]) {
+    for (const id of ["agua-limonada", "agua-horchata", "agua-sandia", "agua-tamarindo"]) {
+      expect(MENU_ITEMS[id]).toMatchObject({ price: 5 });
+      expect(MENU_ITEMS[id].deal).toBeUndefined();
+    }
+    for (const id of ["can-soda", "water"]) {
       expect(MENU_ITEMS[id]).toMatchObject({ price: 2, deal: "drinks" });
     }
   });
@@ -135,25 +139,26 @@ describe("drinks 3 for $5", () => {
   });
 
   it("charges $5 for 3, mixing items", () => {
-    expect(cartTotal({ "agua-horchata": 1, "can-soda": 2 }, MENU_ITEMS)).toBe(5);
-    expect(cartDeals({ "agua-horchata": 1, "can-soda": 2 }, MENU_ITEMS)).toEqual([{ key: "drinks", label: "Drinks 3 for $5", sets: 1, savings: 1 }]);
+    expect(cartTotal({ water: 1, "can-soda": 2 }, MENU_ITEMS)).toBe(5);
+    expect(cartDeals({ water: 1, "can-soda": 2 }, MENU_ITEMS)).toEqual([{ key: "drinks", label: "Cans & water 3 for $5", sets: 1, savings: 1 }]);
   });
 
   it("prices the leftovers at $2", () => {
-    // 7 drinks = two sets ($10) + one at $2
-    expect(cartTotal({ water: 4, "agua-sandia": 3 }, MENU_ITEMS)).toBe(12);
+    // 7 cans/waters = two sets ($10) + one at $2
+    expect(cartTotal({ water: 4, "can-soda": 3 }, MENU_ITEMS)).toBe(12);
   });
 
   it("doesn't touch non-deal items", () => {
     expect(cartTotal({ "taco-chivo": 1, water: 3 }, MENU_ITEMS)).toBe(10);
     expect(cartTotal({ "soda-coke": 3 }, MENU_ITEMS)).toBe(15);
+    expect(cartTotal({ "agua-horchata": 3 }, MENU_ITEMS)).toBe(15);
   });
 
   it("reads a saved deal line back with its negative price", () => {
-    const { items } = parseCardPaymentOrder({ Items: "3x Water ($6.00)\nDrinks 3 for $5 (-$1.00)" });
+    const { items } = parseCardPaymentOrder({ Items: "3x Water ($6.00)\nCans & water 3 for $5 (-$1.00)" });
     expect(items).toEqual([
       { label: "3x Water", price: 6 },
-      { label: "Drinks 3 for $5", price: -1 },
+      { label: "Cans & water 3 for $5", price: -1 },
     ]);
   });
 });
