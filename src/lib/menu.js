@@ -1,18 +1,21 @@
-// Quick-pick menu for the Pay with Card "Charge Amount" tab. Edit prices or
-// add items here — the picker, running total and note all read from this.
+// Quick-pick menu for Event Sales. Edit prices or add items here — the
+// picker, running total and receipt all read from this.
 // `unit: "lb"` items are sold by weight and step in half-pound increments.
+// `deal: "<key>"` items share a mix-and-match deal from DEALS below, e.g.
+// any 3 drinks for $5 (a horchata and two sodas count).
 export const MENU = [
   {
     category: "Tacos",
     items: [
       { id: "taco-chivo", name: "Taco de Chivo", price: 5 },
       { id: "taco-carnitas", name: "Taco de Carnitas", price: 5 },
+      { id: "flautas", name: "Flautas", price: 3 },
     ],
   },
   {
     category: "Por Libra",
     items: [
-      { id: "lb-chivo", name: "Chivo", price: 21, unit: "lb" },
+      { id: "lb-chivo", name: "Chivo", price: 20, unit: "lb" },
       { id: "lb-carnitas", name: "Carnitas", price: 16, unit: "lb" },
     ],
   },
@@ -31,7 +34,30 @@ export const MENU = [
       { id: "soda-sprite", name: "Sprite", price: 5 },
     ],
   },
+  {
+    category: "Aguas Frescas",
+    deal: "drinks",
+    items: [
+      { id: "agua-limonada", name: "Agua de Limonada", price: 2, deal: "drinks" },
+      { id: "agua-horchata", name: "Agua de Horchata", price: 2, deal: "drinks" },
+      { id: "agua-sandia", name: "Agua de Sandía", price: 2, deal: "drinks" },
+      { id: "agua-tamarindo", name: "Agua de Tamarindo", price: 2, deal: "drinks" },
+    ],
+  },
+  {
+    category: "Cans & Water",
+    deal: "drinks",
+    items: [
+      { id: "can-soda", name: "Soda (lata)", price: 2, deal: "drinks" },
+      { id: "water", name: "Water", price: 2, deal: "drinks" },
+    ],
+  },
 ];
+
+// Mix-and-match deals: every `qty` items sharing the key cost `price`.
+export const DEALS = {
+  drinks: { qty: 3, price: 5, label: "Drinks 3 for $5" },
+};
 
 export const MENU_ITEMS = Object.fromEntries(MENU.flatMap((c) => c.items).map((item) => [item.id, item]));
 
@@ -74,7 +100,7 @@ function parseItems(text) {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .map((entry) => {
-      const priced = entry.match(/^(.*?)\s*\((\$[\d,.]+)\)$/);
+      const priced = entry.match(/^(.*?)\s*\((-?\$[\d,.]+)\)$/);
       if (priced) return { label: priced[1], price: Number(priced[2].replace(/[$,]/g, "")) };
 
       const parts = entry.match(/^(\d+(?:\.\d+)?)(x| lb) (.+)$/);

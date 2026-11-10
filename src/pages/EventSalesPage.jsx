@@ -18,7 +18,7 @@ import { getStripe } from "../lib/stripeClient.js";
 import { getTheme } from "../lib/theme.js";
 import { isDemo } from "../lib/demo.js";
 import { friendlyMessage } from "../lib/errors.js";
-import { cartTotal as sumCart, toCents } from "../lib/totals.js";
+import { cartDeals, cartTotal as sumCart, toCents } from "../lib/totals.js";
 import { cardPaymentsNewestFirst } from "../lib/recentOrder.js";
 import { cashChange, isUnpaid, newEventSaleId, quickCashOptions, saleEdit, summarizeSales } from "../lib/eventSales.js";
 
@@ -101,12 +101,21 @@ export default function EventSalesPage() {
     .map(([id, qty]) => ({ item: MENU_ITEMS[id], qty }));
   const hasCart = cartEntries.length > 0;
   const cartTotal = sumCart(cart, MENU_ITEMS);
+  // e.g. "Drinks 3 for $5" savings, shown as their own line on the sale.
+  const dealsApplied = cartDeals(cart, MENU_ITEMS);
+  const dealLabel = (d) => `${d.label}${d.sets > 1 ? ` ×${d.sets}` : ""}`;
   const total = paying ? toNumber(paying.Amount || paying.Total) : hasCart ? cartTotal : toNumber(amountInput) || 0;
   const activeSaleId = paying ? paying.SaleId : saleId;
   const totalCents = toCents(total);
   // Same "1x Item ($5.00)" lines as CardPayments, so Search can read them.
-  const itemsForSheet = cartEntries.map(({ item, qty }) => `${formatCartLine(item, qty)} (${formatMoney(item.price * qty)})`).join("\n");
-  const receiptItemLines = cartEntries.map(({ item, qty }) => `${formatCartLine(item, qty)} — ${formatMoney(item.price * qty)}`).join("\n");
+  const itemsForSheet = [
+    ...cartEntries.map(({ item, qty }) => `${formatCartLine(item, qty)} (${formatMoney(item.price * qty)})`),
+    ...dealsApplied.map((d) => `${dealLabel(d)} (-${formatMoney(d.savings)})`),
+  ].join("\n");
+  const receiptItemLines = [
+    ...cartEntries.map(({ item, qty }) => `${formatCartLine(item, qty)} — ${formatMoney(item.price * qty)}`),
+    ...dealsApplied.map((d) => `${dealLabel(d)} — -${formatMoney(d.savings)}`),
+  ].join("\n");
   const paidItemLines = paying ? receiptLines(paying.Items) : receiptItemLines;
   const receiptDescription = `Order ID: ${activeSaleId}\n${paidItemLines ? `\n${paidItemLines}` : ""}`;
 
@@ -274,7 +283,7 @@ export default function EventSalesPage() {
       <div ref={cardRef} className="w-full max-w-md glass-card p-6 sm:p-8 stagger-in scroll-mt-4">
         {step === "order" && (
           <div className="flex flex-col gap-4">
-            <MenuPicker menu={MENU} cart={cart} onChange={changeQty} onClear={() => setCart({})} total={cartTotal} />
+            <MenuPicker menu={MENU} cart={cart} onChange={changeQty} onClear={() => setCart({})} total={cartTotal} deals={dealsApplied} />
             {!hasCart && (
               <div className="field-group">
                 <label htmlFor="event-amount" className="field-label">
