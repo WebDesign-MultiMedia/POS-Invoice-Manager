@@ -550,13 +550,13 @@ function TodaySales({ rows, loading, error, onUpdated, onDeleted }) {
             )}
           </div>
           {summary.bySeller.length > 0 && (
-            <div className="glass-panel p-3 mb-4" aria-label="Sales by person">
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand-navydeep/80 mb-2 text-center">
+            <div className="glass-panel px-4 py-2.5 mb-4 w-fit max-w-full mx-auto" aria-label="Sales by person">
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-navydeep/80 mb-1 text-center">
                 <i className="fa-solid fa-user-tag" aria-hidden="true"></i> Rung up by
               </p>
-              <ul className="flex flex-col gap-1">
+              <ul className="flex flex-col gap-0.5">
                 {summary.bySeller.map((p) => (
-                  <li key={p.name} className="flex items-baseline justify-between gap-3 text-sm">
+                  <li key={p.name} className="flex items-baseline justify-between gap-6 text-sm">
                     <span className="font-semibold text-brand-navy truncate min-w-0">{p.name}</span>
                     <span className="shrink-0 tabular-nums text-brand-navydeep/90">
                       {p.count} {p.count === 1 ? "sale" : "sales"} · <span className="font-semibold">{formatMoney(p.total)}</span>
