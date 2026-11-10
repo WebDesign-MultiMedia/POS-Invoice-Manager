@@ -13,7 +13,7 @@ import { saleToOrderForm } from "../lib/saleToOrder.js";
 import { useAuth } from "../lib/auth.jsx";
 import ZelleQrCard from "../components/ZelleQrCard.jsx";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
-import { formatCartLine } from "../lib/menu.js";
+import { formatCartLine, qtyStep } from "../lib/menu.js";
 import { getBrand, getMenu } from "../lib/brand.js";
 import { getStripe } from "../lib/stripeClient.js";
 import { getTheme } from "../lib/theme.js";
@@ -25,8 +25,9 @@ import { cashChange, isUnpaid, newEventSaleId, quickCashOptions, saleEdit, summa
 
 // Event Sales: checkout for a vendor event booth.
 //   1. Build the order: tap menu items or type an amount, optional name.
-//   2. Save order → the total, then take Card, Cash or Zelle.
+//   2. Pay now → Card, Cash or Zelle; or Save order → Unpaid, paid later.
 //   3. Sale recorded in the "EventSales" sheet tab → next customer.
+// Phones get one column; tablets and computers get a full-screen register.
 // Card sales are also logged to CardPayments like every other card charge,
 // so they show in Recent card payments and the Order ID search.
 
@@ -39,6 +40,22 @@ const receiptLines = (items) =>
     .map((l) => l.trim().replace(/\s*\((\$[\d,.]+)\)$/, " — $1"))
     .filter(Boolean)
     .join("\n");
+
+// Tablets and computers (768px and up) get the full-screen register
+// layout; phones keep the one-column page.
+const WIDE = "(min-width: 768px)";
+const wideNow = () => typeof window !== "undefined" && Boolean(window.matchMedia?.(WIDE).matches);
+function useWideScreen() {
+  const [wide, setWide] = useState(wideNow);
+  useEffect(() => {
+    const mq = window.matchMedia?.(WIDE);
+    if (!mq) return;
+    const onChange = () => setWide(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return wide;
+}
 
 export default function EventSalesPage() {
   const brand = getBrand();
@@ -70,7 +87,12 @@ export default function EventSalesPage() {
   // Opens by itself for employees; the X (or Esc) closes it, and the
   // "Open full screen" button brings it back. The page behind is locked
   // while it's open.
-  const [fullOpen, setFullOpen] = useState(Boolean(isEmployee));
+  // Tablets and computers get the register layout and open it by itself
+  // for everyone; phones open it for employees only.
+  const wide = useWideScreen();
+  const [fullOpen, setFullOpen] = useState(() => Boolean(isEmployee) || wideNow());
+  // Register layout tabs: "order", "unpaid", "today".
+  const [posTab, setPosTab] = useState("order");
   const openFullRef = useRef(null);
   useEffect(() => {
     if (!fullOpen) return;
@@ -312,68 +334,14 @@ export default function EventSalesPage() {
     setCustomerName(sale.Name || "");
     setNote(sale.Note || "");
     setStep("pay");
+    setPosTab("order");
     requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
-  // Unpaid list, the order card and Today's sales: shown in the page, or
-  // in the full-screen popup when it's open.
-  const salesScreen = (
+  // Pay (Card / Cash / Zelle) and the done screens: in the order card on
+  // phones, in the ticket panel of the register layout on bigger screens.
+  const checkoutSteps = (
     <>
-      <UnpaidSales rows={sales.rows} payingId={paying?.SaleId} onPay={startPaying} onDeleted={(id) => setSales((s) => ({ ...s, rows: s.rows.filter((r) => r.SaleId !== id) }))} />
-
-      <div ref={cardRef} className="w-full max-w-md glass-card p-6 sm:p-8 stagger-in scroll-mt-4">
-        {step === "order" && (
-          <div className="flex flex-col gap-4">
-            <MenuPicker menu={MENU} cart={cart} onChange={changeQty} onClear={() => setCart({})} total={cartTotal} deals={dealsApplied} />
-            {!hasCart && (
-              <div className="field-group">
-                <label htmlFor="event-amount" className="field-label">
-                  <i className="fa-solid fa-dollar-sign" aria-hidden="true"></i> Or enter the amount
-                </label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.01"
-                  className="input-3d text-lg"
-                  id="event-amount"
-                  placeholder="0.00"
-                  value={amountInput}
-                  onChange={(e) => setAmountInput(e.target.value)}
-                />
-              </div>
-            )}
-            <div className="field-group">
-              <label htmlFor="event-name" className="field-label">
-                <i className="fa-solid fa-user" aria-hidden="true"></i> Customer name (needed to save for later)
-              </label>
-              <input type="text" className="input-3d" id="event-name" placeholder="e.g. Maria" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-            </div>
-            <div className="field-group">
-              <label htmlFor="event-note" className="field-label">
-                <i className="fa-solid fa-note-sticky" aria-hidden="true"></i> Note (optional)
-              </label>
-              <input type="text" className="input-3d" id="event-note" placeholder="e.g. extra salsa" value={note} onChange={(e) => setNote(e.target.value)} />
-            </div>
-            {!hasCart && totalCents > 0 && <p className="text-center font-semibold tabular-nums -mb-1">Total {formatMoney(total)}</p>}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                className="btn-3d justify-center !px-3 disabled:opacity-60"
-                disabled={totalCents <= 0 || saving}
-                aria-busy={saving}
-                onClick={savePayLater}
-              >
-                <i className="fa-solid fa-floppy-disk" aria-hidden="true"></i> {saving ? "Saving…" : "Save order"}
-              </button>
-              <button type="button" className="btn-3d justify-center !px-3 disabled:opacity-60" disabled={totalCents <= 0 || saving} onClick={() => setStep("pay")}>
-                <i className="fa-solid fa-credit-card" aria-hidden="true"></i> Pay now
-              </button>
-            </div>
-            <p className="text-xs text-center text-brand-navydeep/70 -mt-2">Save order = they pay later (it goes in the Unpaid list).</p>
-          </div>
-        )}
-
         {step === "pay" && (
           <div className="flex flex-col gap-5">
             <div className="text-center">
@@ -539,6 +507,73 @@ export default function EventSalesPage() {
             </div>
           </div>
         )}
+    </>
+  );
+
+  const unpaidCount = sales.rows.filter(isUnpaid).length;
+  const removeRow = (id) => setSales((s) => ({ ...s, rows: s.rows.filter((r) => r.SaleId !== id) }));
+  const updateRow = (id, fields) => setSales((s) => ({ ...s, rows: s.rows.map((r) => (r.SaleId === id ? { ...r, ...fields } : r)) }));
+
+  // Unpaid list, the order card and Today's sales: shown in the page, or
+  // in the full-screen popup on phones.
+  const salesScreen = (
+    <>
+      <UnpaidSales rows={sales.rows} payingId={paying?.SaleId} onPay={startPaying} onDeleted={(id) => setSales((s) => ({ ...s, rows: s.rows.filter((r) => r.SaleId !== id) }))} />
+
+      <div ref={cardRef} className="w-full max-w-md glass-card p-6 sm:p-8 stagger-in scroll-mt-4">
+        {step === "order" && (
+          <div className="flex flex-col gap-4">
+            <MenuPicker menu={MENU} cart={cart} onChange={changeQty} onClear={() => setCart({})} total={cartTotal} deals={dealsApplied} />
+            {!hasCart && (
+              <div className="field-group">
+                <label htmlFor="event-amount" className="field-label">
+                  <i className="fa-solid fa-dollar-sign" aria-hidden="true"></i> Or enter the amount
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  className="input-3d text-lg"
+                  id="event-amount"
+                  placeholder="0.00"
+                  value={amountInput}
+                  onChange={(e) => setAmountInput(e.target.value)}
+                />
+              </div>
+            )}
+            <div className="field-group">
+              <label htmlFor="event-name" className="field-label">
+                <i className="fa-solid fa-user" aria-hidden="true"></i> Customer name (needed to save for later)
+              </label>
+              <input type="text" className="input-3d" id="event-name" placeholder="e.g. Maria" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+            </div>
+            <div className="field-group">
+              <label htmlFor="event-note" className="field-label">
+                <i className="fa-solid fa-note-sticky" aria-hidden="true"></i> Note (optional)
+              </label>
+              <input type="text" className="input-3d" id="event-note" placeholder="e.g. extra salsa" value={note} onChange={(e) => setNote(e.target.value)} />
+            </div>
+            {!hasCart && totalCents > 0 && <p className="text-center font-semibold tabular-nums -mb-1">Total {formatMoney(total)}</p>}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="btn-3d justify-center !px-3 disabled:opacity-60"
+                disabled={totalCents <= 0 || saving}
+                aria-busy={saving}
+                onClick={savePayLater}
+              >
+                <i className="fa-solid fa-floppy-disk" aria-hidden="true"></i> {saving ? "Saving…" : "Save order"}
+              </button>
+              <button type="button" className="btn-3d justify-center !px-3 disabled:opacity-60" disabled={totalCents <= 0 || saving} onClick={() => setStep("pay")}>
+                <i className="fa-solid fa-credit-card" aria-hidden="true"></i> Pay now
+              </button>
+            </div>
+            <p className="text-xs text-center text-brand-navydeep/70 -mt-2">Save order = they pay later (it goes in the Unpaid list).</p>
+          </div>
+        )}
+
+        {checkoutSteps}
       </div>
 
       <TodaySales
@@ -547,6 +582,177 @@ export default function EventSalesPage() {
         onDeleted={(id) => setSales((s) => ({ ...s, rows: s.rows.filter((r) => r.SaleId !== id) }))}
       />
     </>
+  );
+  const closeButton = (
+    <button type="button" onClick={closeFull} className="fab shrink-0 !w-11 !h-11" aria-label="Close full screen" title="Close (Esc)">
+      <i className="fa-solid fa-xmark text-xl text-brand-gold" aria-hidden="true"></i>
+    </button>
+  );
+  const screenTitle = (
+    <p className="font-semibold text-brand-navy truncate min-w-0">
+      <i className="fa-solid fa-store text-brand-teal" aria-hidden="true"></i> Event Sales
+      {isEmployee && sellerName ? <span className="font-normal text-brand-navydeep/80"> · {sellerName}</span> : null}
+    </p>
+  );
+
+  // Phones: the same one-column screen, full screen.
+  const phoneScreen = (
+    <div role="dialog" aria-modal="true" aria-label="Event Sales" className="fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-[rgb(var(--page-bg))]">
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 bg-[rgb(var(--page-bg))]">
+        {screenTitle}
+        {closeButton}
+      </div>
+      <div className="flex flex-col items-center px-4 pt-2 pb-[max(2.5rem,env(safe-area-inset-bottom))]">{salesScreen}</div>
+    </div>
+  );
+
+  // Tablets and computers: a register. Menu tiles on the left, the order
+  // ticket on the right (where paying happens too), and tabs for Unpaid
+  // and Today's sales instead of one long page.
+  const tabs = [
+    { id: "order", label: "New order", icon: "fa-cash-register" },
+    { id: "unpaid", label: "Unpaid", icon: "fa-clock", badge: unpaidCount },
+    { id: "today", label: "Today's sales", icon: "fa-chart-simple" },
+  ];
+  const ticket = (
+    <div className="flex flex-col gap-3 min-h-full">
+      <div className="flex items-center justify-between">
+        <h2 className="field-label !mb-0">
+          <i className="fa-solid fa-receipt" aria-hidden="true"></i> Current order
+        </h2>
+        {hasCart && (
+          <button type="button" className="text-xs text-brand-navydeep/75 underline" onClick={() => setCart({})}>
+            Clear
+          </button>
+        )}
+      </div>
+      {hasCart ? (
+        <ul className="flex flex-col divide-y divide-brand-navydeep/10" aria-label="Items in this order">
+          {cartEntries.map(({ item, qty }) => (
+            <li key={item.id} className="flex items-center gap-2 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold leading-tight truncate">{item.name}</p>
+                <p className="text-xs text-brand-navydeep/70">
+                  {formatMoney(item.price)}
+                  {item.unit === "lb" ? " / lb" : " each"}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button type="button" className="w-9 h-9 rounded-full bg-brand-navydeep/10 font-bold text-lg" aria-label={`Remove ${item.name}`} onClick={() => changeQty(item.id, -qtyStep(item))}>
+                  −
+                </button>
+                <span className="w-12 text-center font-semibold tabular-nums">
+                  {qty}
+                  {item.unit === "lb" ? " lb" : ""}
+                </span>
+                <button type="button" className="w-9 h-9 rounded-full bg-brand-gold text-white font-bold text-lg" aria-label={`Add ${item.name}`} onClick={() => changeQty(item.id, qtyStep(item))}>
+                  +
+                </button>
+              </div>
+              <span className="w-20 text-right font-semibold tabular-nums shrink-0">{formatMoney(item.price * qty)}</span>
+            </li>
+          ))}
+          {dealsApplied.map((d) => (
+            <li key={d.key} className="flex justify-between gap-2 py-2 text-sm font-semibold text-brand-teal">
+              <span>
+                <i className="fa-solid fa-tag" aria-hidden="true"></i> {dealLabel(d)}
+              </span>
+              <span className="tabular-nums">−{formatMoney(d.savings)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <>
+          <p className="text-sm text-center text-brand-navydeep/70 py-4">Tap items on the menu to start an order.</p>
+          <div className="field-group">
+            <label htmlFor="event-amount" className="field-label">
+              <i className="fa-solid fa-dollar-sign" aria-hidden="true"></i> Or enter the amount
+            </label>
+            <input type="number" inputMode="decimal" min="0" step="0.01" className="input-3d text-lg" id="event-amount" placeholder="0.00" value={amountInput} onChange={(e) => setAmountInput(e.target.value)} />
+          </div>
+        </>
+      )}
+      <div className="mt-auto flex flex-col gap-3 pt-3 border-t border-brand-navydeep/15">
+        <div className="flex items-baseline justify-between">
+          <span className="text-xs uppercase tracking-widest text-brand-teal font-semibold">Total</span>
+          <span className="font-form text-4xl tabular-nums">{formatMoney(total)}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="field-group">
+            <label htmlFor="event-name" className="field-label">
+              <i className="fa-solid fa-user" aria-hidden="true"></i> Customer
+            </label>
+            <input type="text" className="input-3d" id="event-name" placeholder="Name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+          </div>
+          <div className="field-group">
+            <label htmlFor="event-note" className="field-label">
+              <i className="fa-solid fa-note-sticky" aria-hidden="true"></i> Note
+            </label>
+            <input type="text" className="input-3d" id="event-note" placeholder="e.g. extra salsa" value={note} onChange={(e) => setNote(e.target.value)} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" className="btn-3d justify-center !px-3 !py-4 text-lg disabled:opacity-60" disabled={totalCents <= 0 || saving} aria-busy={saving} onClick={savePayLater}>
+            <i className="fa-solid fa-floppy-disk" aria-hidden="true"></i> {saving ? "Saving…" : "Save order"}
+          </button>
+          <button type="button" className="btn-3d justify-center !px-3 !py-4 text-lg disabled:opacity-60" disabled={totalCents <= 0 || saving} onClick={() => setStep("pay")}>
+            <i className="fa-solid fa-credit-card" aria-hidden="true"></i> Pay now
+          </button>
+        </div>
+        <p className="text-xs text-center text-brand-navydeep/70">Save order = they pay later (it goes in Unpaid).</p>
+      </div>
+    </div>
+  );
+  const registerScreen = (
+    <div role="dialog" aria-modal="true" aria-label="Event Sales" className="fixed inset-0 z-[60] flex flex-col bg-[rgb(var(--page-bg))]">
+      <header className="flex items-center gap-4 px-5 py-3 border-b border-brand-navydeep/15">
+        <div className="flex-1 min-w-0 text-lg">{screenTitle}</div>
+        <div role="tablist" aria-label="Event Sales sections" className="glass-panel !rounded-full p-1 flex gap-1 shrink-0">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={posTab === t.id}
+              onClick={() => setPosTab(t.id)}
+              className={`flex items-center gap-2 rounded-full px-4 py-2 font-semibold whitespace-nowrap transition-colors ${posTab === t.id ? "bg-brand-gold text-white" : "text-brand-navydeep/80 hover:bg-brand-navydeep/10"}`}
+            >
+              <i className={`fa-solid ${t.icon}`} aria-hidden="true"></i>
+              <span className={t.id === "order" ? "" : "max-lg:sr-only"}>{t.label}</span>
+              {t.badge ? <span className="rounded-full bg-brand-terracotta text-white text-xs px-2 py-0.5 tabular-nums">{t.badge}</span> : null}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 flex justify-end">{closeButton}</div>
+      </header>
+      {posTab === "order" ? (
+        <div className="flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_minmax(320px,380px)] lg:grid-cols-[minmax(0,1fr)_420px] gap-4 p-4">
+          <section
+            aria-label="Menu"
+            aria-disabled={step !== "order"}
+            className={`min-h-0 overflow-y-auto overscroll-contain glass-card !rounded-3xl p-4 lg:p-5 transition-opacity ${step !== "order" ? "opacity-40 pointer-events-none" : ""}`}
+          >
+            <MenuPicker variant="pos" menu={MENU} cart={cart} onChange={changeQty} onClear={() => setCart({})} total={cartTotal} deals={dealsApplied} />
+          </section>
+          <aside ref={cardRef} aria-label="Current order" className="min-h-0 overflow-y-auto overscroll-contain glass-card !rounded-3xl p-5 flex flex-col">
+            {step === "order" ? ticket : checkoutSteps}
+          </aside>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 flex flex-col items-center">
+          {posTab === "unpaid" &&
+            (unpaidCount ? (
+              <UnpaidSales wide rows={sales.rows} payingId={paying?.SaleId} onPay={startPaying} onDeleted={removeRow} />
+            ) : (
+              <p className="glass-card p-8 mt-8 text-center text-brand-navydeep/80">
+                <i className="fa-solid fa-circle-check text-3xl text-emerald-600 block mb-2" aria-hidden="true"></i>
+                No unpaid orders.
+              </p>
+            ))}
+          {posTab === "today" && <TodaySales wide {...sales} onUpdated={updateRow} onDeleted={removeRow} />}
+        </div>
+      )}
+    </div>
   );
 
   return (
@@ -562,27 +768,7 @@ export default function EventSalesPage() {
 
       {/* Portaled to <body> so it covers the floating theme / log out
           buttons too, like the catering calculator. */}
-      {fullOpen &&
-        createPortal(
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Event Sales"
-            className="fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-[rgb(var(--page-bg))]"
-          >
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 bg-[rgb(var(--page-bg))]">
-              <p className="font-semibold text-brand-navy truncate min-w-0">
-                <i className="fa-solid fa-store text-brand-teal" aria-hidden="true"></i> Event Sales
-                {isEmployee && sellerName ? <span className="font-normal text-brand-navydeep/80"> · {sellerName}</span> : null}
-              </p>
-              <button type="button" onClick={closeFull} className="fab shrink-0 !w-11 !h-11" aria-label="Close full screen" title="Close (Esc)">
-                <i className="fa-solid fa-xmark text-xl text-brand-gold" aria-hidden="true"></i>
-              </button>
-            </div>
-            <div className="flex flex-col items-center px-4 pt-2 pb-[max(2.5rem,env(safe-area-inset-bottom))]">{salesScreen}</div>
-          </div>,
-          document.body,
-        )}
+      {fullOpen && createPortal(wide ? registerScreen : phoneScreen, document.body)}
     </Layout>
   );
 }
@@ -590,7 +776,7 @@ export default function EventSalesPage() {
 const PAGE = 5;
 
 // Today's totals (all, and by Card / Cash / Zelle) and today's sales.
-function TodaySales({ rows, loading, error, onUpdated, onDeleted }) {
+function TodaySales({ rows, loading, error, onUpdated, onDeleted, wide = false }) {
   const [shown, setShown] = useState(PAGE);
   if (loading) return null;
   const { date } = getCurrentDateTime();
@@ -598,7 +784,7 @@ function TodaySales({ rows, loading, error, onUpdated, onDeleted }) {
   const today = todayAll.filter((r) => !isUnpaid(r));
   const summary = summarizeSales(todayAll);
   return (
-    <section className="glass-card w-full max-w-md mt-8 p-5 sm:p-6 stagger-in" aria-label="Today's event sales">
+    <section className={`glass-card w-full ${wide ? "max-w-3xl" : "max-w-md mt-8"} p-5 sm:p-6 stagger-in`} aria-label="Today's event sales">
       <h2 className="field-label !mb-3 justify-center">
         <i className="fa-solid fa-chart-simple" aria-hidden="true"></i> Today&apos;s sales
       </h2>
@@ -746,7 +932,7 @@ function SaleRow({ sale: s, onUpdated, onDeleted }) {
 
 // "Pay later" orders not paid yet (any day), at the top of the page so
 // nobody forgets them. Employees only get their own from the server.
-function UnpaidSales({ rows, payingId, onPay, onDeleted }) {
+function UnpaidSales({ rows, payingId, onPay, onDeleted, wide = false }) {
   const { can = () => true } = useAuth() || {};
   const unpaid = rows.filter(isUnpaid);
   if (!unpaid.length) return null;
@@ -760,7 +946,7 @@ function UnpaidSales({ rows, payingId, onPay, onDeleted }) {
     if (gone) onDeleted?.(s.SaleId);
   };
   return (
-    <section className="w-full max-w-md glass-card p-5 sm:p-6 mb-6 border-2 border-brand-terracotta/60 stagger-in" aria-label="Unpaid orders">
+    <section className={`w-full ${wide ? "max-w-3xl" : "max-w-md"} glass-card p-5 sm:p-6 mb-6 border-2 border-brand-terracotta/60 stagger-in`} aria-label="Unpaid orders">
       <h2 className="field-label !mb-1 justify-center !text-brand-terracotta">
         <i className="fa-solid fa-clock" aria-hidden="true"></i> Unpaid · {unpaid.length} · {formatMoney(owed)}
       </h2>
