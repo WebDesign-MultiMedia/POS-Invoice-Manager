@@ -311,6 +311,17 @@ export default function EventSalesPage() {
 
             {method === "Zelle" && (
               <div className="flex flex-col gap-3">
+                {brand.zelle && (
+                  // Always white behind the QR so bank apps can read it on every theme.
+                  <div className="rounded-2xl bg-white text-neutral-900 p-4 flex flex-col items-center gap-2 text-center shadow-lg">
+                    <p className="text-sm font-semibold">Scan in your bank's app to pay</p>
+                    <p className="text-3xl font-bold">{formatMoney(total)}</p>
+                    <img src={brand.zelle.qr} alt={`Zelle QR code to pay ${brand.zelle.payee}`} className="w-full max-w-[280px] aspect-square" />
+                    <p className="text-sm">
+                      Zelle to <span className="font-semibold">{brand.zelle.payee}</span> at {brand.zelle.phoneHint}
+                    </p>
+                  </div>
+                )}
                 <p className="glass-panel p-3 text-sm text-center">Check the {formatMoney(total)} Zelle payment arrived, then record it.</p>
                 <button type="button" className="btn-3d justify-center disabled:opacity-60" disabled={saving} aria-busy={saving} onClick={() => recordOffline("Zelle")}>
                   {saving ? "Saving…" : "Zelle received · record sale"}

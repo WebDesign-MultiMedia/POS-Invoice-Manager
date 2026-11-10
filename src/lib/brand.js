@@ -10,6 +10,9 @@ const REAL_BRAND = {
   shortTagline: "Auténtica Comida Mexicana",
   location: "Bronx, NY",
   smsPrefix: "Buffet Lucia's Fiesta Mexicana: ",
+  // Event Sales shows this when Zelle is picked, for the customer to scan
+  // in their bank's app. The demo brand has none, so demo shows no QR.
+  zelle: { qr: "/imgs/zelle-qrCode.png", payee: "LUCIA", phoneHint: "xxx-xxx-2462" },
 };
 
 export function getBrand() {
