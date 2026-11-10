@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { calcSurcharge } from "../src/lib/surcharge.js";
-import { requireEventAccess } from "./_lib/auth.js";
+import { requireAccess } from "./_lib/auth.js";
+import { can } from "./_lib/permissions.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -28,16 +29,16 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Logged-in only (staff, or an employee taking Event Sales card payments):
-  // an open charge endpoint lets fraudsters test stolen cards.
-  const session = await requireEventAccess(req, res);
+  // Logged-in only, with Pay with Card or Event Sales: an open charge
+  // endpoint lets fraudsters test stolen cards.
+  const session = await requireAccess(req, res, ["pay", "event"]);
   if (!session) return;
 
   const { paymentMethodId, baseAmountCents, invoiceId, email, description, note } = req.body || {};
 
-  // Employees take card payments only for event sales (EV-… ids).
-  if (session.role !== "staff" && !/^EV-\d{6}-\d{6}$/.test(String(invoiceId || ""))) {
-    return res.status(403).json({ error: "Employee logins can only take Event Sales card payments." });
+  // With only Event Sales, card payments must be for an event sale (EV-…).
+  if (!can(session, "pay") && !/^EV-\d{6}-\d{6}$/.test(String(invoiceId || ""))) {
+    return res.status(403).json({ error: "You can only take card payments for event sales." });
   }
 
   if (typeof paymentMethodId !== "string" || !Number.isInteger(baseAmountCents) || baseAmountCents <= 0) {

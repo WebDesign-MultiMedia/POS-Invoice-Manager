@@ -22,7 +22,7 @@ const when = (iso) => new Date(iso).toLocaleString(undefined, { month: "short", 
 // order form filled in so it becomes an order and an invoice.
 // mode: "staff" (shared list from the spreadsheet), "link" (an employee's
 // no-login link: their own quotes, also sent to the office), "local" (demo).
-export default function CateringQuotes({ mode = "local", quotes, status = {}, onRefresh, employeeName, onChangeName, onChange, onDelete, highlightId, canInvoice = true }) {
+export default function CateringQuotes({ mode = "local", quotes, status = {}, onRefresh, employeeName, onChangeName, onChange, onDelete, highlightId, canInvoice = true, canDelete = true }) {
   if (!quotes.length && mode !== "staff") return mode === "link" && employeeName ? <LinkNote employeeName={employeeName} onChangeName={onChangeName} /> : null;
   return (
     <section className="mt-8 w-full max-w-md stagger-in" aria-labelledby="quotes-heading">
@@ -46,7 +46,7 @@ export default function CateringQuotes({ mode = "local", quotes, status = {}, on
       {mode === "staff" && !quotes.length && !status.loading && !status.error && <p className="text-center text-sm text-brand-muted">No quotes yet. Press = on the calculator to save one.</p>}
       <div className="flex flex-col gap-4">
         {[...quotes].reverse().map((quote) => (
-          <QuoteCard key={quote.id} mode={mode} saveFailed={status.error === "save"} quote={quote} onChange={onChange} onDelete={onDelete} highlight={quote.id === highlightId} canInvoice={canInvoice} />
+          <QuoteCard key={quote.id} mode={mode} saveFailed={status.error === "save"} quote={quote} onChange={onChange} onDelete={onDelete} highlight={quote.id === highlightId} canInvoice={canInvoice} canDelete={canDelete} />
         ))}
       </div>
     </section>
@@ -99,7 +99,7 @@ function SyncLine({ quote, mode, saveFailed }) {
   );
 }
 
-function QuoteCard({ quote, mode, saveFailed, onChange, onDelete, highlight, canInvoice }) {
+function QuoteCard({ quote, mode, saveFailed, onChange, onDelete, highlight, canInvoice, canDelete }) {
   const label = quoteLabel(quote);
   const navigate = useNavigate();
   const [open, setOpen] = useState(true);
@@ -212,9 +212,11 @@ function QuoteCard({ quote, mode, saveFailed, onChange, onDelete, highlight, can
       )}
 
       <div className="mt-4 flex gap-3">
-        <button type="button" onClick={confirmDelete} className="btn-3d flex-1 !px-4 !bg-none !bg-transparent border border-brand-error/60 text-brand-error" aria-label={`Delete ${label}`}>
-          <i className="fa-solid fa-trash" aria-hidden="true"></i> Delete
-        </button>
+        {canDelete && (
+          <button type="button" onClick={confirmDelete} className="btn-3d flex-1 !px-4 !bg-none !bg-transparent border border-brand-error/60 text-brand-error" aria-label={`Delete ${label}`}>
+            <i className="fa-solid fa-trash" aria-hidden="true"></i> Delete
+          </button>
+        )}
         {/* Making an order needs a staff login, so the no-login link hides it. */}
         {canInvoice && (
           <button type="button" onClick={makeInvoice} className="btn-3d flex-[2] !px-4">

@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { readSessionInfo } from "./_lib/auth.js";
+import { canAny } from "./_lib/permissions.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -16,9 +17,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Receipts show customer contact details, so logged-in only (staff, or an
-  // employee opening the receipt of an Event Sales card payment).
-  if (!(await readSessionInfo(req))) return sendError(res, 401, "Please log in to the POS Invoice Manager first.");
+  // Receipts show customer contact details, so logged-in only, with a
+  // section that shows card payments.
+  const session = await readSessionInfo(req);
+  if (session && !canAny(session, ["pay", "search", "event"])) return sendError(res, 403, "You don't have access to receipts.");
+  if (!session) return sendError(res, 401, "Please log in to the POS Invoice Manager first.");
 
   const pi = new URL(req.url, "http://localhost").searchParams.get("pi") || "";
   if (!/^pi_[A-Za-z0-9]+$/.test(pi)) {

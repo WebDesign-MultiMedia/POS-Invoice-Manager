@@ -25,5 +25,7 @@ export function listEmployees() {
 
 export const addEmployee = (phone, name, pin) => (isDemo() ? demoApi.addEmployee(phone, name, pin) : post({ action: "add", phone, name, pin }));
 export const setEmployeePin = (phone, pin) => (isDemo() ? demoApi.setEmployeePin(phone, pin) : post({ action: "setPin", phone, pin }));
+// access: the ticked keys from lib/permissions.js, e.g. ["event", "orders", "manage"].
+export const setEmployeeAccess = (phone, access) => (isDemo() ? demoApi.setEmployeeAccess(phone, access) : post({ action: "setAccess", phone, access }));
 export const setEmployeeActive = (phone, active) => (isDemo() ? demoApi.setEmployeeActive(phone, active) : post({ action: "setActive", phone, active }));
 export const deleteEmployee = (phone) => (isDemo() ? demoApi.deleteEmployee(phone) : post({ action: "delete", phone }));

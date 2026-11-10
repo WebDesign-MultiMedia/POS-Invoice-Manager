@@ -271,17 +271,23 @@ export const demoApi = {
   },
   deleteEventSale: (id) => deleteRow("eventSales", "SaleId", id),
   // Demo employees live only in the demo data; demo PINs aren't kept at all.
-  employees: () => later(load().employees || [{ Phone: "5550100123", Name: "Sample Employee", Active: "Yes", AddedBy: "Demo", AddedAt: "2026-11-01T15:00:00.000Z" }]),
+  employees: () => later(load().employees || [{ Phone: "5550100123", Name: "Sample Employee", Active: "Yes", Access: ["event"], AddedBy: "Demo", AddedAt: "2026-11-01T15:00:00.000Z" }]),
   addEmployee(phone, name) {
     const db = load();
-    const list = db.employees || (db.employees = [{ Phone: "5550100123", Name: "Sample Employee", Active: "Yes", AddedBy: "Demo", AddedAt: "2026-11-01T15:00:00.000Z" }]);
+    const list = db.employees || (db.employees = [{ Phone: "5550100123", Name: "Sample Employee", Active: "Yes", Access: ["event"], AddedBy: "Demo", AddedAt: "2026-11-01T15:00:00.000Z" }]);
     const key = String(phone).replace(/\D/g, "").slice(-10);
     if (list.some((e) => e.Phone === key)) return Promise.reject(new ApiError(409, "An employee with that phone number already exists. Reset their PIN instead."));
-    list.push({ Phone: key, Name: name, Active: "Yes", AddedBy: "Demo", AddedAt: new Date().toISOString() });
+    list.push({ Phone: key, Name: name, Active: "Yes", Access: ["event"], AddedBy: "Demo", AddedAt: new Date().toISOString() });
     save();
     return later({ ok: true });
   },
   setEmployeePin: () => later({ ok: true }),
+  setEmployeeAccess(phone, access) {
+    const e = (load().employees || []).find((x) => x.Phone === phone);
+    if (e) e.Access = [...access];
+    save();
+    return later({ ok: true });
+  },
   setEmployeeActive(phone, active) {
     const e = (load().employees || []).find((x) => x.Phone === phone);
     if (e) e.Active = active ? "Yes" : "No";

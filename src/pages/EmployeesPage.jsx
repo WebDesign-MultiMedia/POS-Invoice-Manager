@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
-import { addEmployee, deleteEmployee, listEmployees, setEmployeeActive, setEmployeePin } from "../api/employees.js";
+import { addEmployee, deleteEmployee, listEmployees, setEmployeeAccess, setEmployeeActive, setEmployeePin } from "../api/employees.js";
+import { MANAGE_INFO, SECTION_INFO } from "../lib/permissions.js";
 import { friendlyMessage } from "../lib/errors.js";
 
-// Staff: employee logins. An employee logs in with their phone number and a
-// 4-digit PIN and can only use Event Sales. Accounts are saved in the
-// "Employees" tab of the order sheet; PINs are saved only as hashes, so a
-// forgotten PIN is reset, never looked up.
+// Staff: the Team page. An employee logs in with their phone number and a
+// 4-digit PIN and can use only the sections ticked for them here (new
+// employees start with Event Sales). Accounts and their sections are saved
+// in the "Employees" tab of the order sheet; PINs only as hashes, so a
+// forgotten PIN is reset, never looked up. The server enforces every box.
 
 const ALERT = { theme: "dark" };
 
@@ -80,7 +82,7 @@ export default function EmployeesPage() {
       const name = form.name.trim();
       setForm({ name: "", phone: "", pin: "" });
       await load();
-      Swal.fire({ ...ALERT, title: `${name} can log in`, text: "They log in with their phone number and PIN, and only see Event Sales.", icon: "success" });
+      Swal.fire({ ...ALERT, title: `${name} can log in`, text: "They log in with their phone number and PIN. They can use Event Sales; tick more sections for them in the list below.", icon: "success" });
     } catch (err) {
       Swal.fire({ ...ALERT, title: "Employee not added", text: friendlyMessage(err, "Couldn't add the employee."), icon: "error" });
     } finally {
@@ -124,13 +126,13 @@ export default function EmployeesPage() {
   return (
     <Layout blobs={["bg-brand-teal w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-gold w-64 h-64 bottom-0 -left-16 animate-float"]}>
       <SiteNav className="mb-6" />
-      <PageHeader title="Employees" subtitle="Event Sales logins" />
+      <PageHeader title="Team" subtitle="Employee logins & permissions" />
 
       <form onSubmit={add} className="glass-card w-full max-w-md p-5 sm:p-6 stagger-in flex flex-col gap-4" aria-labelledby="add-h">
         <h2 id="add-h" className="field-label !mb-0 justify-center">
           <i className="fa-solid fa-user-plus" aria-hidden="true"></i> Add an employee
         </h2>
-        <p className="text-sm text-center text-brand-navydeep/80">They log in with their phone number and a 4-digit PIN, and can only use Event Sales.</p>
+        <p className="text-sm text-center text-brand-navydeep/80">They log in with their phone number and a 4-digit PIN. They start with Event Sales only; tick more sections for them below.</p>
         <div className="field-group">
           <label htmlFor="emp-name" className="field-label">
             <i className="fa-solid fa-user" aria-hidden="true"></i> Name
@@ -185,6 +187,7 @@ export default function EmployeesPage() {
                     </span>
                   </div>
                   <p className="text-sm text-brand-navydeep/80">{showPhone(emp.Phone)}</p>
+                  <AccessBoxes emp={emp} disabled={working} onSave={(access) => run(emp.Phone, () => setEmployeeAccess(emp.Phone, access))} />
                   <div className="grid grid-cols-3 gap-2">
                     <button type="button" disabled={working} onClick={() => resetPin(emp)} className="btn-3d !py-2 !px-2 text-sm justify-center !bg-none !bg-transparent border border-brand-navy/40 text-brand-navy disabled:opacity-60">
                       <i className="fa-solid fa-key" aria-hidden="true"></i> PIN
@@ -208,5 +211,53 @@ export default function EmployeesPage() {
         )}
       </section>
     </Layout>
+  );
+}
+
+// The sections an employee may use, saved the moment a box is ticked.
+// Changes reach their phone within about 30 seconds, without logging out.
+function AccessBoxes({ emp, disabled, onSave }) {
+  const access = Array.isArray(emp.Access) ? emp.Access : ["event"];
+  const [open, setOpen] = useState(false);
+  const toggle = (key) => onSave(access.includes(key) ? access.filter((k) => k !== key) : [...access, key]);
+  const count = SECTION_INFO.filter((s) => access.includes(s.key)).length;
+  const id = `access-${emp.Phone}`;
+  const box = (info) => (
+    <label key={info.key} htmlFor={`${id}-${info.key}`} className="flex items-start gap-3 py-1.5 cursor-pointer">
+      <input
+        id={`${id}-${info.key}`}
+        type="checkbox"
+        className="mt-1 h-5 w-5 shrink-0 accent-[rgb(var(--brand-teal))]"
+        checked={access.includes(info.key)}
+        disabled={disabled}
+        onChange={() => toggle(info.key)}
+      />
+      <span className="min-w-0">
+        <span className="font-semibold text-brand-navy text-sm">
+          <i className={`fa-solid ${info.icon}`} aria-hidden="true"></i> {info.label}
+          {info.risk && <span className="ml-2 rounded-full border border-brand-error/50 px-1.5 text-[10px] uppercase tracking-wide text-brand-error">Sensitive</span>}
+        </span>
+        <span className="block text-xs text-brand-navydeep/75">{info.note}</span>
+      </span>
+    </label>
+  );
+  return (
+    <div className="glass-panel px-3 py-2">
+      <button type="button" className="w-full flex items-center justify-between text-sm font-semibold text-brand-navy" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
+        <span>
+          <i className="fa-solid fa-shield-halved" aria-hidden="true"></i> Can use: {count ? `${count} section${count === 1 ? "" : "s"}` : "nothing yet"}
+          {access.includes("manage") ? " · can edit & delete" : ""}
+        </span>
+        <i className={`fa-solid fa-chevron-down text-xs transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true"></i>
+      </button>
+      {open && (
+        <fieldset id={id} className="mt-2 flex flex-col">
+          <legend className="sr-only">Sections {emp.Name} can use</legend>
+          {SECTION_INFO.map(box)}
+          <div className="border-t border-brand-navydeep/15 mt-1 pt-1">{box(MANAGE_INFO)}</div>
+          <p className="text-xs text-brand-navydeep/70 mt-1">The Team page and the spreadsheet stay owner-only.</p>
+        </fieldset>
+      )}
+    </div>
   );
 }

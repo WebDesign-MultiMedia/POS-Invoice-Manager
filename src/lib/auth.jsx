@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { isDemo, startDemo, endDemo } from "./demo.js";
 import { apiErrorFrom } from "./errors.js";
+import { ALL_ACCESS } from "./permissions.js";
 
 // Staff login state for the whole app. The session itself is an HttpOnly
 // cookie set by api/auth.js, so this only tracks who is logged in;
@@ -36,6 +37,8 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState("staff");
   // Who sales are credited to: an employee's name, or the staff login.
   const [name, setName] = useState(() => (isDemo() ? "Demo" : ""));
+  // The sections this login may use (lib/permissions.js). Staff: all.
+  const [access, setAccess] = useState(ALL_ACCESS);
   // True when a logged-in session ran out mid-use (an API call got a 401),
   // so the login screen can say why it's back. Unsaved order drafts are
   // kept in sessionStorage by the order form, so nothing typed is lost.
@@ -56,6 +59,7 @@ export function AuthProvider({ children }) {
         setUser(payload?.user || null);
         setRole(payload?.role === "event" ? "event" : "staff");
         setName(payload?.name || payload?.user || "");
+        setAccess(Array.isArray(payload?.access) ? payload.access : ALL_ACCESS);
         setStatus(payload?.user ? "in" : "out");
       });
 
@@ -71,13 +75,37 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  // Employees: when the app comes back into view, pick up any sections the
+  // owner turned on or off (the server already enforces them).
+  useEffect(() => {
+    if (role !== "event" || status !== "in") return undefined;
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      fetch("/api/auth")
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null)
+        .then((payload) => {
+          if (!payload?.user) return;
+          setName(payload.name || payload.user);
+          if (Array.isArray(payload.access)) setAccess(payload.access);
+        });
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [role, status]);
+
   const login = useCallback(async (identifier, password) => {
-    const { user: login, role: loginRole, name: loginName } = await postAuth({ action: "login", identifier, password });
+    const { user: login, role: loginRole, name: loginName, access: loginAccess } = await postAuth({ action: "login", identifier, password });
     endDemo();
     setSessionExpired(false);
     setUser(login);
     setRole(loginRole === "event" ? "event" : "staff");
     setName(loginName || login);
+    setAccess(Array.isArray(loginAccess) ? loginAccess : ALL_ACCESS);
     setStatus("in");
   }, []);
 
@@ -91,6 +119,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setRole("staff");
     setName("");
+    setAccess(ALL_ACCESS);
     setStatus("out");
   }, []);
 
@@ -101,10 +130,15 @@ export function AuthProvider({ children }) {
     setUser("Demo");
     setRole("staff");
     setName("Demo");
+    setAccess(ALL_ACCESS);
     setStatus("demo");
   }, []);
 
-  return <AuthContext.Provider value={{ status, user, name, role, isEmployee: role === "event", sessionExpired, login, logout, enterDemo }}>{children}</AuthContext.Provider>;
+  // can("pay"), can("manage"), can("staff"): what this login may use.
+  // Staff (and the demo) can use everything; "staff" itself is owner-only.
+  const can = useCallback((key) => role !== "event" || (key !== "staff" && access.includes(key)), [role, access]);
+
+  return <AuthContext.Provider value={{ status, user, name, role, access, can, isEmployee: role === "event", sessionExpired, login, logout, enterDemo }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

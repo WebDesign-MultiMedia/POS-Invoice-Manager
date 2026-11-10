@@ -4,6 +4,7 @@ import { isDemo } from "../lib/demo.js";
 import { deleteCardPayment, updateCardPayment } from "../api/sheetdb.js";
 import { saleToOrderForm } from "../lib/saleToOrder.js";
 import { RowButtons, RowEditor, SoldByTag, confirmAndDelete, useMakeInvoice } from "./RowActions.jsx";
+import { useAuth } from "../lib/auth.jsx";
 
 const PAGE = 5;
 
@@ -53,6 +54,7 @@ const EDIT_FIELDS = [
 function PaymentRow({ payment: p, onUpdated, onDeleted }) {
   const [editing, setEditing] = useState(false);
   const makeInvoice = useMakeInvoice();
+  const { can = () => true } = useAuth() || {};
   // Plain-number ids are invoice payments, so their order invoice exists;
   // CP-… ids are walk-up sales and EV-… ids are event card sales.
   const invoiceId = /^\d+$/.test(p.InvoiceId || "") ? p.InvoiceId : null;
@@ -98,11 +100,11 @@ function PaymentRow({ payment: p, onUpdated, onDeleted }) {
       </div>
       <RowButtons
         label={label}
-        invoiceHref={invoiceId ? `/invoice?id=${encodeURIComponent(invoiceId)}` : null}
-        onMakeInvoice={() => makeInvoice(saleToOrderForm(p, "Card"), `card payment ${p.InvoiceId || ""}`.trim())}
+        invoiceHref={invoiceId && (can("orders") || can("search")) ? `/invoice?id=${encodeURIComponent(invoiceId)}` : null}
+        onMakeInvoice={!invoiceId && can("orders") ? () => makeInvoice(saleToOrderForm(p, "Card"), `card payment ${p.InvoiceId || ""}`.trim()) : null}
         receiptHref={receipt}
-        onEdit={key ? () => setEditing(true) : null}
-        onDelete={key ? remove : null}
+        onEdit={key && can("manage") ? () => setEditing(true) : null}
+        onDelete={key && can("manage") ? remove : null}
         editing={editing}
       />
       {editing && (

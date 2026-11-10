@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { hashPassword, verifyPassword } from "./passwords.js";
-import { employeeName, employeePinHash } from "./employees.js";
+import { employeeRecord } from "./employees.js";
+import { ALL_ACCESS, canAny, can } from "./permissions.js";
 
 // Shared staff-login helpers for the /api functions. The leading underscore
 // keeps Vercel from deploying this folder as its own endpoint.
@@ -48,11 +49,12 @@ function loadAccountMap(envName) {
 }
 
 const loadAccounts = () => loadAccountMap("STAFF_ACCOUNTS");
-// An employee's PIN hash from the sheet's Employees tab. Undefined if they
-// don't exist, are turned off, or the sheet can't be read (fail closed).
-async function employeeHash(phone) {
+// An employee's { hash, name, access } from the sheet's Employees tab.
+// Undefined if they don't exist, are turned off, or the sheet can't be read
+// (fail closed).
+async function employee(phone) {
   try {
-    return await employeePinHash(phone);
+    return await employeeRecord(phone);
   } catch (err) {
     console.error("auth: couldn't check the Employees tab:", err.message);
     return undefined;
@@ -79,7 +81,7 @@ export function checkCredentials(identifier, password) {
 // phone, or null.
 export async function checkEmployeeCredentials(identifier, pin) {
   const login = normalizeIdentifier(identifier);
-  const stored = /^\d{10}$/.test(login) ? await employeeHash(login) : undefined;
+  const stored = /^\d{10}$/.test(login) ? (await employee(login))?.hash : undefined;
   const ok = verifyPassword(pin, stored || DUMMY_HASH);
   return ok && stored ? login : null;
 }
@@ -156,14 +158,21 @@ export function readSession(req) {
   return info?.role === ROLES.STAFF && loadAccounts().has(info.login) ? info.login : null;
 }
 
-// Returns { login, role } for any valid session (staff, or an employee who
-// is still active), or null. Turning an employee off or deleting them ends
-// their session (within the Employees cache time).
+// Returns { login, role, name, access } for any valid session (staff, or an
+// employee who is still active), or null. Staff have every access key. An
+// employee's access comes fresh from the Employees tab, so ticking or
+// unticking a section, turning them off or deleting them takes effect
+// within the Employees cache time, without logging out.
 export async function readSessionInfo(req) {
   const info = parseSession(req);
-  if (!info) return null;
-  if (info.role === ROLES.STAFF) return loadAccounts().has(info.login) ? info : null;
-  return (await employeeHash(info.login)) ? info : null;
+  return info ? sessionInfoFor(info.login, info.role) : null;
+}
+
+// { login, role, name, access } for a login that still exists, or null.
+export async function sessionInfoFor(login, role) {
+  if (role === ROLES.STAFF) return loadAccounts().has(login) ? { login, role, name: login, access: ALL_ACCESS } : null;
+  const emp = await employee(login);
+  return emp ? { login, role: ROLES.EVENT, name: emp.name, access: emp.access } : null;
 }
 
 // Gate for staff-only endpoints. Returns the login, or sends 401 (not
@@ -172,30 +181,37 @@ export async function readSessionInfo(req) {
 export function requireStaff(req, res) {
   const login = readSession(req);
   if (login) return login;
-  if (parseSession(req)?.role === ROLES.EVENT) res.status(403).json({ error: "Employee logins can only use Event Sales." });
+  if (parseSession(req)?.role === ROLES.EVENT) res.status(403).json({ error: "Only the owner's login can use this." });
   else res.status(401).json({ error: "Please log in" });
   return null;
 }
 
-// Who to credit for a sale: an employee's name from the Employees tab, or
-// the staff login (email or phone).
+// Who to credit for a sale or order: an employee's name from the
+// Employees tab, or the staff login (email or phone).
 export async function sellerName(info) {
   if (!info) return "";
+  if (info.name) return info.name;
   if (info.role !== ROLES.EVENT) return info.login;
-  try {
-    return await employeeName(info.login);
-  } catch {
-    return info.login;
-  }
+  return (await employee(info.login))?.name || info.login;
 }
 
-// Gate for what Event Sales needs: staff or an active employee. Resolves
-// to { login, role }, or sends a 401 and resolves to null.
-export async function requireEventAccess(req, res) {
+export const NO_ACCESS = "You don't have access to this. Ask the owner to turn it on for you.";
+
+// Gate for a section: staff, or an employee with any of `keys` ticked
+// (and "manage" too when `manage` is set). Resolves to the session info, or
+// sends 401 / 403 and resolves to null:
+//   const session = await requireAccess(req, res, ["pay"]); if (!session) return;
+export async function requireAccess(req, res, keys, { manage = false } = {}) {
   const info = await readSessionInfo(req);
-  if (info) return info;
-  res.status(401).json({ error: "Please log in" });
-  return null;
+  if (!info) {
+    res.status(401).json({ error: "Please log in" });
+    return null;
+  }
+  if (!canAny(info, keys) || (manage && !can(info, "manage"))) {
+    res.status(403).json({ error: NO_ACCESS });
+    return null;
+  }
+  return info;
 }
 
 // ---------- invoice share links ----------

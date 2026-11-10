@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { isDemo } from "../lib/demo.js";
 import { useAuth } from "../lib/auth.jsx";
+import { canOpen } from "../lib/permissions.js";
 import { hardRefresh } from "../lib/hardRefresh.js";
 import { useState } from "react";
 import TiltCard from "./TiltCard.jsx";
@@ -41,7 +42,7 @@ const SECTIONS = [
   { to: "/invoice", title: "View invoice", icon: "fa-file-invoice-dollar", colorClass: "text-brand-terracotta", glowClass: "shadow-glow-terracotta" },
   { to: "/pay", title: "Pay with Card", icon: "fa-credit-card", colorClass: "text-brand-cactus", glowClass: "shadow-glow-teal" },
   { to: "/event", title: "Event sales", icon: "fa-store", colorClass: "text-brand-terracotta", glowClass: "shadow-glow-terracotta" },
-  { to: "/employees", title: "Employees", icon: "fa-users", colorClass: "text-brand-teal", glowClass: "shadow-glow-teal" },
+  { to: "/employees", title: "Team & permissions", icon: "fa-users", colorClass: "text-brand-teal", glowClass: "shadow-glow-teal" },
   { to: "/catering", title: "Catering calculator", icon: "fa-calculator", colorClass: "text-brand-gold", glowClass: "shadow-glow-gold" },
   { to: "/broadcast", title: "Text customers", icon: "fa-bullhorn", colorClass: "text-brand-pink", glowClass: "shadow-glow-pink" },
   { to: "/updates", title: "What's new", icon: "fa-wand-magic-sparkles", colorClass: "text-brand-pink", glowClass: "shadow-glow-pink" },
@@ -51,16 +52,16 @@ const SECTIONS = [
 // the spreadsheet. The real Google Sheet isn't part of the demo; the link
 // goes through a staff-only redirect (api/sheet-link.js) so the sheet's
 // address isn't in the public bundle.
-// Employee logins see only the Refresh button: Event Sales is their only page.
+// Employee logins see only the sections the owner gave them (Team page).
 export function SiteNav({ className = "" }) {
   const { pathname } = useLocation();
-  const { isEmployee } = useAuth() || {};
+  const { isEmployee, can } = useAuth() || {};
+  const allowed = (to) => !can || canOpen(can, to);
   return (
     <NavRow className={className}>
-      {!isEmployee &&
-        SECTIONS.filter((s) => s.to !== pathname).map((s) => (
-          <NavFab key={s.to} {...s} />
-        ))}
+      {SECTIONS.filter((s) => s.to !== pathname && allowed(s.to)).map((s) => (
+        <NavFab key={s.to} {...s} />
+      ))}
       {!isDemo() && !isEmployee && <NavFab href="/api/sheet-link" external title="Open spreadsheet" icon="fa-file-excel" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />}
       <RefreshFab />
     </NavRow>

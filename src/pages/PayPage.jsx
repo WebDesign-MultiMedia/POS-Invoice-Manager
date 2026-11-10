@@ -47,7 +47,7 @@ function formatPhone(raw) {
 }
 
 export default function PayPage() {
-  const { name: sellerName } = useAuth() || {};
+  const { name: sellerName, can = () => true } = useAuth() || {};
   const [searchParams] = useSearchParams();
   const preselectedId = searchParams.get("id");
 
@@ -505,7 +505,7 @@ export default function PayPage() {
                   <i className="fa-solid fa-receipt"></i> {mode === "invoice" ? "View receipt" : "View invoice"}
                 </a>
               )}
-              {mode === "invoice" && invoice?.Id ? (
+              {mode === "invoice" && invoice?.Id && !(can("orders") || can("search")) ? null : mode === "invoice" && invoice?.Id ? (
                 <Link to={`/invoice?id=${encodeURIComponent(invoice.Id)}`} className="btn-3d justify-center !px-4 whitespace-nowrap">
                   <i className="fa-solid fa-file-invoice"></i> View invoice
                 </Link>

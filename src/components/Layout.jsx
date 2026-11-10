@@ -44,8 +44,16 @@ export default function Layout({ blobs = [], children, mainClassName = "" }) {
 }
 
 export function PageHeader({ logoSize = "w-28 h-28 sm:w-32 sm:h-32", title, subtitle, marginBottom = "mb-6" }) {
+  const { isEmployee, name } = useAuth() || {};
   return (
     <div className={`flex flex-col items-center ${marginBottom} stagger-in`}>
+      {/* Employees see whose login this is, above the heading on every
+          page, so the right person's name goes on what they do. */}
+      {isEmployee && name && (
+        <p role="status" className="glass-panel !rounded-full px-5 py-2 mb-4 text-center text-brand-navy font-semibold max-w-full truncate">
+          <i className="fa-solid fa-user-tag text-brand-teal" aria-hidden="true"></i> Logged in as <span className="text-brand-teal">{name}</span>
+        </p>
+      )}
       {/* The demo is a fictional business, so it shows a generic mark
           instead of the restaurant's logo. */}
       {isDemo() ? (

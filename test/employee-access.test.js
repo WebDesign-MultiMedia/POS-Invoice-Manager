@@ -98,9 +98,9 @@ describe("employee login", () => {
     const res = mockRes();
     await auth(mockReq({ method: "POST", body: { action: "login", identifier: "347-555-0123", password: PIN }, headers: { "x-forwarded-for": "10.0.0.1" } }), res);
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ user: EMPLOYEE_PHONE, role: "event", name: "Carlos" });
+    expect(res.body).toEqual({ user: EMPLOYEE_PHONE, role: "event", name: "Carlos", access: ["event"] });
     const info = await readSessionInfo(mockReq({ cookie: cookieFrom(res) }));
-    expect(info).toEqual({ login: EMPLOYEE_PHONE, role: "event" });
+    expect(info).toEqual({ login: EMPLOYEE_PHONE, role: "event", name: "Carlos", access: ["event"] });
   });
 
   it("an employee session is not a staff session", () => {
@@ -201,7 +201,7 @@ describe("what an employee can't use", () => {
   ])("%s", async (_name, handler, opts) => {
     const res = await call(handler, opts);
     expect(res.statusCode).toBe(403);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.every(([url]) => String(url).includes("sheet=Employees"))).toBe(true);
   });
 
   it("the spreadsheet link", async () => {
@@ -232,7 +232,7 @@ describe("managing employees (staff)", () => {
   it("lists employees without their PIN hashes", async () => {
     const res = await staffCall({});
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual([{ Phone: "3475550123", Name: "Carlos", Active: "Yes", AddedBy: "", AddedAt: "", UpdatedAt: "" }]);
+    expect(res.body).toEqual([{ Phone: "3475550123", Name: "Carlos", Active: "Yes", Access: ["event"], AddedBy: "", AddedAt: "", UpdatedAt: "" }]);
   });
 
   it("adds an employee with a hashed PIN, who can then log in", async () => {
@@ -294,7 +294,7 @@ describe("who rang up a sale (SoldBy)", () => {
   it("the login answer carries the employee's name", async () => {
     const res = mockRes();
     await auth(mockReq({ cookie: employeeCookie() }), res);
-    expect(res.body).toEqual({ user: EMPLOYEE_PHONE, role: "event", name: "Carlos" });
+    expect(res.body).toEqual({ user: EMPLOYEE_PHONE, role: "event", name: "Carlos", access: ["event"] });
   });
 
   it("SoldBy can't be changed by editing a sale", async () => {
@@ -303,5 +303,112 @@ describe("who rang up a sale (SoldBy)", () => {
     const out = mockRes();
     await sheets(mockReq({ cookie: cookieFrom(res), method: "POST", url: "/api/sheets", body: { action: "updateCardPayment", id: "pi_1", data: { SoldBy: "Someone else" } } }), out);
     expect(out.statusCode).toBe(400);
+  });
+});
+
+describe("section permissions (Team page)", () => {
+  const give = (access) => {
+    employeeRows[0].Access = access;
+    clearEmployeeCache();
+  };
+  const post = (handler, body, url = "/api/sheets") => call(handler, { method: "POST", url, body });
+  const get = (handler, url) => call(handler, { url });
+  const staffPost = async (body) => {
+    const res = mockRes();
+    setSessionCookie(res, "staff@example.com");
+    const out = mockRes();
+    await employeesApi(mockReq({ cookie: cookieFrom(res), method: "POST", url: "/api/employees", body }), out);
+    return out;
+  };
+
+  it("an empty Access cell means Event Sales only (as before)", async () => {
+    give("");
+    expect((await get(sheets, "/api/sheets?action=eventSales")).statusCode).toBe(200);
+    expect((await get(sheets, "/api/sheets?action=orders")).statusCode).toBe(403);
+  });
+
+  it("every box unticked means nothing at all", async () => {
+    give("none");
+    expect((await get(sheets, "/api/sheets?action=eventSales")).statusCode).toBe(403);
+    const res = mockRes();
+    await auth(mockReq({ cookie: employeeCookie() }), res);
+    expect(res.body.access).toEqual([]);
+  });
+
+  it("Order form: take orders (stamped TakenBy) and read them, but not edit or delete without manage", async () => {
+    give("orders");
+    expect((await get(sheets, "/api/sheets?action=orders")).statusCode).toBe(200);
+    expect((await get(sheets, "/api/sheets?action=shareToken&id=714")).statusCode).toBe(200);
+    expect((await post(sheets, { action: "createOrder", data: { Name: "Pat", TakenBy: "Someone else" } })).statusCode).toBe(200);
+    const order = fetchMock.mock.calls.find(([url, init]) => init?.method === "POST" && !String(url).includes("Employees"));
+    expect(JSON.parse(order[1].body).TakenBy).toBe("Carlos");
+    expect((await post(sheets, { action: "deleteOrder", id: "714" })).statusCode).toBe(403);
+    expect((await get(sheets, "/api/sheets?action=eventSales")).statusCode).toBe(403);
+  });
+
+  it("Can edit & delete opens edits only in the ticked sections", async () => {
+    give("orders,manage");
+    fetchMock.mockImplementation(async (url, init) =>
+      String(url).includes("Employees") ? sheetFetch(url, init) : { ok: true, status: 200, json: async () => ({ deleted: 1, updated: 1 }) }
+    );
+    expect((await post(sheets, { action: "deleteOrder", id: "714" })).statusCode).toBe(200);
+    expect((await post(sheets, { action: "deleteCardPayment", id: "pi_1" })).statusCode).toBe(403);
+    expect((await post(sheets, { action: "deleteEventSale", id: "EV-261110-120000" })).statusCode).toBe(403);
+  });
+
+  it("Pay with Card: any card charge, card payment list and receipts", async () => {
+    give("pay");
+    const body = { paymentMethodId: "pm_1", baseAmountCents: 500 };
+    expect((await post(createPaymentIntent, { ...body, invoiceId: "714" }, "/api/create-payment-intent")).statusCode).toBe(200);
+    expect((await get(sheets, "/api/sheets?action=cardPayments")).statusCode).toBe(200);
+    expect((await post(sheets, { action: "recordCardPayment", data: { InvoiceId: "714" } })).statusCode).toBe(200);
+    expect((await get(receiptUrl, "/api/receipt-url?pi=pi_123")).statusCode).toBe(302);
+    expect((await post(sheets, { action: "createOrder", data: { Name: "x" } })).statusCode).toBe(403);
+  });
+
+  it("Search: orders, card payments and share links, but no charging", async () => {
+    give("search");
+    expect((await get(sheets, "/api/sheets?action=orders")).statusCode).toBe(200);
+    expect((await get(sheets, "/api/sheets?action=cardPayments")).statusCode).toBe(200);
+    expect((await get(sheets, "/api/sheets?action=shareToken&id=714")).statusCode).toBe(200);
+    expect((await post(createPaymentIntent, { paymentMethodId: "pm_1", baseAmountCents: 500, invoiceId: "714" }, "/api/create-payment-intent")).statusCode).toBe(403);
+  });
+
+  it("Catering: quotes and the share link; deleting a quote needs manage", async () => {
+    give("catering");
+    expect((await get(quotes, "/api/quotes?action=list")).statusCode).toBe(200);
+    expect((await get(calculatorLink, "/api/calculator-link?action=token")).statusCode).toBe(200);
+    expect((await post(quotes, { action: "delete", id: "q_1" }, "/api/quotes")).statusCode).toBe(403);
+  });
+
+  it("Text customers: gets past the login check only when ticked", async () => {
+    give("event");
+    expect((await post(sendBroadcast, { countOnly: true }, "/api/send-broadcast")).statusCode).toBe(403);
+    give("broadcast");
+    expect([401, 403]).not.toContain((await post(sendBroadcast, { countOnly: true }, "/api/send-broadcast")).statusCode);
+  });
+
+  it("the Team page and the spreadsheet stay owner-only, whatever is ticked", async () => {
+    give("event,orders,search,pay,catering,broadcast,manage");
+    expect((await get(employeesApi, "/api/employees?action=list")).statusCode).toBe(403);
+    expect((await post(employeesApi, { action: "setAccess", phone: EMPLOYEE_PHONE, access: ["manage"] }, "/api/employees")).statusCode).toBe(403);
+    expect((await get(sheetLink, "/api/sheet-link")).statusCode).toBe(401);
+  });
+
+  it("staff save the ticked boxes; unknown keys are refused", async () => {
+    expect((await staffPost({ action: "setAccess", phone: EMPLOYEE_PHONE, access: ["event", "pay", "manage"] })).statusCode).toBe(200);
+    expect(employeeRows[0].Access).toBe("event,pay,manage");
+    expect((await staffPost({ action: "setAccess", phone: EMPLOYEE_PHONE, access: [] })).statusCode).toBe(200);
+    expect(employeeRows[0].Access).toBe("none");
+    expect((await staffPost({ action: "setAccess", phone: EMPLOYEE_PHONE, access: ["staff"] })).statusCode).toBe(400);
+    expect((await staffPost({ action: "setAccess", phone: EMPLOYEE_PHONE, access: "event" })).statusCode).toBe(400);
+  });
+
+  it("a change applies to a logged-in employee without logging out", async () => {
+    const cookie = employeeCookie();
+    give("event");
+    expect((await readSessionInfo(mockReq({ cookie }))).access).toEqual(["event"]);
+    await staffPost({ action: "setAccess", phone: EMPLOYEE_PHONE, access: ["event", "orders"] });
+    expect((await readSessionInfo(mockReq({ cookie }))).access).toEqual(["event", "orders"]);
   });
 });

@@ -20,14 +20,15 @@
 //   POST { action: "updateOrder" | "updateCardPayment" | "updateEventSale", id, data }
 //   POST { action: "deleteOrder" | "deleteCardPayment" | "deleteEventSale", id }
 //
-// Employee logins (Event Sales only) may use just EMPLOYEE_ACTIONS below:
-// read event sales, record one, and log the card payment of an event card
-// sale. Every other action needs a staff login (api/_lib/auth.js), except:
+// Every action needs a login. Staff may use them all; an employee only the
+// ones their ticked sections allow (ACTION_ACCESS below, sections in
+// api/_lib/permissions.js). The one public action is:
 //   GET  ?action=sharedInvoice&id=714&token=…
 // which serves a customer's read-only invoice link. It returns only that
 // one invoice and its card payments, and only with a valid signed token.
 
-import { ROLES, isValidShareToken, requireEventAccess, sellerName, shareTokenFor } from "./_lib/auth.js";
+import { NO_ACCESS, isValidShareToken, readSessionInfo, sellerName, shareTokenFor } from "./_lib/auth.js";
+import { can, canAny } from "./_lib/permissions.js";
 import { sheetdbHeaders } from "./_lib/sheetdb.js";
 
 const READ_ACTIONS = {
@@ -45,19 +46,44 @@ const WRITE_ACTIONS = {
   recordEventSale: "?sheet=EventSales",
 };
 
-// What an employee login may do. Card payments they log must belong to an
-// event sale (InvoiceId EV-…), so they can't attach payments to orders.
-function isEmployeeAllowed(req, params) {
-  if (req.method === "GET") return params.get("action") === "eventSales";
-  if (req.method !== "POST") return false;
+// Which sections allow each action. An employee needs any one of them
+// ticked; edits and deletes also need "manage".
+const READ_ACCESS = {
+  orders: ["orders", "search", "pay"],
+  order: ["orders", "search", "pay"],
+  cardPayments: ["search", "pay"],
+  cardPaymentsFor: ["orders", "search", "pay"],
+  eventSales: ["event"],
+  shareToken: ["orders", "search"],
+};
+const WRITE_ACCESS = {
+  createOrder: ["orders"],
+  recordCardPayment: ["pay"],
+  recordEventSale: ["event"],
+};
+const ROW_ACCESS = { Order: ["orders"], CardPayment: ["pay"], EventSale: ["event"] };
+const isEventSaleId = (id) => /^EV-\d{6}-\d{6}$/.test(String(id || ""));
+
+// True when this session may make this request. Unknown actions pass here
+// and are refused as bad requests further on.
+function allowed(session, req, params) {
+  if (req.method === "GET") {
+    const keys = READ_ACCESS[params.get("action")];
+    return !keys || canAny(session, keys);
+  }
+  if (req.method !== "POST") return true;
   const { action, data } = req.body || {};
-  if (action === "recordEventSale") return true;
-  if (action === "recordCardPayment") return /^EV-\d{6}-\d{6}$/.test(String(data?.InvoiceId || ""));
-  return false;
+  const row = rowAction(action);
+  if (row) return canAny(session, ROW_ACCESS[row[2]]) && can(session, "manage");
+  // Event Sales also logs the card payment of an event card sale.
+  if (action === "recordCardPayment" && can(session, "event") && isEventSaleId(data?.InvoiceId)) return true;
+  const keys = WRITE_ACCESS[action];
+  return !keys || canAny(session, keys);
 }
 
-// Rows that record who made the sale, in a "SoldBy" column.
-const SOLD_BY_ACTIONS = new Set(["recordEventSale", "recordCardPayment"]);
+// Rows that record who made them: sales in a "SoldBy" column, orders in a
+// "TakenBy" column.
+const STAMP_COLUMN = { recordEventSale: "SoldBy", recordCardPayment: "SoldBy", createOrder: "TakenBy" };
 
 class BadRequest extends Error {}
 
@@ -208,11 +234,9 @@ export default async function handler(req, res) {
       return await sharedInvoice(base, params, res);
     }
 
-    const session = await requireEventAccess(req, res);
-    if (!session) return;
-    if (session.role !== ROLES.STAFF && !isEmployeeAllowed(req, params)) {
-      return res.status(403).json({ error: "Employee logins can only use Event Sales." });
-    }
+    const session = await readSessionInfo(req);
+    if (!session) return res.status(401).json({ error: "Please log in" });
+    if (!allowed(session, req, params)) return res.status(403).json({ error: NO_ACCESS });
 
     if (req.method === "GET" && params.get("action") === "shareToken") {
       const id = cleanId(params.get("id"));
@@ -233,9 +257,10 @@ export default async function handler(req, res) {
       if (!Object.hasOwn(WRITE_ACTIONS, action)) throw new BadRequest("Unknown action");
       if (!data || typeof data !== "object") throw new BadRequest("Missing data");
       path = WRITE_ACTIONS[action];
-      // Sales are stamped with who rang them up (SoldBy), from the login
+      // Sales and orders are stamped with who made them, from the login
       // itself, so it can't be typed in or changed from the browser.
-      const row = SOLD_BY_ACTIONS.has(action) ? { ...data, SoldBy: await sellerName(session) } : data;
+      const column = STAMP_COLUMN[action];
+      const row = column ? { ...data, [column]: await sellerName(session) } : data;
       init = { method: "POST", headers: sheetdbHeaders(), body: JSON.stringify(row) };
     } else {
       res.setHeader("Allow", "GET, POST");

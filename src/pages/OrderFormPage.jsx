@@ -8,6 +8,7 @@ import { deleteOrder, fetchAllOrders, submitOrder, updateOrder } from "../api/sh
 import { getCurrentDateTime, getTotalQuantity, formatDate, formatMoney, toDateInput, toNumber } from "../lib/format.js";
 import { findSubmittedOrder, ordersNewestFirst } from "../lib/recentOrder.js";
 import { getBrand } from "../lib/brand.js";
+import { useAuth } from "../lib/auth.jsx";
 import { readDraft, writeDraft, readDraftSource } from "../lib/orderDraft.js";
 import { friendlyMessage } from "../lib/errors.js";
 
@@ -82,6 +83,8 @@ export default function OrderFormPage() {
   // the disabled button, and the ref stops the second one immediately.
   const savingRef = useRef(false);
   const navigate = useNavigate();
+  const { can } = useAuth() || {};
+  const canManage = !can || can("manage");
   // The saved order being edited, or null when the form makes a new order.
   const [editing, setEditing] = useState(null);
   const formRef = useRef(null);
@@ -429,7 +432,7 @@ export default function OrderFormPage() {
       </TiltCard>
       </div>
 
-      <RecentOrders {...recent} editingId={editing?.Id} onEdit={startEdit} onDelete={handleDelete} />
+      <RecentOrders {...recent} editingId={editing?.Id} onEdit={canManage ? startEdit : null} onDelete={canManage ? handleDelete : null} />
     </Layout>
   );
 }
@@ -481,28 +484,32 @@ function RecentOrderRow({ order, editing, onEdit, onDelete }) {
           {order.Cost !== undefined && order.Cost !== "" ? ` · ${formatMoney(toNumber(order.Cost))}` : ""}
         </p>
       </div>
-      <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:w-auto shrink-0 self-center [&>*]:justify-center">
+      <div className={`grid ${onEdit ? "grid-cols-3" : "grid-cols-1"} gap-2 w-full sm:flex sm:w-auto shrink-0 self-center [&>*]:justify-center`}>
         <Link to={`/invoice?id=${encodeURIComponent(order.Id)}`} className="btn-3d !py-2 !px-2 sm:!px-4 text-sm">
           <i className="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> <span className="sm:hidden">Invoice</span>
           <span className="hidden sm:inline">View invoice</span>
         </Link>
-        <button
-          type="button"
-          className="btn-3d !py-2 !px-2 sm:!px-4 text-sm !bg-none !bg-transparent border border-brand-navy/40 text-brand-navy disabled:opacity-60"
-          onClick={() => onEdit(order)}
-          disabled={editing}
-          aria-label={`Edit order #${order.Id}`}
-        >
-          <i className="fa-solid fa-pen" aria-hidden="true"></i> {editing ? "Editing" : "Edit"}
-        </button>
-        <button
-          type="button"
-          className="btn-3d !py-2 !px-2 sm:!px-4 text-sm !bg-none !bg-transparent border border-brand-error/60 text-brand-error"
-          onClick={() => onDelete(order)}
-          aria-label={`Delete order #${order.Id}`}
-        >
-          <i className="fa-solid fa-trash" aria-hidden="true"></i> Delete
-        </button>
+        {onEdit && onDelete && (
+          <>
+            <button
+              type="button"
+              className="btn-3d !py-2 !px-2 sm:!px-4 text-sm !bg-none !bg-transparent border border-brand-navy/40 text-brand-navy disabled:opacity-60"
+              onClick={() => onEdit(order)}
+              disabled={editing}
+              aria-label={`Edit order #${order.Id}`}
+            >
+              <i className="fa-solid fa-pen" aria-hidden="true"></i> {editing ? "Editing" : "Edit"}
+            </button>
+            <button
+              type="button"
+              className="btn-3d !py-2 !px-2 sm:!px-4 text-sm !bg-none !bg-transparent border border-brand-error/60 text-brand-error"
+              onClick={() => onDelete(order)}
+              aria-label={`Delete order #${order.Id}`}
+            >
+              <i className="fa-solid fa-trash" aria-hidden="true"></i> Delete
+            </button>
+          </>
+        )}
       </div>
     </li>
   );

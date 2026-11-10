@@ -10,6 +10,7 @@ import { checkCalculatorToken } from "../api/calculatorLink.js";
 import { makeQuote, updateQuoteDishes, quoteLabel } from "../lib/cateringQuotes.js";
 import { useQuotes } from "../hooks/useQuotes.js";
 import { isDemo } from "../lib/demo.js";
+import { useAuth } from "../lib/auth.jsx";
 import Swal from "sweetalert2";
 import { CATERING_MENU, DEMO_PRICES, TRAY_SIZES } from "../lib/cateringMenu.js";
 import { pressDish, pressOp, pressDelete, pressEquals, evaluate, dishCounts, dishLines } from "../lib/cateringCalc.js";
@@ -87,6 +88,9 @@ export async function askEmployeeName(current = "") {
 }
 
 function CalculatorView({ shared, linkToken }) {
+  // Make invoice needs the Order form; deleting saved quotes needs "Can edit
+  // & delete" (Team page). The no-login share link keeps its own rules.
+  const { can = () => true } = useAuth() || {};
   const [mode, setMode] = useState("tap");
   const [listText, setListText] = useState("");
   const [tokens, setTokens] = useState([]);
@@ -442,7 +446,8 @@ function CalculatorView({ shared, linkToken }) {
 
       <CateringQuotes
         mode={quoteMode}
-        canInvoice={!shared}
+        canInvoice={!shared && can("orders")}
+        canDelete={shared || can("manage")}
         quotes={quotes}
         status={quoteStatus}
         onRefresh={refreshQuotes}

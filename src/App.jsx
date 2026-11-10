@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Routes, Route, useLocation, useSearchParams } 
 import OrderFormPage from "./pages/OrderFormPage.jsx";
 import LoginPage, { AuthSplash } from "./pages/LoginPage.jsx";
 import { AuthProvider, useAuth } from "./lib/auth.jsx";
+import { canOpen, homeFor } from "./lib/permissions.js";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
 // The order form (the page staff open most) ships in the main bundle; the
@@ -21,7 +22,7 @@ const EmployeesPage = lazy(() => import("./pages/EmployeesPage.jsx"));
 // (/invoice?id=…&token=…&share=1) and the Catering Calculator's employee
 // link (/catering?share=1&token=…), which the server checks on their own.
 function StaffGate({ children }) {
-  const { status, isEmployee } = useAuth();
+  const { status, isEmployee, can, logout, name } = useAuth();
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
 
@@ -31,9 +32,30 @@ function StaffGate({ children }) {
   if (pathname === "/catering" && searchParams.get("share") === "1") return children;
   if (status === "loading") return <AuthSplash />;
   if (status !== "in" && status !== "demo") return <LoginPage />;
-  // Employee logins only have Event Sales; any other page sends them there.
-  if (isEmployee && pathname !== "/event") return <Navigate to="/event" replace />;
+  // Employees only open the sections the owner gave them (Team page); any
+  // other page sends them to their first one. The server checks too.
+  if (isEmployee && !canOpen(can, pathname)) {
+    const home = homeFor(can);
+    if (home) return <Navigate to={home} replace />;
+    return <NoAccess name={name} onLogout={logout} />;
+  }
   return children;
+}
+
+// An employee with every section turned off.
+function NoAccess({ name, onLogout }) {
+  return (
+    <main className="min-h-screen flex items-center justify-center p-6">
+      <div className="glass-card max-w-sm w-full p-6 text-center flex flex-col gap-4">
+        <i className="fa-solid fa-lock text-3xl text-brand-gold" aria-hidden="true"></i>
+        <h1 className="text-xl font-semibold text-brand-navy">No sections yet{name ? `, ${name}` : ""}</h1>
+        <p className="text-sm text-brand-navydeep/80">Your login works, but no sections are turned on for you. Ask the owner to give you access on the Team page.</p>
+        <button type="button" className="btn-3d justify-center" onClick={onLogout}>
+          <i className="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Log out
+        </button>
+      </div>
+    </main>
+  );
 }
 
 export default function App() {

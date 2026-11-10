@@ -1,11 +1,14 @@
 import { requireStaff } from "./_lib/auth.js";
 import { addEmployee, deleteEmployee, listEmployees, phoneKey, pinProblem, updateEmployee } from "./_lib/employees.js";
 import { hashPassword } from "./_lib/passwords.js";
+import { ALL_ACCESS, formatAccess, parseAccess } from "./_lib/permissions.js";
 
 // Vercel serverless function: staff manage employee logins (phone + 4-digit
-// PIN, Event Sales only), saved in the order sheet's "Employees" tab.
-//   GET  ?action=list                             → [{ Phone, Name, Active, AddedBy, AddedAt, UpdatedAt }]
-//   POST { action: "add", phone, name, pin }
+// PIN) and which sections each may use, saved in the order sheet's
+// "Employees" tab. Only staff logins can use this, never employees.
+//   GET  ?action=list                             → [{ Phone, Name, Active, Access, AddedBy, AddedAt, UpdatedAt }]
+//   POST { action: "add", phone, name, pin, access? }   (access defaults to ["event"])
+//   POST { action: "setAccess", phone, access }   (array of keys from api/_lib/permissions.js)
 //   POST { action: "setPin", phone, pin }
 //   POST { action: "setActive", phone, active }   (true / false)
 //   POST { action: "delete", phone }
@@ -25,10 +28,16 @@ function requirePin(value) {
   return String(value);
 }
 
-const publicRow = ({ Phone, Name, Active, AddedBy, AddedAt, UpdatedAt }) => ({
+function requireAccessList(value) {
+  if (!Array.isArray(value) || value.some((k) => !ALL_ACCESS.includes(k))) throw new BadRequest("Invalid access list");
+  return value;
+}
+
+const publicRow = ({ Phone, Name, Active, Access, AddedBy, AddedAt, UpdatedAt }) => ({
   Phone,
   Name: Name || "",
   Active: String(Active ?? "").trim().toLowerCase() === "no" ? "No" : "Yes",
+  Access: parseAccess(Access),
   AddedBy: AddedBy || "",
   AddedAt: AddedAt || "",
   UpdatedAt: UpdatedAt || "",
@@ -70,7 +79,8 @@ export default async function handler(req, res) {
       if (existing.some((r) => r.Phone === phone)) {
         return res.status(409).json({ error: "An employee with that phone number already exists. Reset their PIN instead." });
       }
-      const result = await addEmployee({ phone, name, pin, addedBy: staff });
+      const access = body.access === undefined ? ["event"] : requireAccessList(body.access);
+      const result = await addEmployee({ phone, name, pin, addedBy: staff, access });
       if (!result.ok) throw new Error(`Sheet add failed (${result.status})`);
       return res.status(200).json({ ok: true });
     }
@@ -78,6 +88,12 @@ export default async function handler(req, res) {
     if (body.action === "setPin") {
       const pin = requirePin(body.pin);
       if (!changed(await updateEmployee(phone, { PinHash: hashPassword(pin) }), "update")) return res.status(404).json({ error: "Employee not found" });
+      return res.status(200).json({ ok: true });
+    }
+
+    if (body.action === "setAccess") {
+      const access = requireAccessList(body.access);
+      if (!changed(await updateEmployee(phone, { Access: formatAccess(access) }), "update")) return res.status(404).json({ error: "Employee not found" });
       return res.status(200).json({ ok: true });
     }
 

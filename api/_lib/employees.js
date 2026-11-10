@@ -1,10 +1,12 @@
 import { hashPassword } from "./passwords.js";
 import { sheetdbBase, sheetdbHeaders } from "./sheetdb.js";
+import { formatAccess, parseAccess } from "./permissions.js";
 
 // Employee accounts (phone + 4-digit PIN, Event Sales only), kept in the
 // "Employees" tab of the order sheet so staff can add and remove them from
 // the app's Employees page, with no redeploy. Columns:
-//   Phone | Name | PinHash | Active | AddedBy | AddedAt | UpdatedAt
+//   Phone | Name | PinHash | Active | Access | AddedBy | AddedAt | UpdatedAt
+// Access lists the sections the employee may use (api/_lib/permissions.js).
 // PinHash is a salted scrypt hash. The PIN itself is never stored anywhere.
 //
 // Logins and every employee request check this list, so it's cached for a
@@ -62,12 +64,18 @@ export async function listEmployees({ fresh = false } = {}) {
 
 const isActive = (row) => String(row.Active ?? "").trim().toLowerCase() !== "no";
 
-// The stored PIN hash for an active employee, or undefined.
-export async function employeePinHash(phone) {
+// An active employee's { hash, name, access }, or undefined.
+export async function employeeRecord(phone) {
   const key = phoneKey(phone);
   if (!key) return undefined;
   const row = (await listEmployees()).find((r) => r.Phone === key);
-  return row && isActive(row) ? String(row.PinHash || "") || undefined : undefined;
+  if (!row || !isActive(row) || !row.PinHash) return undefined;
+  return { hash: String(row.PinHash), name: String(row.Name || "").trim() || key, access: parseAccess(row.Access) };
+}
+
+// The stored PIN hash for an active employee, or undefined.
+export async function employeePinHash(phone) {
+  return (await employeeRecord(phone))?.hash;
 }
 
 // An employee's name as staff typed it, or their phone if it's blank.
@@ -77,9 +85,9 @@ export async function employeeName(phone) {
   return String(row?.Name || "").trim() || key;
 }
 
-export async function addEmployee({ phone, name, pin, addedBy }) {
+export async function addEmployee({ phone, name, pin, addedBy, access = ["event"] }) {
   const now = new Date().toISOString();
-  const row = { Phone: phone, Name: name, PinHash: hashPin(pin), Active: "Yes", AddedBy: addedBy, AddedAt: now, UpdatedAt: now };
+  const row = { Phone: phone, Name: name, PinHash: hashPin(pin), Active: "Yes", Access: formatAccess(access), AddedBy: addedBy, AddedAt: now, UpdatedAt: now };
   const result = await sheetdb(`?sheet=${EMPLOYEES_SHEET}`, { method: "POST", body: JSON.stringify({ data: [row] }) });
   clearEmployeeCache();
   return result;

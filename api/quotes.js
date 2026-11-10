@@ -1,4 +1,5 @@
-import { isValidCalculatorToken, readSession, requireStaff } from "./_lib/auth.js";
+import { isValidCalculatorToken, readSessionInfo, requireAccess } from "./_lib/auth.js";
+import { can } from "./_lib/permissions.js";
 import { sheetdbHeaders } from "./_lib/sheetdb.js";
 
 // Vercel serverless function: Catering Calculator quotes, stored in the
@@ -101,7 +102,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === "GET") {
-      if (!requireStaff(req, res)) return;
+      if (!(await requireAccess(req, res, ["catering"]))) return;
       const params = new URL(req.url, "http://localhost").searchParams;
       if (params.get("action") !== "list") throw new BadRequest("Unknown action");
       const rows = await sheetdb(base, `?sheet=${SHEET}`, { method: "GET" });
@@ -115,8 +116,8 @@ export default async function handler(req, res) {
 
     const body = req.body || {};
     if (body.action === "save") {
-      const login = readSession(req);
-      if (login) return await save(base, body, { source: "staff", name: login }, res);
+      const session = await readSessionInfo(req);
+      if (session && can(session, "catering")) return await save(base, body, { source: session.role === "staff" ? "staff" : "employee", name: session.name }, res);
       if (isValidCalculatorToken(body.token)) {
         const name = text(body.employeeName, 60) || "Employee";
         return await save(base, body, { source: "link", name }, res);
@@ -125,7 +126,7 @@ export default async function handler(req, res) {
     }
 
     if (body.action === "delete") {
-      if (!requireStaff(req, res)) return;
+      if (!(await requireAccess(req, res, ["catering"], { manage: true }))) return;
       const id = cleanQuoteId(body.id);
       await sheetdb(base, `/QuoteId/${encodeURIComponent(id)}?sheet=${SHEET}`, { method: "DELETE" }, { notFoundOk: true });
       return res.status(200).json({ ok: true });

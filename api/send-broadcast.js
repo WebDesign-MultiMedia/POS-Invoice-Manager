@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import twilio from "twilio";
-import { requireStaff } from "./_lib/auth.js";
+import { requireAccess } from "./_lib/auth.js";
 
 // Vercel serverless function: texts a promo/announcement to every customer
 // who opted in to specials on the website's /sms-consent/ form. Twilio
@@ -12,8 +12,8 @@ import { requireStaff } from "./_lib/auth.js";
 // signed by the Worker with SIGNUP_SIGNING_KEY; rows typed into the sheet by
 // hand don't verify and are skipped.
 //
-// Like every other endpoint, it needs a staff login (api/_lib/auth.js). Only
-// people the manager has added to STAFF_ACCOUNTS can send a broadcast.
+// Like every other endpoint, it needs a login (api/_lib/auth.js): staff, or
+// an employee the owner gave "Text customers" on the Team page.
 //
 // Opt-outs: Twilio blocks any number that replied STOP (error 21610, counted
 // as "optedOut" below). As a second guard, a signup row is also skipped when
@@ -114,7 +114,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  if (!requireStaff(req, res)) return;
+  if (!(await requireAccess(req, res, ["broadcast"]))) return;
 
   const sender = process.env.TWILIO_MESSAGING_SERVICE_SID || process.env.TWILIO_PHONE_NUMBER;
   if (!process.env.SHEETDB_ID || !process.env.SIGNUP_SIGNING_KEY || !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !sender) {

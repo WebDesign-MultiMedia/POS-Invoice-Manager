@@ -33,7 +33,7 @@ const METHOD_ICONS = { Card: "fa-credit-card", Cash: "fa-money-bill-wave", Zelle
 export default function EventSalesPage() {
   const brand = getBrand();
   // Shown on the sale right away; the server stamps the real SoldBy itself.
-  const { name: sellerName, isEmployee } = useAuth() || {};
+  const { name: sellerName } = useAuth() || {};
   const MENU = getMenu();
   const MENU_ITEMS = Object.fromEntries(MENU.flatMap((c) => c.items).map((item) => [item.id, item]));
 
@@ -206,13 +206,6 @@ export default function EventSalesPage() {
   return (
     <Layout blobs={["bg-brand-terracotta w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-teal w-80 h-80 top-1/2 -left-16 animate-float"]}>
       <SiteNav className="mb-6" />
-      {/* Employees see whose login this is, above the heading, so the right
-          person's name goes on every sale. */}
-      {isEmployee && sellerName && (
-        <p role="status" className="glass-panel !rounded-full px-5 py-2 mb-4 text-center text-brand-navy font-semibold stagger-in max-w-full truncate">
-          <i className="fa-solid fa-user-tag text-brand-teal" aria-hidden="true"></i> Logged in as <span className="text-brand-teal">{sellerName}</span>
-        </p>
-      )}
       <PageHeader title="Event Sales" subtitle={brand.name} />
 
       <div className="w-full max-w-md glass-card p-6 sm:p-8 stagger-in">
@@ -495,9 +488,9 @@ const MONEY_FIELDS = [
 
 function SaleRow({ sale: s, onUpdated, onDeleted }) {
   const [editing, setEditing] = useState(false);
-  // Employee logins can ring up sales but not change or remove them (the
-  // server refuses too); staff do that from their own login.
-  const { isEmployee } = useAuth() || {};
+  // Changing or removing sales needs "Can edit & delete"; Make invoice
+  // needs the Order form (Team page). The server checks too.
+  const { can = () => true } = useAuth() || {};
   const makeInvoice = useMakeInvoice();
   const receipt = !isDemo() && /^pi_[A-Za-z0-9]+$/.test(s.PaymentIntentId || "") ? `/api/receipt-url?pi=${encodeURIComponent(s.PaymentIntentId)}` : null;
   const isCard = s.Method === "Card";
@@ -542,10 +535,10 @@ function SaleRow({ sale: s, onUpdated, onDeleted }) {
       {items && <p className="text-xs text-brand-navydeep/70">{items}</p>}
       <RowButtons
         label={`sale ${s.SaleId}`}
-        onMakeInvoice={isEmployee ? null : () => makeInvoice(saleToOrderForm(s, s.Method || "Cash"), `event sale ${s.SaleId}`)}
+        onMakeInvoice={can("orders") ? () => makeInvoice(saleToOrderForm(s, s.Method || "Cash"), `event sale ${s.SaleId}`) : null}
         receiptHref={receipt}
-        onEdit={key && !isEmployee ? () => setEditing(true) : null}
-        onDelete={key && !isEmployee ? remove : null}
+        onEdit={key && can("manage") ? () => setEditing(true) : null}
+        onDelete={key && can("manage") ? remove : null}
         editing={editing}
       />
       {editing && (
