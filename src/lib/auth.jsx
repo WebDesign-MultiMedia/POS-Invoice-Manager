@@ -30,6 +30,10 @@ export function AuthProvider({ children }) {
   // or "demo" while someone is trying the app on sample data (lib/demo.js).
   const [status, setStatus] = useState(() => (isDemo() ? "demo" : "loading"));
   const [user, setUser] = useState(() => (isDemo() ? "Demo" : null));
+  // "staff" sees everything; "event" is an employee who may only use Event
+  // Sales. The server enforces this on every request; the app just hides
+  // what an employee can't use.
+  const [role, setRole] = useState("staff");
   // True when a logged-in session ran out mid-use (an API call got a 401),
   // so the login screen can say why it's back. Unsaved order drafts are
   // kept in sessionStorage by the order form, so nothing typed is lost.
@@ -48,6 +52,7 @@ export function AuthProvider({ children }) {
       .then((payload) => {
         if (cancelled) return;
         setUser(payload?.user || null);
+        setRole(payload?.role === "event" ? "event" : "staff");
         setStatus(payload?.user ? "in" : "out");
       });
 
@@ -64,10 +69,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async (identifier, password) => {
-    const { user: login } = await postAuth({ action: "login", identifier, password });
+    const { user: login, role: loginRole } = await postAuth({ action: "login", identifier, password });
     endDemo();
     setSessionExpired(false);
     setUser(login);
+    setRole(loginRole === "event" ? "event" : "staff");
     setStatus("in");
   }, []);
 
@@ -79,6 +85,7 @@ export function AuthProvider({ children }) {
     }
     setSessionExpired(false);
     setUser(null);
+    setRole("staff");
     setStatus("out");
   }, []);
 
@@ -87,10 +94,11 @@ export function AuthProvider({ children }) {
     startDemo();
     setSessionExpired(false);
     setUser("Demo");
+    setRole("staff");
     setStatus("demo");
   }, []);
 
-  return <AuthContext.Provider value={{ status, user, sessionExpired, login, logout, enterDemo }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ status, user, role, isEmployee: role === "event", sessionExpired, login, logout, enterDemo }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

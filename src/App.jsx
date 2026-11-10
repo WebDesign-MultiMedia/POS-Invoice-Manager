@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, useLocation, useSearchParams } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route, useLocation, useSearchParams } from "react-router-dom";
 import OrderFormPage from "./pages/OrderFormPage.jsx";
 import LoginPage, { AuthSplash } from "./pages/LoginPage.jsx";
 import { AuthProvider, useAuth } from "./lib/auth.jsx";
@@ -20,7 +20,7 @@ const EventSalesPage = lazy(() => import("./pages/EventSalesPage.jsx"));
 // (/invoice?id=…&token=…&share=1) and the Catering Calculator's employee
 // link (/catering?share=1&token=…), which the server checks on their own.
 function StaffGate({ children }) {
-  const { status } = useAuth();
+  const { status, isEmployee } = useAuth();
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
 
@@ -30,6 +30,8 @@ function StaffGate({ children }) {
   if (pathname === "/catering" && searchParams.get("share") === "1") return children;
   if (status === "loading") return <AuthSplash />;
   if (status !== "in" && status !== "demo") return <LoginPage />;
+  // Employee logins only have Event Sales; any other page sends them there.
+  if (isEmployee && pathname !== "/event") return <Navigate to="/event" replace />;
   return children;
 }
 

@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { calcSurcharge } from "../src/lib/surcharge.js";
-import { requireStaff } from "./_lib/auth.js";
+import { requireEventAccess } from "./_lib/auth.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -28,10 +28,17 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Staff-only: an open charge endpoint lets fraudsters test stolen cards.
-  if (!requireStaff(req, res)) return;
+  // Logged-in only (staff, or an employee taking Event Sales card payments):
+  // an open charge endpoint lets fraudsters test stolen cards.
+  const session = requireEventAccess(req, res);
+  if (!session) return;
 
   const { paymentMethodId, baseAmountCents, invoiceId, email, description, note } = req.body || {};
+
+  // Employees take card payments only for event sales (EV-… ids).
+  if (session.role !== "staff" && !/^EV-\d{6}-\d{6}$/.test(String(invoiceId || ""))) {
+    return res.status(403).json({ error: "Employee logins can only take Event Sales card payments." });
+  }
 
   if (typeof paymentMethodId !== "string" || !Number.isInteger(baseAmountCents) || baseAmountCents <= 0) {
     return res.status(400).json({ error: "Missing or invalid payment details" });

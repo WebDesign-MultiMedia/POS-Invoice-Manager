@@ -20,12 +20,14 @@
 //   POST { action: "updateOrder" | "updateCardPayment" | "updateEventSale", id, data }
 //   POST { action: "deleteOrder" | "deleteCardPayment" | "deleteEventSale", id }
 //
-// Every action needs a staff login (api/_lib/auth.js) except one:
+// Employee logins (Event Sales only) may use just EMPLOYEE_ACTIONS below:
+// read event sales, record one, and log the card payment of an event card
+// sale. Every other action needs a staff login (api/_lib/auth.js), except:
 //   GET  ?action=sharedInvoice&id=714&token=…
 // which serves a customer's read-only invoice link. It returns only that
 // one invoice and its card payments, and only with a valid signed token.
 
-import { isValidShareToken, requireStaff, shareTokenFor } from "./_lib/auth.js";
+import { ROLES, isValidShareToken, requireEventAccess, shareTokenFor } from "./_lib/auth.js";
 import { sheetdbHeaders } from "./_lib/sheetdb.js";
 
 const READ_ACTIONS = {
@@ -42,6 +44,17 @@ const WRITE_ACTIONS = {
   recordCardPayment: "?sheet=CardPayments",
   recordEventSale: "?sheet=EventSales",
 };
+
+// What an employee login may do. Card payments they log must belong to an
+// event sale (InvoiceId EV-…), so they can't attach payments to orders.
+function isEmployeeAllowed(req, params) {
+  if (req.method === "GET") return params.get("action") === "eventSales";
+  if (req.method !== "POST") return false;
+  const { action, data } = req.body || {};
+  if (action === "recordEventSale") return true;
+  if (action === "recordCardPayment") return /^EV-\d{6}-\d{6}$/.test(String(data?.InvoiceId || ""));
+  return false;
+}
 
 class BadRequest extends Error {}
 
@@ -192,7 +205,11 @@ export default async function handler(req, res) {
       return await sharedInvoice(base, params, res);
     }
 
-    if (!requireStaff(req, res)) return;
+    const session = requireEventAccess(req, res);
+    if (!session) return;
+    if (session.role !== ROLES.STAFF && !isEmployeeAllowed(req, params)) {
+      return res.status(403).json({ error: "Employee logins can only use Event Sales." });
+    }
 
     if (req.method === "GET" && params.get("action") === "shareToken") {
       const id = cleanId(params.get("id"));

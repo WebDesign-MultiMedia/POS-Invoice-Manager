@@ -1,13 +1,25 @@
-import { checkCredentials, clearSessionCookie, isAuthConfigured, readSession, setSessionCookie } from "./_lib/auth.js";
+import {
+  ROLES,
+  checkCredentials,
+  checkEmployeeCredentials,
+  clearSessionCookie,
+  isAuthConfigured,
+  normalizeIdentifier,
+  readSessionInfo,
+  setSessionCookie,
+} from "./_lib/auth.js";
 
 // Vercel serverless function: staff login.
-//   GET                                          → { user } or 401
+//   GET                                          → { user, role } or 401
 //   POST { action: "login", identifier, password } → sets the session cookie
+//        Staff log in with email/phone + password. Employees log in with
+//        their phone + PIN and get role "event" (Event Sales only).
 //   POST { action: "logout" }                      → clears it
 
 // Best-effort brute-force brake: counts failed logins per IP for each warm
 // function instance. Serverless instances come and go, so this slows down
 // guessing but isn't a hard limit; long passwords are the real protection.
+// Failures are also counted per login, since employee PINs are short.
 const MAX_FAILURES = 8;
 const WINDOW_MS = 15 * 60 * 1000;
 const failures = new Map();
@@ -36,8 +48,8 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
   if (req.method === "GET") {
-    const user = readSession(req);
-    return user ? res.status(200).json({ user }) : res.status(401).json({ error: "Please log in" });
+    const info = readSessionInfo(req);
+    return info ? res.status(200).json({ user: info.login, role: info.role }) : res.status(401).json({ error: "Please log in" });
   }
 
   if (req.method !== "POST") {
@@ -60,7 +72,8 @@ export default async function handler(req, res) {
   }
 
   const ip = clientIp(req);
-  if (isLockedOut(ip)) {
+  const loginKey = `login:${normalizeIdentifier(identifier)}`;
+  if (isLockedOut(ip) || isLockedOut(loginKey)) {
     return res.status(429).json({ error: "Too many attempts. Try again in 15 minutes." });
   }
 
@@ -68,13 +81,20 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Enter your email or phone number and password" });
   }
 
-  const login = checkCredentials(identifier, password);
+  // Both are always checked, so the time taken doesn't reveal which kind of
+  // account a login is. A login that's in both lists is staff.
+  const staff = checkCredentials(identifier, password);
+  const employee = checkEmployeeCredentials(identifier, password);
+  const login = staff || employee;
+  const role = staff ? ROLES.STAFF : ROLES.EVENT;
   if (!login) {
     recordFailure(ip);
+    recordFailure(loginKey);
     return res.status(401).json({ error: "Wrong email/phone or password" });
   }
 
   failures.delete(ip);
-  setSessionCookie(res, login);
-  return res.status(200).json({ user: login });
+  failures.delete(loginKey);
+  setSessionCookie(res, login, role);
+  return res.status(200).json({ user: login, role });
 }

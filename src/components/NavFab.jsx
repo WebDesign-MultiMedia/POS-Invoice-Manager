@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { isDemo } from "../lib/demo.js";
+import { useAuth } from "../lib/auth.jsx";
 import { hardRefresh } from "../lib/hardRefresh.js";
 import { useState } from "react";
 import TiltCard from "./TiltCard.jsx";
@@ -49,14 +50,17 @@ const SECTIONS = [
 // the spreadsheet. The real Google Sheet isn't part of the demo; the link
 // goes through a staff-only redirect (api/sheet-link.js) so the sheet's
 // address isn't in the public bundle.
+// Employee logins see only the Refresh button: Event Sales is their only page.
 export function SiteNav({ className = "" }) {
   const { pathname } = useLocation();
+  const { isEmployee } = useAuth() || {};
   return (
     <NavRow className={className}>
-      {SECTIONS.filter((s) => s.to !== pathname).map((s) => (
-        <NavFab key={s.to} {...s} />
-      ))}
-      {!isDemo() && <NavFab href="/api/sheet-link" external title="Open spreadsheet" icon="fa-file-excel" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />}
+      {!isEmployee &&
+        SECTIONS.filter((s) => s.to !== pathname).map((s) => (
+          <NavFab key={s.to} {...s} />
+        ))}
+      {!isDemo() && !isEmployee && <NavFab href="/api/sheet-link" external title="Open spreadsheet" icon="fa-file-excel" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />}
       <RefreshFab />
     </NavRow>
   );

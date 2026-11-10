@@ -87,10 +87,11 @@ cp .env.example .env.local   # fill in your own values
 npm run dev                  # frontend on http://localhost:5173
 npm run dev:api              # /api functions on :3001 (Vite proxies /api to it)
 npm run hash-password        # make a STAFF_ACCOUNTS entry
+npm run hash-pin             # make an EMPLOYEE_ACCOUNTS entry (phone + PIN, Event Sales only)
 ```
 
 Environment variable **names** (see [`.env.example`](.env.example) for a one-line description of each):
-`VITE_STRIPE_PUBLISHABLE_KEY`, `STAFF_ACCOUNTS`, `SESSION_SECRET`, `SHEETDB_ID`, `SHEETDB_USER`, `SHEETDB_PASS`, `GOOGLE_SHEET_URL`, `STRIPE_SECRET_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID`, `TWILIO_PHONE_NUMBER`, `SIGNUP_SIGNING_KEY`.
+`VITE_STRIPE_PUBLISHABLE_KEY`, `STAFF_ACCOUNTS`, `EMPLOYEE_ACCOUNTS` (optional), `SESSION_SECRET`, `SHEETDB_ID`, `SHEETDB_USER`, `SHEETDB_PASS`, `GOOGLE_SHEET_URL`, `STRIPE_SECRET_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID`, `TWILIO_PHONE_NUMBER`, `SIGNUP_SIGNING_KEY`.
 
 Demo mode needs none of these. Run `npm run dev` and press **Try the demo**.
 

@@ -130,7 +130,7 @@ export default function LoginPage() {
 
             <div className="field-group">
               <label htmlFor="password" className="field-label">
-                <i className="fa-solid fa-lock" aria-hidden="true"></i> Password
+                <i className="fa-solid fa-lock" aria-hidden="true"></i> Password or PIN
               </label>
               <div className="relative">
                 <input

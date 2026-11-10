@@ -9,6 +9,7 @@ import DemoCardForm from "../components/DemoCardForm.jsx";
 import { deleteEventSale, fetchAllEventSales, recordCardPayment, recordEventSale, updateEventSale } from "../api/sheetdb.js";
 import { RowButtons, RowEditor, confirmAndDelete, useMakeInvoice } from "../components/RowActions.jsx";
 import { saleToOrderForm } from "../lib/saleToOrder.js";
+import { useAuth } from "../lib/auth.jsx";
 import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
 import { formatCartLine } from "../lib/menu.js";
 import { getBrand, getMenu } from "../lib/brand.js";
@@ -466,6 +467,9 @@ const MONEY_FIELDS = [
 
 function SaleRow({ sale: s, onUpdated, onDeleted }) {
   const [editing, setEditing] = useState(false);
+  // Employee logins can ring up sales but not change or remove them (the
+  // server refuses too); staff do that from their own login.
+  const { isEmployee } = useAuth() || {};
   const makeInvoice = useMakeInvoice();
   const receipt = !isDemo() && /^pi_[A-Za-z0-9]+$/.test(s.PaymentIntentId || "") ? `/api/receipt-url?pi=${encodeURIComponent(s.PaymentIntentId)}` : null;
   const isCard = s.Method === "Card";
@@ -509,10 +513,10 @@ function SaleRow({ sale: s, onUpdated, onDeleted }) {
       {items && <p className="text-xs text-brand-navydeep/70">{items}</p>}
       <RowButtons
         label={`sale ${s.SaleId}`}
-        onMakeInvoice={() => makeInvoice(saleToOrderForm(s, s.Method || "Cash"), `event sale ${s.SaleId}`)}
+        onMakeInvoice={isEmployee ? null : () => makeInvoice(saleToOrderForm(s, s.Method || "Cash"), `event sale ${s.SaleId}`)}
         receiptHref={receipt}
-        onEdit={key ? () => setEditing(true) : null}
-        onDelete={key ? remove : null}
+        onEdit={key && !isEmployee ? () => setEditing(true) : null}
+        onDelete={key && !isEmployee ? remove : null}
         editing={editing}
       />
       {editing && (
