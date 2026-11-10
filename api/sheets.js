@@ -81,6 +81,40 @@ function allowed(session, req, params) {
   return !keys || canAny(session, keys);
 }
 
+// Employees only ever see and change their own rows: orders they took
+// (TakenBy) and sales they rang up (SoldBy), matched on their name from the
+// Employees tab. Staff see everything. Filtering happens here, on the
+// server, so it can't be got around from the browser.
+const OWNER_COLUMN = { orders: "TakenBy", order: "TakenBy", cardPayments: "SoldBy", eventSales: "SoldBy" };
+const ROW_OWNER = {
+  Order: { column: "TakenBy", lookup: (id) => `/search?Id=${encodeURIComponent(id)}`, key: "Id" },
+  CardPayment: { column: "SoldBy", lookup: (id) => `/search?PaymentIntentId=${encodeURIComponent(id)}&sheet=CardPayments`, key: "PaymentIntentId" },
+  EventSale: { column: "SoldBy", lookup: (id) => `/search?SaleId=${encodeURIComponent(id)}&sheet=EventSales`, key: "SaleId" },
+};
+const isStaff = (session) => session.role === "staff";
+const norm = (v) => String(v ?? "").trim().toLowerCase();
+const isMine = (session, value) => Boolean(norm(value)) && norm(value) === norm(session.name);
+const mineOnly = (rows, column, session) => (Array.isArray(rows) ? rows.filter((r) => isMine(session, r[column])) : rows);
+
+// True when this order (by its numeric Id) was taken by this employee.
+async function ownsOrder(base, id, session) {
+  const rows = await sheetGet(base, `/search?Id=${encodeURIComponent(id)}`);
+  const row = Array.isArray(rows) ? rows.find((r) => String(r.Id) === String(id)) : null;
+  return Boolean(row) && isMine(session, row.TakenBy);
+}
+
+// Employees: what this read may return. Card payments on an order they
+// took are all theirs to see (so the invoice balance is right).
+async function filterForEmployee(base, action, params, payload, session) {
+  if (action === "cardPaymentsFor") {
+    const invoiceId = params.get("invoiceId");
+    if (/^\d+$/.test(String(invoiceId)) && (await ownsOrder(base, invoiceId, session))) return payload;
+    return mineOnly(payload, "SoldBy", session);
+  }
+  const column = OWNER_COLUMN[action];
+  return column ? mineOnly(payload, column, session) : payload;
+}
+
 // Rows that record who made them: sales in a "SoldBy" column, orders in a
 // "TakenBy" column.
 const STAMP_COLUMN = { recordEventSale: "SoldBy", recordCardPayment: "SoldBy", createOrder: "TakenBy" };
@@ -157,10 +191,18 @@ async function checkEventSaleEdit(base, id, fields) {
 }
 
 // Update or delete one row. 404 when no row has that key.
-async function changeRow(base, body, res) {
+async function changeRow(base, body, res, session) {
   const [verb, target, kind] = rowAction(body.action);
   const id = String(body.id ?? "").trim();
   if (!target.id.test(id)) throw new BadRequest("Missing or invalid id");
+  // Employees may change only their own orders and sales.
+  if (!isStaff(session)) {
+    const owner = ROW_OWNER[kind];
+    const rows = await sheetGet(base, owner.lookup(id));
+    const row = Array.isArray(rows) ? rows.find((r) => String(r[owner.key]) === id) : null;
+    if (!row) return res.status(404).json({ error: "Not found" });
+    if (!isMine(session, row[owner.column])) return res.status(403).json({ error: "You can only change orders and sales you took." });
+  }
   if (kind === "CardPayment" && verb === "update" && body.data?.InvoiceId && !cleanId(body.data.InvoiceId)) {
     throw new BadRequest("Invalid order ID");
   }
@@ -241,6 +283,7 @@ export default async function handler(req, res) {
     if (req.method === "GET" && params.get("action") === "shareToken") {
       const id = cleanId(params.get("id"));
       if (!id) throw new BadRequest("Missing or invalid id");
+      if (!isStaff(session) && !(await ownsOrder(base, id, session))) return res.status(404).json({ error: "Not found" });
       res.setHeader("Cache-Control", "no-store");
       return res.status(200).json({ token: shareTokenFor(id) });
     }
@@ -251,7 +294,7 @@ export default async function handler(req, res) {
       path = build(params);
       init = { method: "GET", headers: sheetdbHeaders() };
     } else if (req.method === "POST" && rowAction(req.body?.action)) {
-      return await changeRow(base, req.body, res);
+      return await changeRow(base, req.body, res, session);
     } else if (req.method === "POST") {
       const { action, data } = req.body || {};
       if (!Object.hasOwn(WRITE_ACTIONS, action)) throw new BadRequest("Unknown action");
@@ -274,6 +317,9 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: "Sheet request failed" });
     }
     res.setHeader("Cache-Control", "no-store");
+    if (req.method === "GET" && !isStaff(session)) {
+      return res.status(200).json(await filterForEmployee(base, params.get("action"), params, payload, session));
+    }
     return res.status(200).json(payload);
   } catch (err) {
     if (err instanceof BadRequest) return res.status(400).json({ error: err.message });

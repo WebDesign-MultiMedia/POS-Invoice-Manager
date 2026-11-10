@@ -79,6 +79,11 @@ export default async function handler(req, res) {
       if (existing.some((r) => r.Phone === phone)) {
         return res.status(409).json({ error: "An employee with that phone number already exists. Reset their PIN instead." });
       }
+      // Names decide whose orders and sales each employee sees, so no two
+      // employees may share one.
+      if (existing.some((r) => String(r.Name || "").trim().toLowerCase() === name.toLowerCase())) {
+        return res.status(409).json({ error: `There's already an employee named ${name}. Add a last name or initial, e.g. "${name} R."` });
+      }
       const access = body.access === undefined ? ["event"] : requireAccessList(body.access);
       const result = await addEmployee({ phone, name, pin, addedBy: staff, access });
       if (!result.ok) throw new Error(`Sheet add failed (${result.status})`);

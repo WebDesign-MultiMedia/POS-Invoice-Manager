@@ -9,6 +9,7 @@ import { getCurrentDateTime, getTotalQuantity, formatDate, formatMoney, toDateIn
 import { findSubmittedOrder, ordersNewestFirst } from "../lib/recentOrder.js";
 import { getBrand } from "../lib/brand.js";
 import { useAuth } from "../lib/auth.jsx";
+import ZelleQrCard from "../components/ZelleQrCard.jsx";
 import { readDraft, writeDraft, readDraftSource } from "../lib/orderDraft.js";
 import { friendlyMessage } from "../lib/errors.js";
 
@@ -50,6 +51,13 @@ function withCurrent(options, value) {
   return value && !options.includes(value) ? [...options, value] : options;
 }
 
+// What the Zelle QR shows: the cost minus any deposit, or the whole cost.
+function zelleAmount(form) {
+  const cost = toNumber(form.Cost);
+  const deposit = toNumber(form.Deposit);
+  return deposit > 0 && deposit < cost ? Math.round((cost - deposit) * 100) / 100 : cost;
+}
+
 function loadDraft() {
   const saved = readDraft();
   return saved ? { ...INITIAL_FORM, ...saved } : null;
@@ -85,6 +93,7 @@ export default function OrderFormPage() {
   const navigate = useNavigate();
   const { can } = useAuth() || {};
   const canManage = !can || can("manage");
+  const canPay = !can || can("pay");
   // The saved order being edited, or null when the form makes a new order.
   const [editing, setEditing] = useState(null);
   const formRef = useRef(null);
@@ -366,7 +375,7 @@ export default function OrderFormPage() {
             </label>
             <select id="Payment" name="Payment" className={fieldClass(form.Payment, validated)} value={form.Payment} onChange={setField("Payment")}>
               <option value="">Paid w/</option>
-              {withCurrent(["Cash", "Zelle"], form.Payment).map((v) => (
+              {withCurrent(["Cash", "Zelle", "Card"], form.Payment).map((v) => (
                 <option key={v} value={v}>
                   {v}
                 </option>
@@ -380,6 +389,25 @@ export default function OrderFormPage() {
             <input type="text" name="Deposit" id="Deposit" placeholder="Deposit" className={fieldClass(form.Deposit, validated)} value={form.Deposit} onChange={setField("Deposit")} />
           </div>
         </div>
+
+        {/* Paying by Zelle: the QR for the customer to scan, with what's
+            left to pay (cost minus deposit), or the cost when no deposit. */}
+        {form.Payment === "Zelle" && (
+          <ZelleQrCard amount={zelleAmount(form)} className="mb-5 mx-auto w-full max-w-sm" />
+        )}
+        {form.Payment === "Card" && (
+          <p className="glass-panel p-3 mb-5 text-sm text-center">
+            <i className="fa-solid fa-credit-card" aria-hidden="true"></i> Paying by card? Save the order, then charge it on{" "}
+            {canPay ? (
+              <Link to="/pay" className="underline font-semibold">
+                Pay with Card
+              </Link>
+            ) : (
+              "Pay with Card"
+            )}
+            .
+          </p>
+        )}
 
         <div className="field-group mb-5">
           <label htmlFor="DueDate" className="field-label">

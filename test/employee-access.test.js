@@ -59,6 +59,9 @@ function sheetFetch(url, init = {}) {
     employeeRows = employeeRows.filter((r) => r !== row);
     return json({ deleted: 1 });
   }
+  // Any one order looked up by Id was taken by Carlos.
+  const id = u.match(/\/search\?Id=([^&]+)/)?.[1];
+  if (id && (init.method || "GET") === "GET") return json([{ Id: decodeURIComponent(id), TakenBy: "Carlos" }]);
   return json([]);
 }
 
@@ -348,8 +351,8 @@ describe("section permissions (Team page)", () => {
 
   it("Can edit & delete opens edits only in the ticked sections", async () => {
     give("orders,manage");
-    fetchMock.mockImplementation(async (url, init) =>
-      String(url).includes("Employees") ? sheetFetch(url, init) : { ok: true, status: 200, json: async () => ({ deleted: 1, updated: 1 }) }
+    fetchMock.mockImplementation(async (url, init = {}) =>
+      String(url).includes("Employees") || (init.method || "GET") === "GET" ? sheetFetch(url, init) : { ok: true, status: 200, json: async () => ({ deleted: 1, updated: 1 }) }
     );
     expect((await post(sheets, { action: "deleteOrder", id: "714" })).statusCode).toBe(200);
     expect((await post(sheets, { action: "deleteCardPayment", id: "pi_1" })).statusCode).toBe(403);
@@ -410,5 +413,96 @@ describe("section permissions (Team page)", () => {
     expect((await readSessionInfo(mockReq({ cookie }))).access).toEqual(["event"]);
     await staffPost({ action: "setAccess", phone: EMPLOYEE_PHONE, access: ["event", "orders"] });
     expect((await readSessionInfo(mockReq({ cookie }))).access).toEqual(["event", "orders"]);
+  });
+});
+
+describe("employees see only their own orders and sales", () => {
+  const ORDERS = [
+    { Id: "1", Name: "A", TakenBy: "Carlos" },
+    { Id: "2", Name: "B", TakenBy: "Ana" },
+    { Id: "3", Name: "C", TakenBy: "staff@example.com" },
+    { Id: "4", Name: "D" },
+  ];
+  const CARD = [
+    { PaymentIntentId: "pi_a", InvoiceId: "1", SoldBy: "staff@example.com" },
+    { PaymentIntentId: "pi_b", InvoiceId: "2", SoldBy: "Ana" },
+    { PaymentIntentId: "pi_c", InvoiceId: "EV-261110-120000", SoldBy: "carlos" },
+  ];
+  const SALES = [
+    { SaleId: "EV-261110-120000", SoldBy: "Carlos" },
+    { SaleId: "EV-261110-120001", SoldBy: "Ana" },
+  ];
+
+  beforeEach(() => {
+    employeeRows[0].Access = "event,orders,search,pay,manage";
+    clearEmployeeCache();
+    fetchMock.mockImplementation(async (url, init = {}) => {
+      const u = String(url);
+      if (u.includes("sheet=Employees")) return sheetFetch(url, init);
+      const json = (payload) => ({ ok: true, status: 200, json: async () => payload });
+      if (init.method === "DELETE" || init.method === "PATCH") return json({ deleted: 1, updated: 1 });
+      const id = u.match(/search\?Id=([^&]+)/)?.[1];
+      if (id) return json(ORDERS.filter((o) => o.Id === decodeURIComponent(id)));
+      const pi = u.match(/PaymentIntentId=([^&]+)/)?.[1];
+      if (pi) return json(CARD.filter((c) => c.PaymentIntentId === pi));
+      const inv = u.match(/InvoiceId=([^&]+)/)?.[1];
+      if (inv) return json(CARD.filter((c) => c.InvoiceId === decodeURIComponent(inv)));
+      const sale = u.match(/SaleId=([^&]+)/)?.[1];
+      if (sale) return json(SALES.filter((r) => r.SaleId === sale));
+      if (u.includes("sheet=CardPayments")) return json(CARD);
+      if (u.includes("sheet=EventSales")) return json(SALES);
+      return json(ORDERS);
+    });
+  });
+  const get = (url) => call(sheets, { url });
+  const post = (body) => call(sheets, { method: "POST", url: "/api/sheets", body });
+
+  it("orders list: only the ones they took", async () => {
+    expect((await get("/api/sheets?action=orders")).body.map((o) => o.Id)).toEqual(["1"]);
+  });
+
+  it("one order: someone else's comes back empty", async () => {
+    expect((await get("/api/sheets?action=order&id=1")).body).toHaveLength(1);
+    expect((await get("/api/sheets?action=order&id=2")).body).toEqual([]);
+  });
+
+  it("card payments and event sales: only the ones they rang up (name match ignores case)", async () => {
+    expect((await get("/api/sheets?action=cardPayments")).body.map((c) => c.PaymentIntentId)).toEqual(["pi_c"]);
+    expect((await get("/api/sheets?action=eventSales")).body.map((r) => r.SaleId)).toEqual(["EV-261110-120000"]);
+  });
+
+  it("an invoice they took shows every payment on it, even the owner's", async () => {
+    expect((await get("/api/sheets?action=cardPaymentsFor&invoiceId=1")).body.map((c) => c.PaymentIntentId)).toEqual(["pi_a"]);
+    expect((await get("/api/sheets?action=cardPaymentsFor&invoiceId=2")).body).toEqual([]);
+  });
+
+  it("share links only for their own orders", async () => {
+    expect((await get("/api/sheets?action=shareToken&id=1")).statusCode).toBe(200);
+    expect((await get("/api/sheets?action=shareToken&id=2")).statusCode).toBe(404);
+  });
+
+  it("can edit or delete only what they took, even with Can edit & delete", async () => {
+    expect((await post({ action: "deleteOrder", id: "1" })).statusCode).toBe(200);
+    expect((await post({ action: "deleteOrder", id: "2" })).statusCode).toBe(403);
+    expect((await post({ action: "deleteOrder", id: "4" })).statusCode).toBe(403);
+    expect((await post({ action: "updateCardPayment", id: "pi_b", data: { Name: "x" } })).statusCode).toBe(403);
+    expect((await post({ action: "deleteEventSale", id: "EV-261110-120001" })).statusCode).toBe(403);
+    expect((await post({ action: "deleteEventSale", id: "EV-261110-120000" })).statusCode).toBe(200);
+  });
+
+  it("staff still see everything", async () => {
+    const res = mockRes();
+    setSessionCookie(res, "staff@example.com");
+    const out = mockRes();
+    await sheets(mockReq({ cookie: cookieFrom(res), url: "/api/sheets?action=orders" }), out);
+    expect(out.body.map((o) => o.Id)).toEqual(["1", "2", "3", "4"]);
+  });
+
+  it("two employees can't share a name", async () => {
+    const res = mockRes();
+    setSessionCookie(res, "staff@example.com");
+    const out = mockRes();
+    await employeesApi(mockReq({ cookie: cookieFrom(res), method: "POST", url: "/api/employees", body: { action: "add", phone: "7185550199", name: "carlos", pin: "5821" } }), out);
+    expect(out.statusCode).toBe(409);
   });
 });
