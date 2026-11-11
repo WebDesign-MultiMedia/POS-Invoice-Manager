@@ -165,7 +165,7 @@ function PosMenu({ menu, cart, onChange }) {
               </span>
             )}
           </p>
-          <div className={list ? "flex flex-col gap-2" : "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3"}>
+          <div className={list ? "grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5" : "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3"}>
             {group.items.map((item) =>
               list ? (
                 <PosRow key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} />
@@ -224,24 +224,24 @@ function PosTile({ item, qty, onChange }) {
 function PosRow({ item, qty, onChange }) {
   const deal = item.unit !== "lb" && DEALS[item.deal];
   return (
-    <div className="flex items-stretch gap-2">
+    <div className="flex items-stretch gap-1.5">
       <button
         type="button"
         onClick={() => onChange(item.id, qtyStep(item))}
         aria-label={addLabel(item, qty)}
-        className={`glass-panel flex-1 min-w-0 min-h-[3.5rem] px-4 py-2 flex items-center gap-3 text-left border-2 transition-[transform,border-color] active:scale-[0.98] ${qty ? "border-brand-gold" : "border-transparent"}`}
+        className={`glass-panel !rounded-xl flex-1 min-w-0 min-h-[2.75rem] px-3 py-1.5 flex items-center gap-2 text-left border-2 transition-[transform,border-color] active:scale-[0.98] ${qty ? "border-brand-gold" : "border-transparent"}`}
       >
-        <span className="flex-1 min-w-0 font-semibold text-base leading-tight">{item.name}</span>
+        <span className="flex-1 min-w-0 font-semibold text-sm leading-tight">{item.name}</span>
         <span className="text-sm text-brand-navydeep/80 tabular-nums whitespace-nowrap">
           {formatMoney(item.price)}
           {item.unit === "lb" ? " / lb" : ""}
         </span>
-        <span className="w-8 flex justify-end">{qty > 0 && <QtyBadge qty={qty} />}</span>
+        {qty > 0 && <QtyBadge qty={qty} className="!h-6 !min-w-[1.5rem] text-xs" />}
       </button>
       {deal && (
         <button
           type="button"
-          className="shrink-0 rounded-2xl border-2 border-brand-gold/70 px-3 text-sm font-semibold whitespace-nowrap active:scale-95"
+          className="shrink-0 rounded-xl border-2 border-brand-gold/70 px-2 text-xs font-semibold whitespace-nowrap active:scale-95"
           aria-label={`Add ${deal.qty} ${item.name} for ${formatMoney(deal.price)}`}
           onClick={() => onChange(item.id, deal.qty)}
         >
