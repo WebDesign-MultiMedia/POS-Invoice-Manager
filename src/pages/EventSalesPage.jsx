@@ -4,7 +4,7 @@ import { Elements } from "@stripe/react-stripe-js";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
-import MenuPicker, { DishNote } from "../components/MenuPicker.jsx";
+import MenuPicker from "../components/MenuPicker.jsx";
 import CardPaymentForm from "../components/CardPaymentForm.jsx";
 import DemoCardForm from "../components/DemoCardForm.jsx";
 import { deleteEventSale, fetchAllEventSales, payEventSale, recordCardPayment, recordEventSale, updateEventSale } from "../api/sheetdb.js";
@@ -670,7 +670,11 @@ export default function EventSalesPage() {
               </div>
               <span className="w-20 text-right font-semibold tabular-nums shrink-0">{formatMoney(item.price * qty)}</span>
               </div>
-              <DishNote item={item} value={dishNotes[item.id] || ""} onChange={(v) => setDishNote(item.id, v)} />
+              {dishNotes[item.id]?.trim() && (
+                <p className="text-sm italic text-brand-teal">
+                  <i className="fa-solid fa-pen text-xs" aria-hidden="true"></i> {dishNotes[item.id].trim()}
+                </p>
+              )}
             </li>
           ))}
           {dealsApplied.map((d) => (
@@ -753,7 +757,7 @@ export default function EventSalesPage() {
             aria-disabled={step !== "order"}
             className={`min-h-0 overflow-y-auto overscroll-contain glass-card !rounded-3xl p-4 lg:p-5 transition-opacity ${step !== "order" ? "opacity-40 pointer-events-none" : ""}`}
           >
-            <MenuPicker variant="pos" menu={MENU} cart={cart} onChange={changeQty} onClear={clearCart} total={cartTotal} deals={dealsApplied} />
+            <MenuPicker variant="pos" menu={MENU} cart={cart} onChange={changeQty} onClear={clearCart} total={cartTotal} deals={dealsApplied} notes={dishNotes} onNote={setDishNote} />
           </section>
           <aside ref={cardRef} aria-label="Current order" className="min-h-0 overflow-y-auto overscroll-contain glass-card !rounded-3xl p-5 flex flex-col">
             {step === "order" ? ticket : checkoutSteps}

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatMoney } from "../lib/format.js";
 import { DEALS, DISH_NOTE_MAX, qtyStep } from "../lib/menu.js";
 
@@ -13,7 +14,7 @@ import { DEALS, DISH_NOTE_MAX, qtyStep } from "../lib/menu.js";
 // notes / onNote (optional): per-dish notes ({ [menuItemId]: text }); when
 // given, each item in the order gets an "Add note" field.
 export default function MenuPicker({ menu, cart, onChange, onClear, total, deals = [], variant, notes, onNote }) {
-  if (variant === "pos") return <PosMenu menu={menu} cart={cart} onChange={onChange} />;
+  if (variant === "pos") return <PosMenu menu={menu} cart={cart} onChange={onChange} notes={notes} onNote={onNote} />;
   const hasCart = Object.keys(cart).length > 0;
   return (
     <div className="field-group">
@@ -134,8 +135,12 @@ const VIEWS = [
   { id: "list", label: "Rows", icon: "fa-list" },
 ];
 
-function PosMenu({ menu, cart, onChange }) {
+// Register: tapping a dish opens a small card to pick how many and add an
+// optional note, then "Add to order". (With no onNote, a tap just adds.)
+function PosMenu({ menu, cart, onChange, notes, onNote }) {
   const [view, setView] = useState(loadView);
+  const [picked, setPicked] = useState(null);
+  const onPick = (item) => (onNote ? setPicked(item) : onChange(item.id, qtyStep(item)));
   const pick = (v) => {
     setView(v);
     saveView(v);
@@ -171,15 +176,102 @@ function PosMenu({ menu, cart, onChange }) {
           <div className={list ? "grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5" : "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2"}>
             {group.items.map((item) =>
               list ? (
-                <PosRow key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} />
+                <PosRow key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} onPick={onPick} />
               ) : (
-                <PosTile key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} />
+                <PosTile key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} onPick={onPick} />
               ),
             )}
           </div>
         </div>
       ))}
+      {picked && (
+        <DishSheet
+          key={picked.id}
+          item={picked}
+          inOrder={cart[picked.id] || 0}
+          note={notes?.[picked.id] || ""}
+          onClose={() => setPicked(null)}
+          onAdd={(qty, note) => {
+            onChange(picked.id, qty);
+            onNote(picked.id, note);
+            setPicked(null);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// The "add this dish" card: how many, an optional note, Add to order.
+// The note is for the dish in this order (one note per dish), so it starts
+// with the note already on it.
+function DishSheet({ item, inOrder, note: startNote, onClose, onAdd }) {
+  const step = qtyStep(item);
+  const lb = item.unit === "lb";
+  const [qty, setQty] = useState(step);
+  const [note, setNote] = useState(startNote);
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const round = (n) => Math.round(n * 100) / 100;
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Add ${item.name}`}
+        className="w-full max-w-sm rounded-3xl bg-[rgb(var(--page-bg))] p-5 shadow-2xl flex flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onAdd(qty, note);
+        }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-lg leading-tight text-brand-navy">{item.name}</p>
+            <p className="text-sm text-brand-navydeep/80 tabular-nums">
+              {formatMoney(item.price)}
+              {lb ? " / lb" : " each"}
+              {inOrder > 0 ? ` · ${inOrder}${lb ? " lb" : ""} in order` : ""}
+            </p>
+          </div>
+          <button type="button" className="w-9 h-9 shrink-0 rounded-full bg-brand-navydeep/10" aria-label="Close" onClick={onClose}>
+            <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div className="flex items-center justify-center gap-4">
+          <button type="button" className="w-11 h-11 rounded-full bg-brand-navydeep/10 font-bold text-xl disabled:opacity-40" aria-label="One less" disabled={qty <= step} onClick={() => setQty((q) => round(Math.max(step, q - step)))}>
+            −
+          </button>
+          <span className="min-w-[4rem] text-center text-2xl font-bold tabular-nums" aria-live="polite">
+            {qty}
+            {lb ? " lb" : ""}
+          </span>
+          <button type="button" className="w-11 h-11 rounded-full bg-brand-gold text-white font-bold text-xl" aria-label="One more" onClick={() => setQty((q) => round(q + step))}>
+            +
+          </button>
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-semibold">
+            <i className="fa-solid fa-pen text-brand-teal" aria-hidden="true"></i> Note <span className="font-normal text-brand-navydeep/70">(optional)</span>
+          </span>
+          <input
+            type="text"
+            value={note}
+            maxLength={DISH_NOTE_MAX}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="e.g. no onion, extra salsa"
+            className="w-full rounded-xl border border-brand-navydeep/20 bg-white/70 px-3 py-2 text-base"
+          />
+        </label>
+        <button type="submit" className="btn-3d justify-center text-lg w-full">
+          Add to order · {formatMoney(item.price * qty)}
+        </button>
+      </form>
+    </div>,
+    document.body,
   );
 }
 
@@ -193,13 +285,13 @@ function QtyBadge({ qty, className = "" }) {
   );
 }
 
-function PosTile({ item, qty, onChange }) {
+function PosTile({ item, qty, onChange, onPick }) {
   const deal = item.unit !== "lb" && DEALS[item.deal];
   return (
     <div className="relative flex flex-col">
       <button
         type="button"
-        onClick={() => onChange(item.id, qtyStep(item))}
+        onClick={() => onPick(item)}
         aria-label={addLabel(item, qty)}
         className={`glass-panel !rounded-xl min-h-[4.5rem] px-3 py-2 flex flex-col justify-between gap-1 text-left border-2 transition-[transform,border-color] active:scale-95 ${qty ? "border-brand-gold" : "border-transparent"} ${deal ? "!rounded-b-none" : ""}`}
       >
@@ -224,13 +316,13 @@ function PosTile({ item, qty, onChange }) {
   );
 }
 
-function PosRow({ item, qty, onChange }) {
+function PosRow({ item, qty, onChange, onPick }) {
   const deal = item.unit !== "lb" && DEALS[item.deal];
   return (
     <div className="flex items-stretch gap-1.5">
       <button
         type="button"
-        onClick={() => onChange(item.id, qtyStep(item))}
+        onClick={() => onPick(item)}
         aria-label={addLabel(item, qty)}
         className={`glass-panel !rounded-xl flex-1 min-w-0 min-h-[2.75rem] px-3 py-1.5 flex items-center gap-2 text-left border-2 transition-[transform,border-color] active:scale-[0.98] ${qty ? "border-brand-gold" : "border-transparent"}`}
       >
