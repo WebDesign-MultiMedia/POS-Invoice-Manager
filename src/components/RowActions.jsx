@@ -11,10 +11,11 @@ import { friendlyMessage } from "../lib/errors.js";
 const ALERT = { theme: "dark" };
 const OUTLINE = "btn-3d !py-2 !px-2 sm:!px-4 text-sm justify-center !bg-none !bg-transparent border";
 
-export function RowButtons({ invoiceHref, onMakeInvoice, receiptHref, onEdit, onDelete, editing, label }) {
+// children: extra buttons (e.g. Text receipt), placed after the others.
+export function RowButtons({ invoiceHref, onMakeInvoice, receiptHref, onEdit, onDelete, editing, label, children }) {
   // Two per row on phones; with an odd count the invoice button takes the
   // whole first row so the rest pair up.
-  const count = [invoiceHref || onMakeInvoice, receiptHref, onEdit, onDelete].filter(Boolean).length;
+  const count = [invoiceHref || onMakeInvoice, receiptHref, onEdit, onDelete, children].filter(Boolean).length;
   const wide = count % 2 === 1 ? "col-span-2 sm:col-span-1" : "";
   return (
     <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap mt-1">
@@ -44,9 +45,12 @@ export function RowButtons({ invoiceHref, onMakeInvoice, receiptHref, onEdit, on
           <i className="fa-solid fa-trash" aria-hidden="true"></i> Delete
         </button>
       )}
+      {children}
     </div>
   );
 }
+
+export const ROW_OUTLINE_BUTTON = OUTLINE;
 
 // "Make invoice": opens the order form filled in from this sale, after
 // checking it won't wipe out an order someone already started typing.

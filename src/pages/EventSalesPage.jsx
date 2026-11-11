@@ -8,7 +8,7 @@ import MenuPicker from "../components/MenuPicker.jsx";
 import CardPaymentForm from "../components/CardPaymentForm.jsx";
 import DemoCardForm from "../components/DemoCardForm.jsx";
 import { deleteEventSale, fetchAllEventSales, payEventSale, recordCardPayment, recordEventSale, updateEventSale } from "../api/sheetdb.js";
-import { RowButtons, RowEditor, SoldByTag, confirmAndDelete, useMakeInvoice } from "../components/RowActions.jsx";
+import { ROW_OUTLINE_BUTTON, RowButtons, RowEditor, confirmAndDelete, useMakeInvoice } from "../components/RowActions.jsx";
 import { saleToOrderForm } from "../lib/saleToOrder.js";
 import { useAuth } from "../lib/auth.jsx";
 import ZelleQrCard from "../components/ZelleQrCard.jsx";
@@ -968,11 +968,6 @@ function SaleRow({ sale: s, onUpdated, onDeleted }) {
   const isCard = s.Method === "Card";
   const fields = isCard ? TEXT_FIELDS : [...MONEY_FIELDS, ...TEXT_FIELDS];
   const key = /^EV-\d{6}-\d{6}$/.test(s.SaleId || "") ? s.SaleId : null;
-  const items = (s.Items || "")
-    .split("\n")
-    .map((l) => l.replace(/\s*\(\$[\d,.]+\)$/, "").trim())
-    .filter(Boolean)
-    .join(", ");
 
   const remove = async () => {
     const gone = await confirmAndDelete({
@@ -991,20 +986,10 @@ function SaleRow({ sale: s, onUpdated, onDeleted }) {
   };
 
   return (
-    <li className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
-      <div className="flex items-center gap-2 min-w-0">
-        <p className="font-semibold text-brand-navy truncate">
-          {s.Name || "Walk-up customer"} · {formatMoney(toNumber(s.Total || s.Amount))}
-        </p>
-        <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-brand-navydeep/25 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-navydeep/90">
-          <i className={`fa-solid ${METHOD_ICONS[s.Method] || "fa-tag"}`} aria-hidden="true"></i> {s.Method}
-        </span>
-      </div>
-      <p className="text-sm text-brand-navydeep/80">
-        {s.Time} · {s.SaleId}
-      </p>
-      {s.SoldBy && <SoldByTag name={s.SoldBy} />}
-      {items && <p className="text-xs text-brand-navydeep/70">{items}</p>}
+    <li className="flex flex-col gap-1 py-2.5 first:pt-0 last:pb-0">
+      <SaleHeader name={s.Name || "Walk-up customer"} total={s.Total || s.Amount} method={s.Method} />
+      <SaleMeta parts={[s.Time, s.SaleId, s.Note]} soldBy={s.SoldBy} />
+      <SaleItems items={s.Items} />
       <RowButtons
         label={`sale ${s.SaleId}`}
         onMakeInvoice={can("orders") ? () => makeInvoice(saleToOrderForm(s, s.Method || "Cash"), `event sale ${s.SaleId}`) : null}
@@ -1012,13 +997,9 @@ function SaleRow({ sale: s, onUpdated, onDeleted }) {
         onEdit={key && can("manage") ? () => setEditing(true) : null}
         onDelete={key && can("manage") ? remove : null}
         editing={editing}
-      />
-      {!editing && (
-        <TextReceiptButton
-          sale={s}
-          className="mt-1 inline-flex items-center justify-center gap-2 rounded-xl border border-brand-teal/60 px-3 py-2 text-sm font-semibold text-brand-teal"
-        />
-      )}
+      >
+        {!editing && <TextReceiptButton sale={s} className={`${ROW_OUTLINE_BUTTON} border-brand-teal/60 text-brand-teal whitespace-nowrap`} />}
+      </RowButtons>
       {editing && (
         <RowEditor
           idBase={`ev-${key}`}
@@ -1030,6 +1011,67 @@ function SaleRow({ sale: s, onUpdated, onDeleted }) {
         />
       )}
     </li>
+  );
+}
+
+// A saved sale's top line: name, Paid-with chip, total on the right.
+function SaleHeader({ name, total, method }) {
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <p className="font-semibold text-brand-navy truncate min-w-0">{name}</p>
+      {method && (
+        <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-brand-navydeep/25 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-navydeep/90">
+          <i className={`fa-solid ${METHOD_ICONS[method] || "fa-tag"}`} aria-hidden="true"></i> {method}
+        </span>
+      )}
+      <span className="ml-auto shrink-0 font-semibold text-brand-navy tabular-nums">{formatMoney(toNumber(total))}</span>
+    </div>
+  );
+}
+
+// One small line: time · id · note, then who rang it up.
+function SaleMeta({ parts, soldBy }) {
+  const text = parts.filter(Boolean).join(" · ");
+  if (!text && !soldBy) return null;
+  return (
+    <p className="text-xs text-brand-navydeep/75 leading-snug">
+      {text}
+      {soldBy && (
+        <span className="font-semibold text-brand-teal">
+          {text ? " · " : ""}
+          <i className="fa-solid fa-user-tag" aria-hidden="true"></i> {soldBy}
+        </span>
+      )}
+    </p>
+  );
+}
+
+// The dishes as a list, one per line with its price on the right:
+// "2x Taco de Chivo (no onion) ($10.00)" → "2x Taco de Chivo (no onion)  $10.00".
+// Deal lines ("Drinks 3 for $5 (-$1.00)") show as savings.
+function saleItemLines(items) {
+  return String(items || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const m = l.match(/^(.*?)\s*\((-?)\$([\d,.]+)\)$/);
+      return m ? { label: m[1], price: (m[2] ? -1 : 1) * Number(m[3].replace(/,/g, "")) } : { label: l, price: null };
+    });
+}
+
+function SaleItems({ items }) {
+  const lines = saleItemLines(items);
+  if (!lines.length) return null;
+  return (
+    <ul className="rounded-lg bg-brand-navydeep/5 px-2.5 py-1.5 text-sm leading-snug" aria-label="Items">
+      {lines.map((l, i) => (
+        <li key={i} className={`flex justify-between gap-3 ${l.price < 0 ? "text-brand-teal font-semibold" : "text-brand-navydeep/90"}`}>
+          <span className="min-w-0">{l.label}</span>
+          {l.price != null && <span className="shrink-0 tabular-nums">{l.price < 0 ? `−${formatMoney(-l.price)}` : formatMoney(l.price)}</span>}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -1056,15 +1098,10 @@ function UnpaidSales({ rows, payingId, onPay, onDeleted, wide = false }) {
       <p className="text-xs text-center text-brand-navydeep/75 mb-3">Orders saved with Pay later. Tap Take payment when they&apos;re ready.</p>
       <ul className="flex flex-col divide-y divide-brand-navydeep/15">
         {unpaid.map((s) => (
-          <li key={s.SaleId} className="py-3 first:pt-0 last:pb-0 flex flex-col gap-1">
-            <p className="font-semibold text-brand-navy truncate">
-              {s.Name || "No name"} · {formatMoney(toNumber(s.Total || s.Amount))}
-            </p>
-            <p className="text-sm text-brand-navydeep/80">
-              {[s.Date !== getCurrentDateTime().date ? s.Date : "", s.Time, s.Note].filter(Boolean).join(" · ")}
-            </p>
-            {s.Items && <p className="text-xs text-brand-navydeep/70">{receiptLines(s.Items).replace(/ — \$[\d,.]+/g, "").split("\n").join(", ")}</p>}
-            <SoldByTag name={s.SoldBy} />
+          <li key={s.SaleId} className="py-2.5 first:pt-0 last:pb-0 flex flex-col gap-1">
+            <SaleHeader name={s.Name || "No name"} total={s.Total || s.Amount} />
+            <SaleMeta parts={[s.Date !== getCurrentDateTime().date ? s.Date : "", s.Time, s.Note]} soldBy={s.SoldBy} />
+            <SaleItems items={s.Items} />
             <div className={`grid ${can("manage") ? "grid-cols-2" : "grid-cols-1"} gap-2 mt-1`}>
               <button type="button" className="btn-3d !py-2 !px-2 text-sm justify-center disabled:opacity-60" disabled={payingId === s.SaleId} onClick={() => onPay(s)}>
                 <i className="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i> {payingId === s.SaleId ? "Paying…" : "Take payment"}
