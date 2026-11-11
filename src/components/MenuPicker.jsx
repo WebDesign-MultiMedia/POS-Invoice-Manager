@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { formatMoney } from "../lib/format.js";
 import { DEALS, qtyStep } from "../lib/menu.js";
 
@@ -7,7 +8,8 @@ import { DEALS, qtyStep } from "../lib/menu.js";
 // and `deals` (from cartDeals) lists the savings already in the total.
 // variant="pos": the register layout on tablets/computers. Big tiles, more
 // per row, a count badge instead of − / + (the order ticket has those),
-// and no total underneath (the ticket shows it).
+// and no total underneath (the ticket shows it). A Columns / Rows switch
+// picks tiles or one row per item.
 export default function MenuPicker({ menu, cart, onChange, onClear, total, deals = [], variant }) {
   if (variant === "pos") return <PosMenu menu={menu} cart={cart} onChange={onChange} />;
   const hasCart = Object.keys(cart).length > 0;
@@ -106,9 +108,53 @@ export default function MenuPicker({ menu, cart, onChange, onClear, total, deals
   );
 }
 
+// Register menu view: "tiles" (a grid of columns) or "list" (one row per
+// item). Remembered per device; storage can be blocked, so it's optional.
+const VIEW_KEY = "pim-pos-menu-view";
+function loadView() {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "tiles";
+  } catch {
+    return "tiles";
+  }
+}
+function saveView(view) {
+  try {
+    localStorage.setItem(VIEW_KEY, view);
+  } catch {
+    // not saved; the choice still applies until the page reloads
+  }
+}
+
+const VIEWS = [
+  { id: "tiles", label: "Columns", icon: "fa-table-cells-large" },
+  { id: "list", label: "Rows", icon: "fa-list" },
+];
+
 function PosMenu({ menu, cart, onChange }) {
+  const [view, setView] = useState(loadView);
+  const pick = (v) => {
+    setView(v);
+    saveView(v);
+  };
+  const list = view === "list";
   return (
     <div className="flex flex-col gap-5">
+      <div className="flex justify-end">
+        <div role="group" aria-label="Menu layout" className="inline-flex rounded-full bg-brand-navydeep/10 p-1 gap-1">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              aria-pressed={view === v.id}
+              onClick={() => pick(v.id)}
+              className={`rounded-full px-3 py-1.5 text-sm font-semibold flex items-center gap-1.5 transition-colors ${view === v.id ? "bg-brand-gold text-white" : "text-brand-navydeep/80"}`}
+            >
+              <i className={`fa-solid ${v.icon}`} aria-hidden="true"></i> {v.label}
+            </button>
+          ))}
+        </div>
+      </div>
       {menu.map((group) => (
         <div key={group.category}>
           <p className="text-sm uppercase tracking-widest text-brand-teal font-semibold mb-2">
@@ -119,45 +165,89 @@ function PosMenu({ menu, cart, onChange }) {
               </span>
             )}
           </p>
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
-            {group.items.map((item) => {
-              const qty = cart[item.id] || 0;
-              const deal = item.unit !== "lb" && DEALS[item.deal];
-              return (
-                <div key={item.id} className="relative flex flex-col">
-                  <button
-                    type="button"
-                    onClick={() => onChange(item.id, qtyStep(item))}
-                    aria-label={`Add ${item.name}${qty ? ` (${qty}${item.unit === "lb" ? " lb" : ""} in order)` : ""}`}
-                    className={`glass-panel min-h-[6.5rem] p-3 flex flex-col justify-between text-left border-2 transition-[transform,border-color] active:scale-95 ${qty ? "border-brand-gold" : "border-transparent"} ${deal ? "!rounded-b-none" : ""}`}
-                  >
-                    <span className="block font-semibold text-base leading-tight pr-8">{item.name}</span>
-                    <span className="text-sm text-brand-navydeep/80 tabular-nums">
-                      {formatMoney(item.price)}
-                      {item.unit === "lb" ? " / lb" : ""}
-                    </span>
-                  </button>
-                  {qty > 0 && (
-                    <span className="pointer-events-none absolute top-2 right-2 min-w-[1.75rem] h-7 px-1.5 rounded-full bg-brand-gold text-white text-sm font-bold flex items-center justify-center tabular-nums" aria-hidden="true">
-                      {qty}
-                    </span>
-                  )}
-                  {deal && (
-                    <button
-                      type="button"
-                      className="rounded-b-2xl border-2 border-t-0 border-brand-gold/70 py-1.5 text-sm font-semibold active:scale-95"
-                      aria-label={`Add ${deal.qty} ${item.name} for ${formatMoney(deal.price)}`}
-                      onClick={() => onChange(item.id, deal.qty)}
-                    >
-                      +{deal.qty} for {formatMoney(deal.price)}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+          <div className={list ? "flex flex-col gap-2" : "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3"}>
+            {group.items.map((item) =>
+              list ? (
+                <PosRow key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} />
+              ) : (
+                <PosTile key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} />
+              ),
+            )}
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+const addLabel = (item, qty) => `Add ${item.name}${qty ? ` (${qty}${item.unit === "lb" ? " lb" : ""} in order)` : ""}`;
+
+function QtyBadge({ qty, className = "" }) {
+  return (
+    <span className={`pointer-events-none min-w-[1.75rem] h-7 px-1.5 rounded-full bg-brand-gold text-white text-sm font-bold flex items-center justify-center tabular-nums ${className}`} aria-hidden="true">
+      {qty}
+    </span>
+  );
+}
+
+function PosTile({ item, qty, onChange }) {
+  const deal = item.unit !== "lb" && DEALS[item.deal];
+  return (
+    <div className="relative flex flex-col">
+      <button
+        type="button"
+        onClick={() => onChange(item.id, qtyStep(item))}
+        aria-label={addLabel(item, qty)}
+        className={`glass-panel min-h-[6.5rem] p-3 flex flex-col justify-between text-left border-2 transition-[transform,border-color] active:scale-95 ${qty ? "border-brand-gold" : "border-transparent"} ${deal ? "!rounded-b-none" : ""}`}
+      >
+        <span className="block font-semibold text-base leading-tight pr-8">{item.name}</span>
+        <span className="text-sm text-brand-navydeep/80 tabular-nums">
+          {formatMoney(item.price)}
+          {item.unit === "lb" ? " / lb" : ""}
+        </span>
+      </button>
+      {qty > 0 && <QtyBadge qty={qty} className="absolute top-2 right-2" />}
+      {deal && (
+        <button
+          type="button"
+          className="rounded-b-2xl border-2 border-t-0 border-brand-gold/70 py-1.5 text-sm font-semibold active:scale-95"
+          aria-label={`Add ${deal.qty} ${item.name} for ${formatMoney(deal.price)}`}
+          onClick={() => onChange(item.id, deal.qty)}
+        >
+          +{deal.qty} for {formatMoney(deal.price)}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PosRow({ item, qty, onChange }) {
+  const deal = item.unit !== "lb" && DEALS[item.deal];
+  return (
+    <div className="flex items-stretch gap-2">
+      <button
+        type="button"
+        onClick={() => onChange(item.id, qtyStep(item))}
+        aria-label={addLabel(item, qty)}
+        className={`glass-panel flex-1 min-w-0 min-h-[3.5rem] px-4 py-2 flex items-center gap-3 text-left border-2 transition-[transform,border-color] active:scale-[0.98] ${qty ? "border-brand-gold" : "border-transparent"}`}
+      >
+        <span className="flex-1 min-w-0 font-semibold text-base leading-tight">{item.name}</span>
+        <span className="text-sm text-brand-navydeep/80 tabular-nums whitespace-nowrap">
+          {formatMoney(item.price)}
+          {item.unit === "lb" ? " / lb" : ""}
+        </span>
+        <span className="w-8 flex justify-end">{qty > 0 && <QtyBadge qty={qty} />}</span>
+      </button>
+      {deal && (
+        <button
+          type="button"
+          className="shrink-0 rounded-2xl border-2 border-brand-gold/70 px-3 text-sm font-semibold whitespace-nowrap active:scale-95"
+          aria-label={`Add ${deal.qty} ${item.name} for ${formatMoney(deal.price)}`}
+          onClick={() => onChange(item.id, deal.qty)}
+        >
+          +{deal.qty} for {formatMoney(deal.price)}
+        </button>
+      )}
     </div>
   );
 }
