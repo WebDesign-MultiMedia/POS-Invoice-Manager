@@ -130,17 +130,36 @@ function saveView(view) {
   }
 }
 
+// Computers (a mouse or trackpad) always get Columns; the Rows option is
+// for touch tablets only. Checked by pointer type, not width, since a big
+// tablet sideways is as wide as a laptop.
+const DESKTOP = "(hover: hover) and (pointer: fine)";
+function useIsDesktop() {
+  const query = () => typeof window !== "undefined" && window.matchMedia?.(DESKTOP).matches;
+  const [desktop, setDesktop] = useState(query);
+  useEffect(() => {
+    const mq = window.matchMedia?.(DESKTOP);
+    if (!mq) return;
+    const update = () => setDesktop(mq.matches);
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, []);
+  return Boolean(desktop);
+}
+
 const VIEWS = [
   { id: "tiles", label: "Columns", icon: "fa-table-cells-large" },
   { id: "list", label: "Rows", icon: "fa-list" },
 ];
 
-// Register: tapping a dish opens a small card to pick how many and add an
-// optional note, then "Add to order". (With no onNote, a tap just adds.)
+// Register: each tap on a dish adds one (keep tapping for more). The small
+// pencil on the dish (shown when onNote is given) opens a card for its note.
 function PosMenu({ menu, cart, onChange, notes, onNote }) {
-  const [view, setView] = useState(loadView);
+  const [savedView, setView] = useState(loadView);
+  const desktop = useIsDesktop();
+  const view = desktop ? "tiles" : savedView;
   const [picked, setPicked] = useState(null);
-  const onPick = (item) => (onNote ? setPicked(item) : onChange(item.id, qtyStep(item)));
+  const noteFor = (item) => (onNote ? () => setPicked(item) : null);
   const pick = (v) => {
     setView(v);
     saveView(v);
@@ -148,6 +167,7 @@ function PosMenu({ menu, cart, onChange, notes, onNote }) {
   const list = view === "list";
   return (
     <div className="flex flex-col gap-4">
+      {!desktop && (
       <div className="flex justify-end">
         <div role="group" aria-label="Menu layout" className="inline-flex rounded-full bg-brand-navydeep/10 p-1 gap-1">
           {VIEWS.map((v) => (
@@ -163,6 +183,7 @@ function PosMenu({ menu, cart, onChange, notes, onNote }) {
           ))}
         </div>
       </div>
+      )}
       {menu.map((group) => (
         <div key={group.category}>
           <p className="text-sm uppercase tracking-widest text-brand-teal font-semibold mb-2">
@@ -176,9 +197,9 @@ function PosMenu({ menu, cart, onChange, notes, onNote }) {
           <div className={list ? "grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5" : "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2"}>
             {group.items.map((item) =>
               list ? (
-                <PosRow key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} onPick={onPick} />
+                <PosRow key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} onNote={noteFor(item)} hasNote={Boolean(notes?.[item.id]?.trim())} />
               ) : (
-                <PosTile key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} onPick={onPick} />
+                <PosTile key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} onNote={noteFor(item)} hasNote={Boolean(notes?.[item.id]?.trim())} />
               ),
             )}
           </div>
@@ -192,7 +213,7 @@ function PosMenu({ menu, cart, onChange, notes, onNote }) {
           note={notes?.[picked.id] || ""}
           onClose={() => setPicked(null)}
           onAdd={(qty, note) => {
-            onChange(picked.id, qty);
+            if (qty) onChange(picked.id, qty);
             onNote(picked.id, note);
             setPicked(null);
           }}
@@ -202,9 +223,9 @@ function PosMenu({ menu, cart, onChange, notes, onNote }) {
   );
 }
 
-// The "add this dish" card: how many, an optional note, Add to order.
-// The note is for the dish in this order (one note per dish), so it starts
-// with the note already on it.
+// The dish's note card (from the pencil). One note per dish in the order,
+// so it starts with the note already on it. Already in the order: just the
+// note and Save note. Not yet: how many too, then Add to order.
 function DishSheet({ item, inOrder, note: startNote, onClose, onAdd }) {
   const step = qtyStep(item);
   const lb = item.unit === "lb";
@@ -225,7 +246,7 @@ function DishSheet({ item, inOrder, note: startNote, onClose, onAdd }) {
         className="w-full max-w-sm rounded-3xl bg-[rgb(var(--page-bg))] p-5 shadow-2xl flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault();
-          onAdd(qty, note);
+          onAdd(inOrder ? 0 : qty, note);
         }}
       >
         <div className="flex items-start justify-between gap-3">
@@ -241,6 +262,7 @@ function DishSheet({ item, inOrder, note: startNote, onClose, onAdd }) {
             <i className="fa-solid fa-xmark" aria-hidden="true"></i>
           </button>
         </div>
+        {!inOrder && (
         <div className="flex items-center justify-center gap-4">
           <button type="button" className="w-11 h-11 rounded-full bg-brand-navydeep/10 font-bold text-xl disabled:opacity-40" aria-label="One less" disabled={qty <= step} onClick={() => setQty((q) => round(Math.max(step, q - step)))}>
             −
@@ -253,12 +275,14 @@ function DishSheet({ item, inOrder, note: startNote, onClose, onAdd }) {
             +
           </button>
         </div>
+        )}
         <label className="flex flex-col gap-1">
           <span className="text-sm font-semibold">
             <i className="fa-solid fa-pen text-brand-teal" aria-hidden="true"></i> Note <span className="font-normal text-brand-navydeep/70">(optional)</span>
           </span>
           <input
             type="text"
+            autoFocus={inOrder > 0}
             value={note}
             maxLength={DISH_NOTE_MAX}
             onChange={(e) => setNote(e.target.value)}
@@ -267,7 +291,7 @@ function DishSheet({ item, inOrder, note: startNote, onClose, onAdd }) {
           />
         </label>
         <button type="submit" className="btn-3d justify-center text-lg w-full">
-          Add to order · {formatMoney(item.price * qty)}
+          {inOrder ? "Save note" : `Add to order · ${formatMoney(item.price * qty)}`}
         </button>
       </form>
     </div>,
@@ -285,13 +309,14 @@ function QtyBadge({ qty, className = "" }) {
   );
 }
 
-function PosTile({ item, qty, onChange, onPick }) {
+function PosTile({ item, qty, onChange, onNote, hasNote }) {
   const deal = item.unit !== "lb" && DEALS[item.deal];
   return (
-    <div className="relative flex flex-col">
+    <div className="flex flex-col">
+      <div className="relative flex flex-col">
       <button
         type="button"
-        onClick={() => onPick(item)}
+        onClick={() => onChange(item.id, qtyStep(item))}
         aria-label={addLabel(item, qty)}
         className={`glass-panel !rounded-xl min-h-[4.5rem] px-3 py-2 flex flex-col justify-between gap-1 text-left border-2 transition-[transform,border-color] active:scale-95 ${qty ? "border-brand-gold" : "border-transparent"} ${deal ? "!rounded-b-none" : ""}`}
       >
@@ -302,6 +327,8 @@ function PosTile({ item, qty, onChange, onPick }) {
         </span>
       </button>
       {qty > 0 && <QtyBadge qty={qty} className="absolute top-1.5 right-1.5 !h-6 !min-w-[1.5rem] text-xs" />}
+      {onNote && <NoteButton item={item} hasNote={hasNote} onClick={onNote} className="absolute bottom-1 right-1" />}
+      </div>
       {deal && (
         <button
           type="button"
@@ -316,13 +343,13 @@ function PosTile({ item, qty, onChange, onPick }) {
   );
 }
 
-function PosRow({ item, qty, onChange, onPick }) {
+function PosRow({ item, qty, onChange, onNote, hasNote }) {
   const deal = item.unit !== "lb" && DEALS[item.deal];
   return (
     <div className="flex items-stretch gap-1.5">
       <button
         type="button"
-        onClick={() => onPick(item)}
+        onClick={() => onChange(item.id, qtyStep(item))}
         aria-label={addLabel(item, qty)}
         className={`glass-panel !rounded-xl flex-1 min-w-0 min-h-[2.75rem] px-3 py-1.5 flex items-center gap-2 text-left border-2 transition-[transform,border-color] active:scale-[0.98] ${qty ? "border-brand-gold" : "border-transparent"}`}
       >
@@ -333,6 +360,7 @@ function PosRow({ item, qty, onChange, onPick }) {
         </span>
         {qty > 0 && <QtyBadge qty={qty} className="!h-6 !min-w-[1.5rem] text-xs" />}
       </button>
+      {onNote && <NoteButton item={item} hasNote={hasNote} onClick={onNote} className="self-center" />}
       {deal && (
         <button
           type="button"
@@ -344,6 +372,20 @@ function PosRow({ item, qty, onChange, onPick }) {
         </button>
       )}
     </div>
+  );
+}
+
+// The pencil on a register dish: opens its note card. Gold once it has one.
+function NoteButton({ item, hasNote, onClick, className = "" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={hasNote ? `Edit the note for ${item.name}` : `Add a note for ${item.name}`}
+      className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm active:scale-90 transition-transform ${hasNote ? "bg-brand-gold text-white" : "bg-brand-navydeep/10 text-brand-navydeep/70"} ${className}`}
+    >
+      <i className="fa-solid fa-pen" aria-hidden="true"></i>
+    </button>
   );
 }
 
