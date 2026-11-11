@@ -64,8 +64,25 @@ export const qtyStep = (item) => (item.unit === "lb" ? 0.5 : 1);
 
 // Matches the "Nx Item" convention used in invoice Items, e.g.
 // "2x Taco de Chivo, 1.5 lb Carnitas".
-export function formatCartLine(item, qty) {
-  return item.unit === "lb" ? `${qty} lb ${item.name}` : `${qty}x ${item.name}`;
+// note: an optional per-dish note ("no onion"), saved in parentheses after
+// the name: "2x Taco de Chivo (no onion)".
+export function formatCartLine(item, qty, note) {
+  const line = item.unit === "lb" ? `${qty} lb ${item.name}` : `${qty}x ${item.name}`;
+  const clean = cleanDishNote(note);
+  return clean ? `${line} (${clean})` : line;
+}
+
+// Dish notes live inside the Items text, which is split on new lines and
+// commas and ends in "($5.00)". So: one line, no commas or parentheses.
+export const DISH_NOTE_MAX = 60;
+export function cleanDishNote(note) {
+  return String(note || "")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/,/g, ";")
+    .replace(/[()[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, DISH_NOTE_MAX);
 }
 
 // CardPayments rows store the order two ways:

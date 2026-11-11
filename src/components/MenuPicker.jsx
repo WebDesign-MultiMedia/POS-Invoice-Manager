@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { formatMoney } from "../lib/format.js";
-import { DEALS, qtyStep } from "../lib/menu.js";
+import { DEALS, DISH_NOTE_MAX, qtyStep } from "../lib/menu.js";
 
 // Tap-to-add menu grid, used by Pay with Card and Event Sales.
 // cart is { [menuItemId]: qty }; onChange(id, delta) adds or removes.
@@ -10,7 +10,9 @@ import { DEALS, qtyStep } from "../lib/menu.js";
 // per row, a count badge instead of − / + (the order ticket has those),
 // and no total underneath (the ticket shows it). A Columns / Rows switch
 // picks tiles or one row per item.
-export default function MenuPicker({ menu, cart, onChange, onClear, total, deals = [], variant }) {
+// notes / onNote (optional): per-dish notes ({ [menuItemId]: text }); when
+// given, each item in the order gets an "Add note" field.
+export default function MenuPicker({ menu, cart, onChange, onClear, total, deals = [], variant, notes, onNote }) {
   if (variant === "pos") return <PosMenu menu={menu} cart={cart} onChange={onChange} />;
   const hasCart = Object.keys(cart).length > 0;
   return (
@@ -69,6 +71,7 @@ export default function MenuPicker({ menu, cart, onChange, onClear, total, deals
                         </button>
                       </div>
                     )}
+                    {qty > 0 && onNote && <DishNote item={item} value={notes?.[item.id] || ""} onChange={(v) => onNote(item.id, v)} />}
                     {deal && (
                       <button
                         type="button"
@@ -139,7 +142,7 @@ function PosMenu({ menu, cart, onChange }) {
   };
   const list = view === "list";
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <div className="flex justify-end">
         <div role="group" aria-label="Menu layout" className="inline-flex rounded-full bg-brand-navydeep/10 p-1 gap-1">
           {VIEWS.map((v) => (
@@ -165,7 +168,7 @@ function PosMenu({ menu, cart, onChange }) {
               </span>
             )}
           </p>
-          <div className={list ? "grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5" : "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3"}>
+          <div className={list ? "grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5" : "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2"}>
             {group.items.map((item) =>
               list ? (
                 <PosRow key={item.id} item={item} qty={cart[item.id] || 0} onChange={onChange} />
@@ -198,19 +201,19 @@ function PosTile({ item, qty, onChange }) {
         type="button"
         onClick={() => onChange(item.id, qtyStep(item))}
         aria-label={addLabel(item, qty)}
-        className={`glass-panel min-h-[6.5rem] p-3 flex flex-col justify-between text-left border-2 transition-[transform,border-color] active:scale-95 ${qty ? "border-brand-gold" : "border-transparent"} ${deal ? "!rounded-b-none" : ""}`}
+        className={`glass-panel !rounded-xl min-h-[4.5rem] px-3 py-2 flex flex-col justify-between gap-1 text-left border-2 transition-[transform,border-color] active:scale-95 ${qty ? "border-brand-gold" : "border-transparent"} ${deal ? "!rounded-b-none" : ""}`}
       >
-        <span className="block font-semibold text-base leading-tight pr-8">{item.name}</span>
+        <span className="block font-semibold text-[0.95rem] leading-tight pr-7">{item.name}</span>
         <span className="text-sm text-brand-navydeep/80 tabular-nums">
           {formatMoney(item.price)}
           {item.unit === "lb" ? " / lb" : ""}
         </span>
       </button>
-      {qty > 0 && <QtyBadge qty={qty} className="absolute top-2 right-2" />}
+      {qty > 0 && <QtyBadge qty={qty} className="absolute top-1.5 right-1.5 !h-6 !min-w-[1.5rem] text-xs" />}
       {deal && (
         <button
           type="button"
-          className="rounded-b-2xl border-2 border-t-0 border-brand-gold/70 py-1.5 text-sm font-semibold active:scale-95"
+          className="rounded-b-xl border-2 border-t-0 border-brand-gold/70 py-1 text-xs font-semibold active:scale-95"
           aria-label={`Add ${deal.qty} ${item.name} for ${formatMoney(deal.price)}`}
           onClick={() => onChange(item.id, deal.qty)}
         >
@@ -249,5 +252,31 @@ function PosRow({ item, qty, onChange }) {
         </button>
       )}
     </div>
+  );
+}
+
+// Optional note for one dish in the order ("no onion", "extra salsa").
+// Starts as a small "Add note" link; stays open while it has text.
+export function DishNote({ item, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  if (!open && !value) {
+    return (
+      <button type="button" className="self-start text-xs font-semibold text-brand-teal underline" onClick={() => setOpen(true)} aria-label={`Add a note for ${item.name}`}>
+        <i className="fa-solid fa-pen" aria-hidden="true"></i> Add note
+      </button>
+    );
+  }
+  return (
+    <input
+      type="text"
+      autoFocus={open && !value}
+      value={value}
+      maxLength={DISH_NOTE_MAX}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={() => !value.trim() && setOpen(false)}
+      placeholder="e.g. no onion, extra salsa"
+      aria-label={`Note for ${item.name} (optional)`}
+      className="w-full min-w-0 rounded-lg border border-brand-navydeep/20 bg-white/70 px-2 py-1 text-base sm:text-sm"
+    />
   );
 }

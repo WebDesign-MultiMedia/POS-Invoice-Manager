@@ -23,6 +23,14 @@ describe("menu price lookups", () => {
     expect(formatCartLine(MENU_ITEMS["taco-chivo"], 2)).toBe("2x Taco de Chivo");
     expect(formatCartLine(MENU_ITEMS["lb-carnitas"], 1.5)).toBe("1.5 lb Carnitas");
   });
+
+  it("adds an optional dish note, kept safe for the Items text", () => {
+    expect(formatCartLine(MENU_ITEMS["taco-chivo"], 2, "no onion")).toBe("2x Taco de Chivo (no onion)");
+    expect(formatCartLine(MENU_ITEMS["taco-chivo"], 1, "  ")).toBe("1x Taco de Chivo");
+    expect(formatCartLine(MENU_ITEMS["taco-chivo"], 1, "no onion, (extra)\nsalsa")).toBe("1x Taco de Chivo (no onion; extra salsa)");
+    const line = `${formatCartLine(MENU_ITEMS["taco-chivo"], 2, "no onion")} ($10.00)`;
+    expect(parseCardPaymentOrder({ Items: line }).items).toEqual([{ label: "2x Taco de Chivo (no onion)", price: 10 }]);
+  });
 });
 
 describe("cart totals", () => {

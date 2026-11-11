@@ -4,7 +4,7 @@ import { Elements } from "@stripe/react-stripe-js";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
-import MenuPicker from "../components/MenuPicker.jsx";
+import MenuPicker, { DishNote } from "../components/MenuPicker.jsx";
 import CardPaymentForm from "../components/CardPaymentForm.jsx";
 import DemoCardForm from "../components/DemoCardForm.jsx";
 import { deleteEventSale, fetchAllEventSales, payEventSale, recordCardPayment, recordEventSale, updateEventSale } from "../api/sheetdb.js";
@@ -69,6 +69,13 @@ export default function EventSalesPage() {
   // "order" → "pay" → "done"
   const [step, setStep] = useState("order");
   const [cart, setCart] = useState({});
+  // Optional per-dish notes, { [menuItemId]: "no onion" }.
+  const [dishNotes, setDishNotes] = useState({});
+  const setDishNote = (id, text) => setDishNotes((prev) => ({ ...prev, [id]: text }));
+  const clearCart = () => {
+    setCart({});
+    setDishNotes({});
+  };
   const [amountInput, setAmountInput] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [note, setNote] = useState("");
@@ -147,11 +154,12 @@ export default function EventSalesPage() {
       else delete next[id];
       return next;
     });
+    if ((cart[id] || 0) + delta <= 0) setDishNotes(({ [id]: _gone, ...rest }) => rest);
   };
 
   const cartEntries = Object.entries(cart)
     .filter(([id]) => MENU_ITEMS[id])
-    .map(([id, qty]) => ({ item: MENU_ITEMS[id], qty }));
+    .map(([id, qty]) => ({ item: MENU_ITEMS[id], qty, note: dishNotes[id] || "" }));
   const hasCart = cartEntries.length > 0;
   const cartTotal = sumCart(cart, MENU_ITEMS);
   // e.g. "Drinks 3 for $5" savings, shown as their own line on the sale.
@@ -162,11 +170,11 @@ export default function EventSalesPage() {
   const totalCents = toCents(total);
   // Same "1x Item ($5.00)" lines as CardPayments, so Search can read them.
   const itemsForSheet = [
-    ...cartEntries.map(({ item, qty }) => `${formatCartLine(item, qty)} (${formatMoney(item.price * qty)})`),
+    ...cartEntries.map(({ item, qty, note }) => `${formatCartLine(item, qty, note)} (${formatMoney(item.price * qty)})`),
     ...dealsApplied.map((d) => `${dealLabel(d)} (-${formatMoney(d.savings)})`),
   ].join("\n");
   const receiptItemLines = [
-    ...cartEntries.map(({ item, qty }) => `${formatCartLine(item, qty)} — ${formatMoney(item.price * qty)}`),
+    ...cartEntries.map(({ item, qty, note }) => `${formatCartLine(item, qty, note)} — ${formatMoney(item.price * qty)}`),
     ...dealsApplied.map((d) => `${dealLabel(d)} — -${formatMoney(d.savings)}`),
   ].join("\n");
   const paidItemLines = paying ? receiptLines(paying.Items) : receiptItemLines;
@@ -318,7 +326,7 @@ export default function EventSalesPage() {
 
   const nextCustomer = () => {
     setStep("order");
-    setCart({});
+    clearCart();
     setAmountInput("");
     setCustomerName("");
     setNote("");
@@ -367,9 +375,9 @@ export default function EventSalesPage() {
               )}
               {!paying && hasCart && (
                 <ul className="text-sm text-brand-navydeep/80 mt-2">
-                  {cartEntries.map(({ item, qty }) => (
+                  {cartEntries.map(({ item, qty, note }) => (
                     <li key={item.id}>
-                      {formatCartLine(item, qty)} · {formatMoney(item.price * qty)}
+                      {formatCartLine(item, qty, note)} · {formatMoney(item.price * qty)}
                     </li>
                   ))}
                 </ul>
@@ -533,7 +541,7 @@ export default function EventSalesPage() {
       <div ref={cardRef} className="w-full max-w-md glass-card p-6 sm:p-8 stagger-in scroll-mt-4">
         {step === "order" && (
           <div className="flex flex-col gap-4">
-            <MenuPicker menu={MENU} cart={cart} onChange={changeQty} onClear={() => setCart({})} total={cartTotal} deals={dealsApplied} />
+            <MenuPicker menu={MENU} cart={cart} onChange={changeQty} onClear={clearCart} total={cartTotal} deals={dealsApplied} notes={dishNotes} onNote={setDishNote} />
             {!hasCart && (
               <div className="field-group">
                 <label htmlFor="event-amount" className="field-label">
@@ -631,7 +639,7 @@ export default function EventSalesPage() {
           <i className="fa-solid fa-receipt" aria-hidden="true"></i> Current order
         </h2>
         {hasCart && (
-          <button type="button" className="text-xs text-brand-navydeep/75 underline" onClick={() => setCart({})}>
+          <button type="button" className="text-xs text-brand-navydeep/75 underline" onClick={clearCart}>
             Clear
           </button>
         )}
@@ -639,7 +647,8 @@ export default function EventSalesPage() {
       {hasCart ? (
         <ul className="flex flex-col divide-y divide-brand-navydeep/10" aria-label="Items in this order">
           {cartEntries.map(({ item, qty }) => (
-            <li key={item.id} className="flex items-center gap-2 py-2">
+            <li key={item.id} className="py-2 flex flex-col gap-1">
+              <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold leading-tight truncate">{item.name}</p>
                 <p className="text-xs text-brand-navydeep/70">
@@ -660,6 +669,8 @@ export default function EventSalesPage() {
                 </button>
               </div>
               <span className="w-20 text-right font-semibold tabular-nums shrink-0">{formatMoney(item.price * qty)}</span>
+              </div>
+              <DishNote item={item} value={dishNotes[item.id] || ""} onChange={(v) => setDishNote(item.id, v)} />
             </li>
           ))}
           {dealsApplied.map((d) => (
@@ -742,7 +753,7 @@ export default function EventSalesPage() {
             aria-disabled={step !== "order"}
             className={`min-h-0 overflow-y-auto overscroll-contain glass-card !rounded-3xl p-4 lg:p-5 transition-opacity ${step !== "order" ? "opacity-40 pointer-events-none" : ""}`}
           >
-            <MenuPicker variant="pos" menu={MENU} cart={cart} onChange={changeQty} onClear={() => setCart({})} total={cartTotal} deals={dealsApplied} />
+            <MenuPicker variant="pos" menu={MENU} cart={cart} onChange={changeQty} onClear={clearCart} total={cartTotal} deals={dealsApplied} />
           </section>
           <aside ref={cardRef} aria-label="Current order" className="min-h-0 overflow-y-auto overscroll-contain glass-card !rounded-3xl p-5 flex flex-col">
             {step === "order" ? ticket : checkoutSteps}
