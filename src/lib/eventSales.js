@@ -92,3 +92,36 @@ export function saleEdit(sale, values) {
     Change: change == null ? "" : change.toFixed(2),
   };
 }
+
+// "Edit" on an Unpaid order: its saved Items text back into a cart, so the
+// order opens in the register again. Lines look like
+//   "2x Taco de Chivo (no onion) ($10.00)"  /  "1.5 lb Carnitas ($24.00)";
+// deal lines ("Drinks 3 for $5 (-$1.00)") are skipped (worked out again).
+// unknown: lines that aren't a dish on today's menu, so editing can warn.
+export function cartFromItems(items, menuItems) {
+  const cart = {};
+  const notes = {};
+  const unknown = [];
+  for (const raw of String(items || "").split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/\(-\$[\d,.]+\)$/.test(line)) continue;
+    const m = line.replace(/\s*\(\$[\d,.]+\)$/, "").match(/^(\d+(?:\.\d+)?)(x| lb) (.+)$/);
+    const lb = m && m[2] === " lb";
+    const sameKind = (i) => (i.unit === "lb") === lb;
+    let item = m && menuItems.find((i) => sameKind(i) && i.name === m[3]);
+    let note = "";
+    if (m && !item) {
+      const withNote = m[3].match(/^(.*?) \(([^()]*)\)$/);
+      item = withNote && menuItems.find((i) => sameKind(i) && i.name === withNote[1]);
+      if (item) note = withNote[2];
+    }
+    if (!item) {
+      unknown.push(line);
+      continue;
+    }
+    cart[item.id] = Math.round(((cart[item.id] || 0) + Number(m[1])) * 100) / 100;
+    if (note) notes[item.id] = notes[item.id] ? `${notes[item.id]}; ${note}` : note;
+  }
+  return { cart, notes, unknown };
+}

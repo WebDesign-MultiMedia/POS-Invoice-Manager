@@ -569,9 +569,25 @@ describe("pay later (unpaid event sales)", () => {
     expect((await post({ action: "payEventSale", id: "EV-261110-120000", data: { Method: "Cash", CashReceived: "lots", Change: "0" } })).statusCode).toBe(400);
   });
 
+  it("edits their own unpaid order without Can edit & delete, order fields only", async () => {
+    const res = await post({ action: "editUnpaidSale", id: "EV-261110-120000", data: { Name: "Maria", Items: "3x Water ($6.00)", Note: "later", Total: "6.00", Method: "Cash", SoldBy: "Ana" } });
+    expect(res.statusCode).toBe(200);
+    expect(sales[0]).toMatchObject({ Name: "Maria", Items: "3x Water ($6.00)", Note: "later", Amount: "6.00", Total: "6.00", Status: "Unpaid", SoldBy: "Carlos" });
+    expect(sales[0].Method).not.toBe("Cash");
+  });
+
+  it("can't edit another employee's unpaid order, a paid one, or with no name / a bad total", async () => {
+    const data = { Name: "Maria", Items: "", Note: "", Total: "6.00" };
+    expect((await post({ action: "editUnpaidSale", id: "EV-261110-120001", data })).statusCode).toBe(403);
+    expect((await post({ action: "editUnpaidSale", id: "EV-261110-120002", data })).statusCode).toBe(409);
+    expect((await post({ action: "editUnpaidSale", id: "EV-261110-120000", data: { ...data, Name: " " } })).statusCode).toBe(400);
+    expect((await post({ action: "editUnpaidSale", id: "EV-261110-120000", data: { ...data, Total: "0" } })).statusCode).toBe(400);
+  });
+
   it("needs Event Sales", async () => {
     employeeRows[0].Access = "orders";
     clearEmployeeCache();
+    expect((await post({ action: "editUnpaidSale", id: "EV-261110-120000", data: { Name: "M", Total: "1.00" } })).statusCode).toBe(403);
     expect((await post({ action: "payEventSale", id: "EV-261110-120000", data: { Method: "Zelle" } })).statusCode).toBe(403);
   });
 

@@ -118,6 +118,13 @@ export function payEventSale(saleId, data) {
   return postSheet({ action: "payEventSale", id: String(saleId), data });
 }
 
+// "Edit" on an Unpaid sale: data { Name, Items, Note, Total }. Needs only
+// Event Sales; employees only their own. Answers { fields } it saved.
+export function editUnpaidSale(saleId, data) {
+  if (isDemo()) return demoApi.editUnpaidSale(saleId, data);
+  return postSheet({ action: "editUnpaidSale", id: String(saleId), data });
+}
+
 export function deleteEventSale(saleId) {
   if (isDemo()) return demoApi.deleteEventSale(saleId);
   return postSheet({ action: "deleteEventSale", id: String(saleId) });

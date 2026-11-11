@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cashChange, isUnpaid, newEventSaleId, quickCashOptions, saleEdit, summarizeSales } from "../src/lib/eventSales.js";
+import { cartFromItems, cashChange, isUnpaid, newEventSaleId, quickCashOptions, saleEdit, summarizeSales } from "../src/lib/eventSales.js";
 import { saleToOrderForm } from "../src/lib/saleToOrder.js";
 
 describe("event sales", () => {
@@ -115,5 +115,20 @@ describe("pay later", () => {
     expect(isUnpaid({ Status: "Unpaid" })).toBe(true);
     expect(isUnpaid({ Status: "Paid" })).toBe(false);
     expect(isUnpaid({})).toBe(false);
+  });
+});
+
+describe("cartFromItems (Edit on an Unpaid order)", () => {
+  const menu = [
+    { id: "taco", name: "Taco de Chivo", price: 5 },
+    { id: "lb-carnitas", name: "Carnitas", price: 16, unit: "lb" },
+    { id: "agua", name: "Agua (16oz)", price: 2 },
+  ];
+  it("reads dishes, pounds and dish notes back, and skips deal lines", () => {
+    const items = "2x Taco de Chivo (no onion) ($10.00)\n1.5 lb Carnitas ($24.00)\n3x Agua (16oz) ($6.00)\nDrinks 3 for $5 (-$1.00)";
+    expect(cartFromItems(items, menu)).toEqual({ cart: { taco: 2, "lb-carnitas": 1.5, agua: 3 }, notes: { taco: "no onion" }, unknown: [] });
+  });
+  it("lists lines that aren't on the menu", () => {
+    expect(cartFromItems("1x Old Special ($9.00)\nsomething typed", menu).unknown).toEqual(["1x Old Special ($9.00)", "something typed"]);
   });
 });

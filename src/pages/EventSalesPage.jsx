@@ -7,7 +7,7 @@ import { SiteNav } from "../components/NavFab.jsx";
 import MenuPicker from "../components/MenuPicker.jsx";
 import CardPaymentForm from "../components/CardPaymentForm.jsx";
 import DemoCardForm from "../components/DemoCardForm.jsx";
-import { deleteEventSale, fetchAllEventSales, payEventSale, recordCardPayment, recordEventSale, updateEventSale } from "../api/sheetdb.js";
+import { deleteEventSale, editUnpaidSale, fetchAllEventSales, payEventSale, recordCardPayment, recordEventSale, updateEventSale } from "../api/sheetdb.js";
 import { ROW_OUTLINE_BUTTON, RowButtons, RowEditor, confirmAndDelete, useMakeInvoice } from "../components/RowActions.jsx";
 import { saleToOrderForm } from "../lib/saleToOrder.js";
 import { useAuth } from "../lib/auth.jsx";
@@ -23,7 +23,7 @@ import { isDemo } from "../lib/demo.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { cartDeals, cartTotal as sumCart, toCents } from "../lib/totals.js";
 import { cardPaymentsNewestFirst } from "../lib/recentOrder.js";
-import { cashChange, isUnpaid, newEventSaleId, quickCashOptions, saleEdit, summarizeSales } from "../lib/eventSales.js";
+import { cartFromItems, cashChange, isUnpaid, newEventSaleId, quickCashOptions, saleEdit, summarizeSales } from "../lib/eventSales.js";
 
 // Event Sales: checkout for a vendor event booth.
 //   1. Build the order: tap menu items or type an amount, optional name.
@@ -34,6 +34,8 @@ import { cashChange, isUnpaid, newEventSaleId, quickCashOptions, saleEdit, summa
 // so they show in Recent card payments and the Order ID search.
 
 const METHOD_ICONS = { Card: "fa-credit-card", Cash: "fa-money-bill-wave", Zelle: "fa-building-columns" };
+
+const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 // "1x Coffee ($2.50)" sheet lines → "1x Coffee — $2.50" for the receipt.
 const receiptLines = (items) =>
@@ -88,6 +90,8 @@ export default function EventSalesPage() {
   const [done, setDone] = useState(null);
   // An Unpaid ("Pay later") sale being paid now, or null for a new sale.
   const [paying, setPaying] = useState(null);
+  // An Unpaid sale opened with Edit (its order back in the register), or null.
+  const [editing, setEditing] = useState(null);
   const cardRef = useRef(null);
   const [theme, setTheme] = useState(getTheme());
 
@@ -335,8 +339,82 @@ export default function EventSalesPage() {
     setEmail("");
     setDone(null);
     setPaying(null);
+    setEditing(null);
     setSaleId(newEventSaleId());
   };
+
+  // "Edit" on an Unpaid order: its dishes and notes go back in the order so
+  // staff can tap to add more, change amounts or notes, then Save changes.
+  const startEditing = async (sale) => {
+    const { cart: loaded, notes: loadedNotes, unknown } = cartFromItems(sale.Items, Object.values(MENU_ITEMS));
+    if (unknown.length) {
+      const { isConfirmed } = await Swal.fire({
+        title: "Some items aren't on the menu",
+        html: `These can't be edited here and will be <b>removed</b> if you save:<br><br>${unknown.map((l) => escapeHtml(l)).join("<br>")}`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Edit anyway",
+        cancelButtonText: "Keep it as is",
+        theme: "dark",
+      });
+      if (!isConfirmed) return;
+    }
+    nextCustomer();
+    setEditing(sale);
+    setCart(loaded);
+    setDishNotes(loadedNotes);
+    if (!Object.keys(loaded).length) setAmountInput(toNumber(sale.Total || sale.Amount).toFixed(2));
+    setCustomerName(sale.Name || "");
+    setNote(sale.Note || "");
+    setPosTab("order");
+    requestAnimationFrame(() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  const saveEdit = async () => {
+    if (savingRef.current || !editing) return;
+    const name = customerName.trim();
+    if (!name) {
+      Swal.fire({ title: "Customer's name", text: "An unpaid order needs the customer's name.", icon: "warning", theme: "dark" });
+      return;
+    }
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const { fields } = await editUnpaidSale(editing.SaleId, { Name: name, Items: itemsForSheet, Note: note.trim(), Total: total.toFixed(2) });
+      const id = editing.SaleId;
+      setSales((s) => ({ ...s, rows: s.rows.map((r) => (r.SaleId === id ? { ...r, ...fields } : r)) }));
+      nextCustomer();
+      setPosTab("unpaid");
+      Swal.fire({ title: "Order updated", text: `${name}'s order is now ${formatMoney(total)}.`, icon: "success", timer: 1600, showConfirmButton: false, theme: "dark" });
+    } catch (err) {
+      console.error("editUnpaidSale failed:", err);
+      Swal.fire({ title: "Changes not saved", text: friendlyMessage(err, "The order couldn't be updated. Try again."), icon: "error", theme: "dark" });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+
+  // While editing: who's order this is, instead of a new sale.
+  const editBanner = editing && (
+    <div className="rounded-xl border-2 border-brand-terracotta/60 bg-brand-terracotta/10 px-3 py-2 text-sm">
+      <p className="font-semibold text-brand-navy">
+        <i className="fa-solid fa-pen-to-square text-brand-terracotta" aria-hidden="true"></i> Editing {editing.Name || "this"}&apos;s unpaid order
+      </p>
+      <p className="text-xs text-brand-navydeep/75">Add or change dishes, then Save changes. Was {formatMoney(toNumber(editing.Total || editing.Amount))}.</p>
+    </div>
+  );
+  const editButtons = (big) =>
+    editing && (
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" className={`btn-3d justify-center !px-3 ${big ? "!py-4 text-lg" : ""} !bg-none !bg-transparent border border-brand-navy/40 text-brand-navy`} disabled={saving} onClick={nextCustomer}>
+          Cancel
+        </button>
+        <button type="button" className={`btn-3d justify-center !px-3 ${big ? "!py-4 text-lg" : ""} disabled:opacity-60`} disabled={totalCents <= 0 || saving} aria-busy={saving} onClick={saveEdit}>
+          <i className="fa-solid fa-floppy-disk" aria-hidden="true"></i> {saving ? "Saving…" : "Save changes"}
+        </button>
+      </div>
+    );
 
   // "Take payment" on an Unpaid sale: open the payment step for it.
   const startPaying = (sale) => {
@@ -536,11 +614,12 @@ export default function EventSalesPage() {
   // in the full-screen popup on phones.
   const salesScreen = (
     <>
-      <UnpaidSales rows={sales.rows} payingId={paying?.SaleId} onPay={startPaying} onDeleted={(id) => setSales((s) => ({ ...s, rows: s.rows.filter((r) => r.SaleId !== id) }))} />
+      <UnpaidSales rows={sales.rows} payingId={paying?.SaleId} editingId={editing?.SaleId} onPay={startPaying} onEdit={startEditing} onDeleted={(id) => setSales((s) => ({ ...s, rows: s.rows.filter((r) => r.SaleId !== id) }))} />
 
       <div ref={cardRef} className="w-full max-w-md glass-card p-6 sm:p-8 stagger-in scroll-mt-4">
         {step === "order" && (
           <div className="flex flex-col gap-4">
+            {editBanner}
             <MenuPicker menu={MENU} cart={cart} onChange={changeQty} onClear={clearCart} total={cartTotal} deals={dealsApplied} notes={dishNotes} onNote={setDishNote} />
             {!hasCart && (
               <div className="field-group">
@@ -573,6 +652,8 @@ export default function EventSalesPage() {
               <input type="text" className="input-3d" id="event-note" placeholder="e.g. extra salsa" value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
             {!hasCart && totalCents > 0 && <p className="text-center font-semibold tabular-nums -mb-1">Total {formatMoney(total)}</p>}
+            {editing ? editButtons(false) : (
+            <>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -588,6 +669,8 @@ export default function EventSalesPage() {
               </button>
             </div>
             <p className="text-xs text-center text-brand-navydeep/70 -mt-2">Save order = they pay later (it goes in the Unpaid list).</p>
+            </>
+            )}
           </div>
         )}
 
@@ -634,6 +717,7 @@ export default function EventSalesPage() {
   ];
   const ticket = (
     <div className="flex flex-col gap-3 min-h-full">
+      {editBanner}
       <div className="flex items-center justify-between">
         <h2 className="field-label !mb-0">
           <i className="fa-solid fa-receipt" aria-hidden="true"></i> Current order
@@ -716,6 +800,8 @@ export default function EventSalesPage() {
             <input type="text" className="input-3d" id="event-note" placeholder="e.g. extra salsa" value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
+        {editing ? editButtons(true) : (
+        <>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" className="btn-3d justify-center !px-3 !py-4 text-lg disabled:opacity-60" disabled={totalCents <= 0 || saving} aria-busy={saving} onClick={savePayLater}>
             <i className="fa-solid fa-floppy-disk" aria-hidden="true"></i> {saving ? "Saving…" : "Save order"}
@@ -725,6 +811,8 @@ export default function EventSalesPage() {
           </button>
         </div>
         <p className="text-xs text-center text-brand-navydeep/70">Save order = they pay later (it goes in Unpaid).</p>
+        </>
+        )}
       </div>
     </div>
   );
@@ -767,7 +855,7 @@ export default function EventSalesPage() {
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 flex flex-col items-center">
           {posTab === "unpaid" &&
             (unpaidCount ? (
-              <UnpaidSales wide rows={sales.rows} payingId={paying?.SaleId} onPay={startPaying} onDeleted={removeRow} />
+              <UnpaidSales wide rows={sales.rows} payingId={paying?.SaleId} editingId={editing?.SaleId} onPay={startPaying} onEdit={startEditing} onDeleted={removeRow} />
             ) : (
               <p className="glass-card p-8 mt-8 text-center text-brand-navydeep/80">
                 <i className="fa-solid fa-circle-check text-3xl text-emerald-600 block mb-2" aria-hidden="true"></i>
@@ -1077,7 +1165,7 @@ function SaleItems({ items }) {
 
 // "Pay later" orders not paid yet (any day), at the top of the page so
 // nobody forgets them. Employees only get their own from the server.
-function UnpaidSales({ rows, payingId, onPay, onDeleted, wide = false }) {
+function UnpaidSales({ rows, payingId, editingId, onPay, onEdit, onDeleted, wide = false }) {
   const { can = () => true } = useAuth() || {};
   const unpaid = rows.filter(isUnpaid);
   if (!unpaid.length) return null;
@@ -1102,9 +1190,19 @@ function UnpaidSales({ rows, payingId, onPay, onDeleted, wide = false }) {
             <SaleHeader name={s.Name || "No name"} total={s.Total || s.Amount} />
             <SaleMeta parts={[s.Date !== getCurrentDateTime().date ? s.Date : "", s.Time, s.Note]} soldBy={s.SoldBy} />
             <SaleItems items={s.Items} />
-            <div className={`grid ${can("manage") ? "grid-cols-2" : "grid-cols-1"} gap-2 mt-1`}>
+            <div className={`grid ${can("manage") ? "grid-cols-3" : "grid-cols-2"} gap-2 mt-1`}>
               <button type="button" className="btn-3d !py-2 !px-2 text-sm justify-center disabled:opacity-60" disabled={payingId === s.SaleId} onClick={() => onPay(s)}>
                 <i className="fa-solid fa-hand-holding-dollar" aria-hidden="true"></i> {payingId === s.SaleId ? "Paying…" : "Take payment"}
+              </button>
+              {/* Edit: anyone with Event Sales (nothing's been charged); the server allows employees only their own. */}
+              <button
+                type="button"
+                className="btn-3d !py-2 !px-2 text-sm justify-center !bg-none !bg-transparent border border-brand-navy/40 text-brand-navy disabled:opacity-60"
+                disabled={editingId === s.SaleId}
+                aria-label={`Edit ${s.Name || "this"}'s unpaid order`}
+                onClick={() => onEdit(s)}
+              >
+                <i className="fa-solid fa-pen" aria-hidden="true"></i> {editingId === s.SaleId ? "Editing" : "Edit"}
               </button>
               {can("manage") && (
                 <button type="button" className="btn-3d !py-2 !px-2 text-sm justify-center !bg-none !bg-transparent border border-brand-error/60 text-brand-error" onClick={() => remove(s)}>

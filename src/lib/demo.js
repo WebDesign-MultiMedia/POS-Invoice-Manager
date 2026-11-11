@@ -279,6 +279,15 @@ export const demoApi = {
     save();
     return later({ ok: true, fields });
   },
+  editUnpaidSale(id, data) {
+    const sale = (load().eventSales || []).find((r) => r.SaleId === String(id));
+    if (!sale) return notFound();
+    if (sale.Status !== "Unpaid") return Promise.reject(new ApiError(409, "This sale is already paid."));
+    const fields = { Name: data.Name, Items: data.Items, Note: data.Note, Amount: data.Total, Fee: "0.00", Total: data.Total };
+    Object.assign(sale, fields);
+    save();
+    return later({ ok: true, fields });
+  },
   // Demo employees live only in the demo data; demo PINs aren't kept at all.
   employees: () => later(load().employees || [{ Phone: "5550100123", Name: "Sample Employee", Active: "Yes", Access: ["event"], AddedBy: "Demo", AddedAt: "2026-11-01T15:00:00.000Z" }]),
   addEmployee(phone, name) {
