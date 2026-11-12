@@ -77,7 +77,26 @@ Tap the **megaphone**. Type the message, then press **Text Specials Subscribers*
 
 ![Text customers](screenshots/broadcast.webp)
 
-## 7. If something goes wrong
+## 7. Shopping lists & receipts
+
+Tap the **cart** button. You see it only if the owner ticked **Shopping lists** for you on the Team page.
+
+**Making a list** (the owner, or someone with Shopping lists + **Can edit & delete**):
+
+1. Press **New shopping list** and give it a name, e.g. *Restaurant Depot Friday*.
+2. Pick **Who's buying**, or leave it as *Anyone with Shopping lists*.
+3. Type one thing per line (press Enter for the next). You can also paste a whole list someone texted you. **How many** and **About $** are optional.
+
+**At the store:**
+
+- Tick each thing as you put it in the cart. If the store doesn't have it, press **None?** so it shows as *Out of stock*.
+- Bought something that wasn't on the list? Add it under **Bought something not on the list?**
+- Press **Scan receipt** and take a photo. Lay it flat in good light. For a long receipt, take more than one photo.
+- Type the **Receipt total** and press **Finish trip**. After that only a manager can change the list (or **Reopen** it).
+
+Managers see every trip, its receipt photos and **Spent this month**. Employees see prices and totals only if **See shopping prices** is ticked for them.
+
+## 8. If something goes wrong
 
 | You see | What to do |
 |---|---|

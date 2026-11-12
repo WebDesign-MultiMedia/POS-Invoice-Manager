@@ -9,9 +9,12 @@ export const SECTION_INFO = [
   { key: "pay", label: "Pay with Card", icon: "fa-credit-card", route: "/pay", note: "Charge cards, see recent card payments" },
   { key: "catering", label: "Catering Calculator", icon: "fa-calculator", route: "/catering", note: "Make and save catering quotes" },
   { key: "broadcast", label: "Text customers", icon: "fa-bullhorn", route: "/broadcast", note: "Send a text to every subscriber (costs money)", risk: true },
+  { key: "shopping", label: "Shopping lists", icon: "fa-cart-shopping", route: "/shopping", note: "Lists given to them: check items off, scan receipts" },
 ];
-export const MANAGE_INFO = { key: "manage", label: "Can edit & delete", icon: "fa-pen-to-square", note: "In the sections above: change or remove orders, sales and payments" };
-export const ALL_ACCESS = [...SECTION_INFO.map((s) => s.key), MANAGE_INFO.key];
+// Extra boxes under the sections. "prices" only matters with Shopping.
+export const PRICES_INFO = { key: "prices", label: "See shopping prices", icon: "fa-tags", note: "With Shopping lists: expected prices, and what past trips cost" };
+export const MANAGE_INFO = { key: "manage", label: "Can edit & delete", icon: "fa-pen-to-square", note: "In the sections above: change or remove orders, sales and payments; make and delete shopping lists" };
+export const ALL_ACCESS = [...SECTION_INFO.map((s) => s.key), PRICES_INFO.key, MANAGE_INFO.key];
 
 // Which access keys open each page ("staff" = the owner's login only).
 const ROUTE_ACCESS = {
@@ -22,6 +25,7 @@ const ROUTE_ACCESS = {
   "/event": ["event"],
   "/catering": ["catering"],
   "/broadcast": ["broadcast"],
+  "/shopping": ["shopping"],
   "/employees": ["staff"],
   "/updates": null, // anyone logged in
 };

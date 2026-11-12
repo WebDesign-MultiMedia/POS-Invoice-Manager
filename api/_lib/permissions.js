@@ -9,14 +9,20 @@
 //   pay        Pay with Card: charge cards, see recent card payments
 //   catering   Catering Calculator: quotes, and its share link
 //   broadcast  Text customers: send texts to every subscriber
-//   manage     Can edit & delete, in the sections above
+//   shopping   Shopping lists: lists given to them (or to anyone), check
+//              items off, add receipt photos, finish the trip
+//   prices     With shopping: see the expected prices on lists and what
+//              past trips cost
+//   manage     Can edit & delete, in the sections above (in Shopping:
+//              make, change and delete lists, and see every list)
 //
 // Never for employees, whatever is ticked: the Team page and the
 // spreadsheet link (they stay behind requireStaff).
 
-export const SECTIONS = ["event", "orders", "search", "pay", "catering", "broadcast"];
+export const SECTIONS = ["event", "orders", "search", "pay", "catering", "broadcast", "shopping"];
+export const PRICES = "prices";
 export const MANAGE = "manage";
-export const ALL_ACCESS = [...SECTIONS, MANAGE];
+export const ALL_ACCESS = [...SECTIONS, PRICES, MANAGE];
 
 // An empty cell (or a sheet without the column) means Event Sales only,
 // which is what every employee had before permissions existed. "none" is

@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-cart-shopping",
+    title: "Shopping lists & receipts",
+    date: "2026-11-12",
+    body: "Managers write a shopping list and give it to an employee (or anyone). At the store they check things off, mark what was out of stock, scan the receipt and type its total. Managers see every trip, its receipt photos, and what each month cost.",
+  },
+  {
     icon: "fa-palette",
     title: "Modern blue redesign",
     date: "2026-07-09",

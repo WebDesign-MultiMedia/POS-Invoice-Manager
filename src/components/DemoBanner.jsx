@@ -22,6 +22,7 @@ const GUIDE_STEPS = [
   ["fa-file-invoice-dollar", "Make an invoice", "Every search result has Generate Invoice: a printable receipt with deposits and card payments taken off the balance."],
   ["fa-credit-card", "Take card payments", "Pay with Card charges a walk-up sale or an invoice balance, adds the card fee for credit cards and logs it."],
   ["fa-store", "Event sales", "Quick checkout at a vendor event: tap items, then record Card, Cash or Zelle, with today's totals."],
+  ["fa-cart-shopping", "Shopping lists", "Give someone a list to buy, check things off at the store, scan the receipt, and see what each month cost."],
   ["fa-bullhorn", "Text customers", "Text weekend specials to customers who signed up, and see how many there are."],
   ["fa-droplet", "Pick a theme", "The top-right button switches between blue, green, red, black, white and gray."],
 ];

@@ -3,7 +3,7 @@ import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { addEmployee, deleteEmployee, listEmployees, setEmployeeAccess, setEmployeeActive, setEmployeePin } from "../api/employees.js";
-import { MANAGE_INFO, SECTION_INFO } from "../lib/permissions.js";
+import { MANAGE_INFO, PRICES_INFO, SECTION_INFO } from "../lib/permissions.js";
 import { friendlyMessage } from "../lib/errors.js";
 
 // Staff: the Team page. An employee logs in with their phone number and a
@@ -254,7 +254,10 @@ function AccessBoxes({ emp, disabled, onSave }) {
         <fieldset id={id} className="mt-2 flex flex-col">
           <legend className="sr-only">Sections {emp.Name} can use</legend>
           {SECTION_INFO.map(box)}
-          <div className="border-t border-brand-navydeep/15 mt-1 pt-1">{box(MANAGE_INFO)}</div>
+          <div className="border-t border-brand-navydeep/15 mt-1 pt-1">
+            {box(PRICES_INFO)}
+            {box(MANAGE_INFO)}
+          </div>
           <p className="text-xs text-brand-navydeep/70 mt-1">The Team page and the spreadsheet stay owner-only.</p>
         </fieldset>
       )}

@@ -1,0 +1,225 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cookieFrom, mockReq, mockRes } from "./helpers.js";
+
+// Shopping lists: who can see and change what, and that check marks and
+// photos are saved to the right row. SheetDB and Vercel Blob are faked.
+const blob = vi.hoisted(() => ({
+  put: vi.fn(async (path) => ({ pathname: path.replace("receipt.jpg", "receipt-AbC123.jpg"), url: "https://x.private.blob.vercel-storage.com/p" })),
+  del: vi.fn(async () => {}),
+  get: vi.fn(async () => ({ statusCode: 200, stream: new Blob([new Uint8Array([1, 2, 3])]).stream(), blob: { contentType: "image/jpeg" } })),
+}));
+vi.mock("@vercel/blob", () => blob);
+
+const handler = (await import("../api/shopping.js")).default;
+const { hashPassword, setSessionCookie } = await import("../api/_lib/auth.js");
+const { clearEmployeeCache } = await import("../api/_lib/employees.js");
+const { cleanItems } = await import("../api/_lib/shopping.js");
+
+const CARLOS = "3475550123";
+const ANA = "3475550124";
+const LIST_ID = "s0123456789abcdef0123";
+let employees;
+let shopping;
+const fetchMock = vi.fn();
+
+const json = (payload, status = 200) => ({ ok: status < 400, status, json: async () => payload });
+
+function sheetFetch(url, init = {}) {
+  const u = String(url);
+  const method = init.method || "GET";
+  if (u.includes("sheet=Employees")) return json(employees);
+  if (!u.includes("sheet=Shopping")) return json([]);
+  if (method === "POST") {
+    shopping.push(...JSON.parse(init.body).data);
+    return json({ created: 1 });
+  }
+  const search = u.match(/\/search\?ListId=([^&]+)/)?.[1];
+  if (search) return json(shopping.filter((r) => r.ListId === decodeURIComponent(search)));
+  if (method === "GET") return json(shopping);
+  const id = decodeURIComponent(u.match(/\/ListId\/([^?]+)/)?.[1] || "");
+  const row = shopping.find((r) => r.ListId === id);
+  if (!row) return json({ error: "No results found" }, 404);
+  if (method === "PATCH") {
+    Object.assign(row, JSON.parse(init.body).data);
+    return json({ updated: 1 });
+  }
+  shopping = shopping.filter((r) => r !== row);
+  return json({ deleted: 1 });
+}
+
+const cookieFor = (login, role) => {
+  const res = mockRes();
+  setSessionCookie(res, login, role);
+  return cookieFrom(res);
+};
+const staff = () => cookieFor("staff@example.com");
+const carlos = () => cookieFor(CARLOS, "event");
+const ana = () => cookieFor(ANA, "event");
+
+async function call(req) {
+  const res = mockRes();
+  await handler(mockReq(req), res);
+  return res;
+}
+const list = (cookie) => call({ url: "/api/shopping?action=list", cookie });
+const post = (body, cookie) => call({ method: "POST", url: "/api/shopping", body, cookie });
+const items = () => JSON.parse(shopping[0].Items);
+
+beforeEach(() => {
+  vi.stubEnv("SESSION_SECRET", "test-session-secret");
+  vi.stubEnv("STAFF_ACCOUNTS", JSON.stringify({ "staff@example.com": hashPassword("a long staff test password") }));
+  vi.stubEnv("SHEETDB_ID", "test-sheet");
+  vi.stubEnv("BLOB_READ_WRITE_TOKEN", "vercel_blob_rw_test");
+  employees = [
+    { Phone: CARLOS, Name: "Carlos", PinHash: "x:y", Active: "Yes", Access: "shopping" },
+    { Phone: ANA, Name: "Ana", PinHash: "x:y", Active: "Yes", Access: "shopping,prices,manage" },
+    { Phone: "3475550125", Name: "Luis", PinHash: "x:y", Active: "Yes", Access: "event" },
+  ];
+  shopping = [
+    {
+      ListId: LIST_ID,
+      Title: "Market",
+      AssignedTo: CARLOS,
+      AssignedName: "Carlos",
+      Status: "Open",
+      Items: JSON.stringify(cleanItems([{ id: "iaaaaaa1", name: "Tomatoes", qty: "2 cases", price: "38" }, { id: "iaaaaaa2", name: "Limes", price: "30" }])),
+      Receipts: "[]",
+      Spent: "",
+    },
+  ];
+  clearEmployeeCache();
+  fetchMock.mockReset().mockImplementation(async (url, init) => sheetFetch(url, init));
+  vi.stubGlobal("fetch", fetchMock);
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  Object.values(blob).forEach((fn) => fn.mockClear());
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe("who can use Shopping lists", () => {
+  it("needs a login with Shopping lists ticked", async () => {
+    expect((await list()).statusCode).toBe(401);
+    expect((await list(cookieFor("3475550125", "event"))).statusCode).toBe(403);
+    expect((await list(carlos())).statusCode).toBe(200);
+  });
+
+  it("an employee sees only lists for them or for anyone, without prices", async () => {
+    shopping.push({ ...shopping[0], ListId: "s1111111111aaaaaaaaaa", AssignedTo: ANA, Title: "Ana's" }, { ...shopping[0], ListId: "s2222222222aaaaaaaaaa", AssignedTo: "", Title: "Anyone" });
+    const res = await list(carlos());
+    expect(res.body.lists.map((l) => l.title)).toEqual(["Market", "Anyone"]);
+    expect(res.body.lists[0].items.every((i) => i.price === "")).toBe(true);
+    expect(res.body.manager).toBe(false);
+    expect(res.body.people).toEqual([]);
+  });
+
+  it("a manager sees every list, the prices, and who can be given one", async () => {
+    const res = await list(ana());
+    expect(res.body.manager).toBe(true);
+    expect(res.body.lists[0].items[0].price).toBe("38.00");
+    expect(res.body.people.map((p) => p.name)).toEqual(["Ana", "Carlos"]);
+  });
+
+  it("only managers make, change or delete lists", async () => {
+    const newList = { title: "Paper goods", items: [{ name: "Napkins" }] };
+    expect((await post({ action: "create", list: newList }, carlos())).statusCode).toBe(403);
+    expect((await post({ action: "delete", id: LIST_ID }, carlos())).statusCode).toBe(403);
+    expect((await post({ action: "create", list: newList }, staff())).statusCode).toBe(200);
+    expect(shopping).toHaveLength(2);
+    expect(shopping[1]).toMatchObject({ Title: "Paper goods", Status: "Open", CreatedBy: "staff@example.com" });
+  });
+
+  it("an employee can't touch someone else's list", async () => {
+    shopping[0].AssignedTo = ANA;
+    expect((await post({ action: "item", id: LIST_ID, itemId: "iaaaaaa1", got: true }, carlos())).statusCode).toBe(404);
+  });
+
+  it("a list can only go to someone with Shopping lists", async () => {
+    const res = await post({ action: "create", list: { title: "x", assignedTo: "3475550125", items: [{ name: "a" }] } }, staff());
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+describe("a shopping trip", () => {
+  it("checks items off and adds extras", async () => {
+    expect((await post({ action: "item", id: LIST_ID, itemId: "iaaaaaa1", got: true }, carlos())).statusCode).toBe(200);
+    expect((await post({ action: "item", id: LIST_ID, itemId: "iaaaaaa2", got: false, out: true }, carlos())).statusCode).toBe(200);
+    expect((await post({ action: "addItem", id: LIST_ID, name: "Ice", qty: "2 bags" }, carlos())).statusCode).toBe(200);
+    expect(items().map((i) => [i.name, i.got, i.out, i.extra])).toEqual([
+      ["Tomatoes", true, false, false],
+      ["Limes", false, true, false],
+      ["Ice", true, false, true],
+    ]);
+  });
+
+  it("a manager's edit keeps what was already checked off", async () => {
+    await post({ action: "item", id: LIST_ID, itemId: "iaaaaaa1", got: true }, carlos());
+    const edit = { title: "Market", assignedTo: CARLOS, items: [{ id: "iaaaaaa1", name: "Tomatoes", qty: "3 cases", got: false }, { name: "Onions" }] };
+    expect((await post({ action: "edit", id: LIST_ID, list: edit }, ana())).statusCode).toBe(200);
+    expect(items().map((i) => [i.name, i.qty, i.got])).toEqual([
+      ["Tomatoes", "3 cases", true],
+      ["Onions", "", false],
+    ]);
+  });
+
+  it("saves receipt photos privately and serves them only to people who can see the list", async () => {
+    const image = `data:image/jpeg;base64,${Buffer.from("fake jpeg").toString("base64")}`;
+    const res = await post({ action: "receipt", id: LIST_ID, image }, carlos());
+    expect(res.statusCode).toBe(200);
+    expect(blob.put).toHaveBeenCalledWith(`receipts/${LIST_ID}/receipt.jpg`, expect.any(Buffer), expect.objectContaining({ access: "private", addRandomSuffix: true }));
+    const [photo] = JSON.parse(shopping[0].Receipts);
+    expect(photo).toMatchObject({ path: `receipts/${LIST_ID}/receipt-AbC123.jpg`, by: "Carlos" });
+
+    const url = `/api/shopping?action=receipt&id=${LIST_ID}&path=${encodeURIComponent(photo.path)}`;
+    const shown = await call({ url, cookie: carlos() });
+    expect(shown.statusCode).toBe(200);
+    expect(shown.headers["content-type"]).toBe("image/jpeg");
+    expect([...shown.body]).toEqual([1, 2, 3]);
+
+    shopping[0].AssignedTo = ANA;
+    expect((await call({ url, cookie: carlos() })).statusCode).toBe(404);
+    // A path that isn't one of this list's photos is never fetched.
+    const other = await call({ url: `/api/shopping?action=receipt&id=${LIST_ID}&path=receipts/other/x.jpg`, cookie: ana() });
+    expect(other.statusCode).toBe(404);
+    expect(blob.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses things that aren't photos", async () => {
+    const res = await post({ action: "receipt", id: LIST_ID, image: "data:text/html;base64,PGgxPg==" }, carlos());
+    expect(res.statusCode).toBe(400);
+    expect(blob.put).not.toHaveBeenCalled();
+  });
+
+  it("says so when photo storage isn't connected", async () => {
+    vi.stubEnv("BLOB_READ_WRITE_TOKEN", "");
+    vi.stubEnv("BLOB_STORE_ID", "");
+    const res = await post({ action: "receipt", id: LIST_ID, image: "data:image/jpeg;base64,AAAA" }, carlos());
+    expect(res.statusCode).toBe(400);
+    expect((await list(carlos())).body.photos).toBe(false);
+  });
+
+  it("finishing needs the receipt total, then locks the list for employees", async () => {
+    expect((await post({ action: "finish", id: LIST_ID, spent: "" }, carlos())).statusCode).toBe(400);
+    expect((await post({ action: "finish", id: LIST_ID, spent: "$84.37" }, carlos())).statusCode).toBe(200);
+    expect(shopping[0]).toMatchObject({ Status: "Done", Spent: "84.37", DoneBy: "Carlos" });
+    // Carlos finished it, so he sees what it cost even without "prices".
+    expect((await list(carlos())).body.lists[0].spent).toBe("84.37");
+    expect((await post({ action: "item", id: LIST_ID, itemId: "iaaaaaa2", got: true }, carlos())).statusCode).toBe(400);
+    expect((await post({ action: "reopen", id: LIST_ID }, ana())).statusCode).toBe(200);
+    expect(shopping[0].Status).toBe("Open");
+  });
+
+  it("deleting a list deletes its photos too", async () => {
+    shopping[0].Receipts = JSON.stringify([{ path: `receipts/${LIST_ID}/a.jpg`, by: "Carlos" }]);
+    expect((await post({ action: "delete", id: LIST_ID }, ana())).statusCode).toBe(200);
+    expect(blob.del).toHaveBeenCalledWith([`receipts/${LIST_ID}/a.jpg`]);
+    expect(shopping).toHaveLength(0);
+  });
+
+  it("rejects ids that could match other rows", async () => {
+    expect((await post({ action: "item", id: "*", itemId: "x" }, staff())).statusCode).toBe(400);
+  });
+});

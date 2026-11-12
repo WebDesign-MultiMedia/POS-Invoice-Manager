@@ -9,6 +9,7 @@ import calculatorLink from "../api/calculator-link.js";
 import quotes from "../api/quotes.js";
 import employees from "../api/employees.js";
 import zelleAlerts from "../api/zelle-alerts.js";
+import shopping from "../api/shopping.js";
 
 // Local stand-in for Vercel's serverless runtime (see vite.config.js's proxy)
 // so `api/create-payment-intent.js` can be exercised with `npm run dev`
@@ -40,6 +41,7 @@ const ROUTES = {
   "/api/quotes": quotes,
   "/api/employees": employees,
   "/api/zelle-alerts": zelleAlerts,
+  "/api/shopping": shopping,
 };
 
 const server = http.createServer(async (req, res) => {

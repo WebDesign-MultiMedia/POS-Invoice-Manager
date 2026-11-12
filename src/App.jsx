@@ -17,6 +17,7 @@ const BroadcastPage = lazy(() => import("./pages/BroadcastPage.jsx"));
 const CateringCalcPage = lazy(() => import("./pages/CateringCalcPage.jsx"));
 const EventSalesPage = lazy(() => import("./pages/EventSalesPage.jsx"));
 const EmployeesPage = lazy(() => import("./pages/EmployeesPage.jsx"));
+const ShoppingPage = lazy(() => import("./pages/ShoppingPage.jsx"));
 
 // Every page is staff-only, except a customer's read-only invoice link
 // (/invoice?id=…&token=…&share=1) and the Catering Calculator's employee
@@ -75,6 +76,7 @@ export default function App() {
                 <Route path="/employees" element={<EmployeesPage />} />
                 <Route path="/broadcast" element={<BroadcastPage />} />
                 <Route path="/catering" element={<CateringCalcPage />} />
+                <Route path="/shopping" element={<ShoppingPage />} />
               </Routes>
             </Suspense>
           </StaffGate>
