@@ -2,6 +2,9 @@
   "functions": {
     "api/send-broadcast.js": {
       "maxDuration": 300
+    },
+    "api/shopping.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

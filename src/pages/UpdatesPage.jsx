@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-wand-magic-sparkles",
+    title: "Receipts read themselves",
+    date: "2026-11-12",
+    body: "After you scan a receipt on a shopping trip, the app reads it and shows the store, date, every item and the total under the photo, and fills in the receipt total for you.",
+  },
+  {
     icon: "fa-cart-shopping",
     title: "Shopping lists & receipts",
     date: "2026-11-12",

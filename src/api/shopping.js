@@ -34,6 +34,8 @@ export const setItem = (id, itemId, { got, out }) => post({ action: "item", id, 
 export const addExtraItem = (id, name, qty) => post({ action: "addItem", id, name, qty });
 export const addReceipt = (id, image) => post({ action: "receipt", id, image });
 export const removeReceipt = (id, path) => post({ action: "removeReceipt", id, path });
+// Reads a saved photo with AI → { details, list }.
+export const readReceipt = (id, path) => post({ action: "readReceipt", id, path });
 export const finishTrip = (id, spent) => post({ action: "finish", id, spent });
 
 // ---------- demo: same answers as the server, kept in memory ----------
@@ -86,7 +88,7 @@ function seedLists() {
 function demo(body) {
   if (!demoLists) demoLists = seedLists();
   const people = [{ phone: "5550100123", name: "Sample Employee" }];
-  if (body.action === "list") return later({ lists: demoLists, people, manager: true, photos: true });
+  if (body.action === "list") return later({ lists: demoLists, people, manager: true, photos: true, reader: true });
   const now = new Date().toISOString();
   const cleanItems = (items) =>
     (items || []).filter((i) => String(i.name || "").trim()).map((i) => ({ id: i.id || `i${hex(10)}`, name: i.name.trim(), qty: i.qty || "", note: i.note || "", price: i.price ? Number(i.price).toFixed(2) : "", got: !!i.got, out: !!i.out && !i.got, extra: !!i.extra }));
@@ -115,6 +117,24 @@ function demo(body) {
     const path = `receipts/${list.id}/demo-${hex(8)}.jpg`;
     demoPhotos.set(path, body.image);
     list.receipts.push({ path, at: now, by: "Demo" });
+  }
+  if (body.action === "readReceipt") {
+    // The demo can't really read photos, so it shows a made-up receipt.
+    const details = {
+      store: "Demo Wholesale Market",
+      date: now.slice(0, 10),
+      items: [
+        { name: "Tomatoes, case", qty: "2", price: 36.5 },
+        { name: "Onions, 50 lb bag", qty: "1", price: 22.99 },
+        { name: "Ice, bag", qty: "2", price: 4.5 },
+      ],
+      subtotal: 63.99,
+      tax: 0,
+      total: 63.99,
+      note: "Sample receipt: the demo doesn't read real photos.",
+    };
+    list.receipts = list.receipts.map((r) => (r.path === body.path ? { ...r, details } : r));
+    return new Promise((resolve) => setTimeout(() => resolve(clone({ ok: true, details, list })), 1200));
   }
   if (body.action === "removeReceipt") list.receipts = list.receipts.filter((r) => r.path !== body.path);
   if (body.action === "finish") {

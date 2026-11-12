@@ -9,6 +9,12 @@ const blob = vi.hoisted(() => ({
   get: vi.fn(async () => ({ statusCode: 200, stream: new Blob([new Uint8Array([1, 2, 3])]).stream(), blob: { contentType: "image/jpeg" } })),
 }));
 vi.mock("@vercel/blob", () => blob);
+const claude = vi.hoisted(() => ({ create: vi.fn() }));
+vi.mock("@anthropic-ai/sdk", () => ({
+  default: vi.fn(function Anthropic() {
+    return { beta: { messages: { create: claude.create } } };
+  }),
+}));
 
 const handler = (await import("../api/shopping.js")).default;
 const { hashPassword, setSessionCookie } = await import("../api/_lib/auth.js");
@@ -70,6 +76,8 @@ beforeEach(() => {
   vi.stubEnv("STAFF_ACCOUNTS", JSON.stringify({ "staff@example.com": hashPassword("a long staff test password") }));
   vi.stubEnv("SHEETDB_ID", "test-sheet");
   vi.stubEnv("BLOB_READ_WRITE_TOKEN", "vercel_blob_rw_test");
+  vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test");
+  claude.create.mockReset();
   employees = [
     { Phone: CARLOS, Name: "Carlos", PinHash: "x:y", Active: "Yes", Access: "shopping" },
     { Phone: ANA, Name: "Ana", PinHash: "x:y", Active: "Yes", Access: "shopping,prices,manage" },
@@ -221,5 +229,51 @@ describe("a shopping trip", () => {
 
   it("rejects ids that could match other rows", async () => {
     expect((await post({ action: "item", id: "*", itemId: "x" }, staff())).statusCode).toBe(400);
+  });
+});
+
+describe("reading a receipt photo", () => {
+  const PATH = `receipts/${LIST_ID}/receipt-x.jpg`;
+  const reply = (obj, stop_reason = "end_turn") => ({ stop_reason, content: [{ type: "text", text: JSON.stringify(obj) }] });
+  beforeEach(() => {
+    shopping[0].Receipts = JSON.stringify([{ path: PATH, at: "2026-11-12T10:00:00Z", by: "Carlos" }]);
+    blob.get.mockImplementation(async () => ({ statusCode: 200, stream: new Blob([new Uint8Array([9, 9])]).stream(), blob: { contentType: "image/jpeg" } }));
+  });
+
+  it("saves what the receipt says next to the photo", async () => {
+    claude.create.mockResolvedValue(
+      reply({ is_receipt: true, store: "Restaurant Depot", date: "2026-11-12", items: [{ name: "Tomatoes", qty: "2", price: 36.5 }, { name: "", qty: "", price: 1 }], subtotal: 36.5, tax: null, total: 36.5, note: "" })
+    );
+    const res = await post({ action: "readReceipt", id: LIST_ID, path: PATH }, carlos());
+    expect(res.statusCode).toBe(200);
+    expect(res.body.details).toMatchObject({ store: "Restaurant Depot", total: 36.5, tax: null, items: [{ name: "Tomatoes", qty: "2", price: 36.5 }] });
+    expect(JSON.parse(shopping[0].Receipts)[0].details.total).toBe(36.5);
+    const sent = claude.create.mock.calls[0][0];
+    expect(sent.model).toBe("claude-opus-5-5");
+    expect(sent.output_config.format.type).toBe("json_schema");
+    expect(sent.messages[0].content[0].source).toMatchObject({ type: "base64", media_type: "image/jpeg", data: Buffer.from([9, 9]).toString("base64") });
+    expect((await list(carlos())).body.lists[0].receipts[0].details.store).toBe("Restaurant Depot");
+  });
+
+  it("says so when the photo isn't a readable receipt", async () => {
+    claude.create.mockResolvedValue(reply({ is_receipt: false, store: "", date: "", items: [], subtotal: null, tax: null, total: null, note: "" }));
+    expect((await post({ action: "readReceipt", id: LIST_ID, path: PATH }, carlos())).statusCode).toBe(400);
+    expect(JSON.parse(shopping[0].Receipts)[0].details).toBeUndefined();
+  });
+
+  it("keeps the photo when the reader is down", async () => {
+    claude.create.mockRejectedValue(new Error("overloaded"));
+    const res = await post({ action: "readReceipt", id: LIST_ID, path: PATH }, carlos());
+    expect(res.statusCode).toBe(502);
+    expect(res.body.error).toMatch(/photo is saved/);
+    expect(JSON.parse(shopping[0].Receipts)).toHaveLength(1);
+  });
+
+  it("only reads this list's photos, and only with a key set", async () => {
+    expect((await post({ action: "readReceipt", id: LIST_ID, path: "receipts/other/x.jpg" }, carlos())).statusCode).toBe(404);
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    expect((await post({ action: "readReceipt", id: LIST_ID, path: PATH }, carlos())).statusCode).toBe(400);
+    expect((await list(carlos())).body.reader).toBe(false);
+    expect(claude.create).not.toHaveBeenCalled();
   });
 });

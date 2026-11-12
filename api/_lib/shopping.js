@@ -71,7 +71,8 @@ export function cleanItems(list, { keepState = true } = {}) {
   return items;
 }
 
-// A receipt photo: { path, at, by }. path is the private Vercel Blob pathname.
+// A receipt photo: { path, at, by, details? }. path is the private Vercel Blob
+// pathname; details is what the receipt reader found (api/_lib/receiptReader.js).
 export function receiptsOf(row) {
   return parseJson(row?.Receipts, []).filter((r) => r && typeof r.path === "string" && r.path.startsWith(`receipts/${row.ListId}/`));
 }
@@ -104,7 +105,7 @@ export function publicList(row, session) {
     items,
     notes: row.Notes || "",
     spent: prices || mine ? row.Spent || "" : "",
-    receipts: receiptsOf(row).map(({ path, at, by }) => ({ path, at, by })),
+    receipts: receiptsOf(row).map(({ path, at, by, details }) => ({ path, at, by, details: details || null })),
     createdBy: row.CreatedBy || "",
     createdAt: row.CreatedAt || "",
     updatedAt: row.UpdatedAt || "",

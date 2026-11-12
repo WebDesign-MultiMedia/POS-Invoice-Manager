@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
-import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip, loadShopping, receiptSrc, removeReceipt, reopenList, setItem } from "../api/shopping.js";
+import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip, loadShopping, readReceipt, receiptSrc, removeReceipt, reopenList, setItem } from "../api/shopping.js";
 import { useAuth } from "../lib/auth.jsx";
 import { friendlyMessage } from "../lib/errors.js";
 import { dollars, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
@@ -23,7 +23,7 @@ const fail = (title, err, fallback) => Swal.fire({ ...ALERT, title, text: friend
 
 export default function ShoppingPage() {
   const { can } = useAuth();
-  const [data, setData] = useState({ lists: [], people: [], manager: false, photos: false });
+  const [data, setData] = useState({ lists: [], people: [], manager: false, photos: false, reader: false });
   const [state, setState] = useState({ loading: true, error: "" });
   // "home", { open: id } or { edit: id | null } (null = a new list).
   const [view, setView] = useState("home");
@@ -85,7 +85,7 @@ export default function ShoppingPage() {
           }}
         />
       ) : openList ? (
-        <TripView list={openList} manager={data.manager} prices={prices} photos={data.photos} onBack={goHome} onChange={replace} onEdit={() => setView({ edit: openList.id })} onDeleted={(id) => (drop(id), goHome())} />
+        <TripView list={openList} manager={data.manager} prices={prices} photos={data.photos} reader={data.reader} onBack={goHome} onChange={replace} onEdit={() => setView({ edit: openList.id })} onDeleted={(id) => (drop(id), goHome())} />
       ) : (
         <Home data={data} prices={prices} onOpen={(id) => setView({ open: id })} onNew={() => setView({ edit: null })} onRefresh={load} />
       )}
@@ -203,7 +203,7 @@ function Home({ data, prices, onOpen, onNew, onRefresh }) {
 
 // ---------- one trip: check off, receipts, finish ----------
 
-function TripView({ list, manager, prices, photos, onBack, onChange, onEdit, onDeleted }) {
+function TripView({ list, manager, prices, photos, reader, onBack, onChange, onEdit, onDeleted }) {
   const [busy, setBusy] = useState("");
   const [extra, setExtra] = useState({ name: "", qty: "" });
   const [spent, setSpent] = useState("");
@@ -272,7 +272,17 @@ function TripView({ list, manager, prices, photos, onBack, onChange, onEdit, onD
       }
       const res = await run("photo", () => addReceipt(list.id, image), "Photo not saved", "Couldn't save the receipt photo.");
       if (!res) return;
+      const added = res.list?.receipts?.[res.list.receipts.length - 1];
+      if (reader && added) await read(added.path);
     }
+  };
+
+  // Reads a photo with AI. The receipt's total goes in Receipt total if
+  // nothing's typed there yet (they can still change it).
+  const read = async (path) => {
+    const res = await run(`read:${path}`, () => readReceipt(list.id, path), "Receipt not read", "Couldn't read the receipt.");
+    const total = res?.details?.total;
+    if (total != null) setSpent((s) => (s.trim() ? s : total.toFixed(2)));
   };
 
   const dropPhoto = async (path) => {
@@ -429,6 +439,21 @@ function TripView({ list, manager, prices, photos, onBack, onChange, onEdit, onD
           </ul>
         ) : (
           <p className="text-center text-sm text-brand-navydeep/80">No receipt photos yet.</p>
+        )}
+        {list.receipts.map((r, i) =>
+          r.details ? (
+            <ReceiptDetails key={`d-${r.path}`} details={r.details} label={list.receipts.length > 1 ? `Receipt ${i + 1}` : "What the receipt says"} />
+          ) : busy === `read:${r.path}` ? (
+            <p key={`d-${r.path}`} className="glass-panel px-3 py-2 text-sm text-center text-brand-navydeep/85" role="status">
+              <i className="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Reading {list.receipts.length > 1 ? `receipt ${i + 1}` : "the receipt"}…
+            </p>
+          ) : (
+            reader && (
+              <button key={`d-${r.path}`} type="button" className={OUTLINE} disabled={!!busy} onClick={() => read(r.path)}>
+                <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Read {list.receipts.length > 1 ? `receipt ${i + 1}` : "receipt"}
+              </button>
+            )
+          )
         )}
         {!locked &&
           (photos ? (
@@ -616,5 +641,59 @@ function ListEditor({ list, people, onCancel, onSaved }) {
         </button>
       </div>
     </form>
+  );
+}
+
+// What the AI read off one receipt photo, shown under the photos.
+function ReceiptDetails({ details, label }) {
+  const money = (n) => (n == null ? "" : dollars(Math.round(n * 100)));
+  const date = details.date ? new Date(`${details.date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const line = "flex justify-between gap-3";
+  return (
+    <div className="glass-panel px-3 py-3 text-sm text-brand-navydeep/90" aria-label={label}>
+      <p className="flex items-center justify-between gap-2 mb-2">
+        <span className="font-semibold text-brand-navy min-w-0 truncate">
+          <i className="fa-solid fa-store text-brand-teal" aria-hidden="true"></i> {details.store || label}
+        </span>
+        {date && <span className="shrink-0 text-xs text-brand-navydeep/70">{date}</span>}
+      </p>
+      {details.items.length > 0 && (
+        <ul className="flex flex-col gap-0.5 border-b border-dashed border-brand-navydeep/25 pb-2 mb-2">
+          {details.items.map((item, i) => (
+            <li key={i} className={line}>
+              <span className="min-w-0 break-words">
+                {item.qty && <span className="text-brand-navydeep/70">{item.qty} × </span>}
+                {item.name}
+              </span>
+              <span className="shrink-0 tabular-nums">{money(item.price)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {details.subtotal != null && (
+        <p className={line}>
+          <span>Subtotal</span>
+          <span className="tabular-nums">{money(details.subtotal)}</span>
+        </p>
+      )}
+      {details.tax != null && (
+        <p className={line}>
+          <span>Tax</span>
+          <span className="tabular-nums">{money(details.tax)}</span>
+        </p>
+      )}
+      {details.total != null && (
+        <p className={`${line} font-semibold text-brand-navy`}>
+          <span>Total</span>
+          <span className="tabular-nums">{money(details.total)}</span>
+        </p>
+      )}
+      {details.note && (
+        <p className="mt-2 text-xs text-brand-gold">
+          <i className="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {details.note}
+        </p>
+      )}
+      <p className="mt-2 text-[11px] text-brand-navydeep/60">Read by AI from the photo. Check it against the paper receipt.</p>
+    </div>
   );
 }

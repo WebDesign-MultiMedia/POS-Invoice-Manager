@@ -92,6 +92,7 @@ Tap the **cart** button. You see it only if the owner ticked **Shopping lists** 
 - Tick each thing as you put it in the cart. If the store doesn't have it, press **None?** so it shows as *Out of stock*.
 - Bought something that wasn't on the list? Add it under **Bought something not on the list?**
 - Press **Scan receipt** and take a photo. Lay it flat in good light. For a long receipt, take more than one photo.
+- The app reads the photo and shows the store, date, items and total under it, and fills in **Receipt total** for you. Check it against the paper receipt before you finish.
 - Type the **Receipt total** and press **Finish trip**. After that only a manager can change the list (or **Reopen** it).
 
 Managers see every trip, its receipt photos and **Spent this month**. Employees see prices and totals only if **See shopping prices** is ticked for them.

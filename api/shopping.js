@@ -1,6 +1,7 @@
 import { del, get, put } from "@vercel/blob";
 import { requireAccess, sellerName } from "./_lib/auth.js";
 import { listEmployees } from "./_lib/employees.js";
+import { UnreadableReceipt, readReceipt, readerReady } from "./_lib/receiptReader.js";
 import { parseAccess } from "./_lib/permissions.js";
 import { sheetdbBase, sheetdbHeaders } from "./_lib/sheetdb.js";
 import {
@@ -37,6 +38,7 @@ import {
 //   POST { action: "item", id, itemId, got, out }
 //   POST { action: "addItem", id, name, qty }
 //   POST { action: "receipt", id, image }   image: data:image/jpeg;base64,…
+//   POST { action: "readReceipt", id, path }  → reads the photo with Claude
 //   POST { action: "removeReceipt", id, path }
 //   POST { action: "finish", id, spent }
 
@@ -146,7 +148,7 @@ export default async function handler(req, res) {
       if (action !== "list") throw new BadRequest("Unknown action");
       const rows = (await allRows()).filter((r) => canSee(session, r));
       const people = manager ? await shoppers().catch(() => []) : [];
-      return res.status(200).json({ lists: rows.map((r) => publicList(r, session)), people, manager, photos: photosReady() });
+      return res.status(200).json({ lists: rows.map((r) => publicList(r, session)), people, manager, photos: photosReady(), reader: photosReady() && readerReady() });
     }
 
     if (req.method !== "POST") {
@@ -223,6 +225,29 @@ export default async function handler(req, res) {
       const image = decodeImage(body.image);
       const blob = await put(`receipts/${id}/receipt.${image.ext}`, image.buffer, { access: "private", contentType: image.contentType, addRandomSuffix: true });
       return await reply({ Receipts: JSON.stringify([...receipts, { path: blob.pathname, at: now, by: who }]) });
+    }
+
+    if (body.action === "readReceipt") {
+      if (!readerReady()) throw new BadRequest("Receipt reading isn't set up yet.");
+      const receipts = receiptsOf(row);
+      const photo = receipts.find((r) => r.path === body.path);
+      if (!photo) throw new NotFound();
+      const blob = await get(photo.path, { access: "private" });
+      if (!blob || blob.statusCode !== 200) throw new NotFound();
+      const buffer = Buffer.from(await new Response(blob.stream).arrayBuffer());
+      let details;
+      try {
+        details = await readReceipt({ buffer, contentType: blob.blob.contentType || "image/jpeg" });
+      } catch (err) {
+        if (err instanceof UnreadableReceipt) throw new BadRequest("Couldn't read that receipt. Try a clearer photo, flat and in good light.");
+        console.error("shopping: receipt reader failed", err);
+        return res.status(502).json({ error: "The receipt reader isn't working right now. The photo is saved; press Read receipt again later." });
+      }
+      // Read the row again: someone may have checked items off meanwhile.
+      const fresh = (await findRow(id)) || row;
+      const updated = receiptsOf(fresh).map((r) => (r.path === photo.path ? { ...r, details } : r));
+      await patchRow(id, { Receipts: JSON.stringify(updated) });
+      return res.status(200).json({ ok: true, details, list: publicList({ ...fresh, Receipts: JSON.stringify(updated) }, session) });
     }
 
     if (body.action === "removeReceipt") {
