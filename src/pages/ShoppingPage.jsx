@@ -6,7 +6,7 @@ import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip,
 import { useAuth } from "../lib/auth.jsx";
 import { friendlyMessage } from "../lib/errors.js";
 import { CatalogManager, CatalogPicker, ZoomThumb, whereToFind } from "../components/ProductCatalog.jsx";
-import { addProduct, dollars, groupItemsByStore, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
+import { addProduct, defaultStore, dollars, groupItemsByStore, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
 
 // Shopping lists. A manager (the owner, or an employee with Shopping lists
 // + "Can edit & delete") writes a list and gives it to someone, or to
@@ -594,7 +594,7 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
     e.preventDefault();
     if (saving) return;
     const items = rows.filter((r) => r.name.trim()).map(({ key: _key, ...r }) => r);
-    if (!title.trim()) return Swal.fire({ ...ALERT, title: "Name the list", text: "e.g. \"Restaurant Depot Friday\".", icon: "info" });
+    if (!title.trim()) return Swal.fire({ ...ALERT, title: "Name the list", text: `e.g. "${defaultStore()} Friday".`, icon: "info" });
     if (!items.length) return Swal.fire({ ...ALERT, title: "Nothing to buy yet", text: "Add at least one thing to the list.", icon: "info" });
     setSaving(true);
     try {
@@ -627,7 +627,7 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
         <label htmlFor="list-title" className="field-label">
           <i className="fa-solid fa-tag" aria-hidden="true"></i> List name
         </label>
-        <input id="list-title" className="input-3d" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Restaurant Depot Friday" autoComplete="off" />
+        <input id="list-title" className="input-3d" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`e.g. ${defaultStore()} Friday`} autoComplete="off" />
       </div>
       <div className="field-group !mb-0">
         <label htmlFor="list-who" className="field-label">
@@ -644,7 +644,7 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
         {!people.length && <p className="text-xs text-brand-navydeep/70 mt-1">To give a list to one person, tick Shopping lists for them on the Team page.</p>}
       </div>
 
-      <fieldset className="flex flex-col gap-2">
+      <fieldset className="flex flex-col gap-2 min-w-0">
         <legend className="field-label">
           <i className="fa-solid fa-list-check" aria-hidden="true"></i> What to buy {filled ? `(${filled})` : ""}
         </legend>

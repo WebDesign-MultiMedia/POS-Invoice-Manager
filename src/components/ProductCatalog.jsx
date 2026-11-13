@@ -3,10 +3,11 @@ import { createPortal } from "react-dom";
 import Swal from "sweetalert2";
 import { deleteProduct, productSrc, saveProduct } from "../api/shopping.js";
 import { friendlyMessage } from "../lib/errors.js";
-import { productPriceLine, shrinkPhoto } from "../lib/shopping.js";
+import { isDemo } from "../lib/demo.js";
+import { defaultStore, productPriceLine, shrinkPhoto } from "../lib/shopping.js";
 
-// The product catalog: things bought again and again (from Restaurant Depot
-// for now), so a shopping list can be made by tapping instead of typing.
+// The product catalog: things bought again and again (from a wholesale
+// store such as Restaurant Depot), so a shopping list can be made by tapping instead of typing.
 // Saved in the sheet's "Products" tab by api/shopping.js.
 
 const ALERT = { theme: "dark" };
@@ -84,7 +85,7 @@ export function ZoomThumb({ product, size = "h-12 w-12" }) {
 // "Bin 3002 · Item #25849": what helps find it in the store.
 export const whereToFind = (p) => [p?.bin && `Bin ${p.bin}`, p?.itemNo && `Item #${p.itemNo}`].filter(Boolean).join(" · ");
 
-const storeOf = (p) => String(p?.store || "").trim() || "Restaurant Depot";
+const storeOf = (p) => String(p?.store || "").trim() || defaultStore();
 
 // Products grouped by store (business), stores A–Z: [{ store, products }].
 export function byStore(products) {
@@ -230,11 +231,11 @@ export function CatalogPicker({ products, counts, onPick }) {
 
 // ---------- managing the catalog (managers) ----------
 
-const BLANK = { id: "", store: "Restaurant Depot", name: "", size: "", category: "", bin: "", itemNo: "", upc: "", unit: "each", price: "", estEach: "", casePrice: "", caseQty: "", priceNote: "", photo: "" };
+const blank = () => ({ id: "", store: defaultStore(), name: "", size: "", category: "", bin: "", itemNo: "", upc: "", unit: "each", price: "", estEach: "", casePrice: "", caseQty: "", priceNote: "", photo: "" });
 
 export function CatalogManager({ products, photos, onBack, onSaved, onDeleted }) {
   const search = useSearch(products);
-  const [editing, setEditing] = useState(null); // a product, or BLANK for a new one
+  const [editing, setEditing] = useState(null); // a product, or blank() for a new one
 
   if (editing) {
     return (
@@ -266,7 +267,7 @@ export function CatalogManager({ products, photos, onBack, onSaved, onDeleted })
           <i className="fa-solid fa-store" aria-hidden="true"></i> Product catalog ({products.length})
         </h2>
         <p className="text-sm text-center text-brand-navydeep/80">Things you buy again and again. When making a list, tap them instead of typing.</p>
-        <button type="button" className="btn-3d justify-center" onClick={() => setEditing(BLANK)}>
+        <button type="button" className="btn-3d justify-center" onClick={() => setEditing(blank())}>
           <i className="fa-solid fa-plus" aria-hidden="true"></i> Add a product
         </button>
         {products.length > 0 && <SearchBar search={search} id="cat-search" />}
@@ -392,7 +393,7 @@ function ProductForm({ product, photos, categories, stores, onCancel, onSaved, o
       </div>
 
       <Field id="p-name" label="Name" icon="fa-tag">
-        <input id="p-name" className="input-3d" value={form.name} onChange={set("name")} placeholder="e.g. Open Pit BBQ Sauce" autoComplete="off" />
+        <input id="p-name" className="input-3d" value={form.name} onChange={set("name")} placeholder={isDemo() ? "e.g. Tomato Sauce" : "e.g. Open Pit BBQ Sauce"} autoComplete="off" />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field id="p-size" label="Size / pack">
@@ -419,7 +420,7 @@ function ProductForm({ product, photos, categories, stores, onCancel, onSaved, o
         </Field>
       </div>
 
-      <fieldset className="glass-panel px-3 py-3 flex flex-col gap-3">
+      <fieldset className="glass-panel px-3 py-3 flex flex-col gap-3 min-w-0">
         <legend className="sr-only">Price</legend>
         <div className="grid grid-cols-2 gap-3">
           <Field id="p-unit" label="Sold by">
@@ -452,7 +453,7 @@ function ProductForm({ product, photos, categories, stores, onCancel, onSaved, o
       </fieldset>
 
       <Field id="p-store" label="Store" icon="fa-store">
-        <input id="p-store" className="input-3d" list="p-stores" value={form.store} onChange={set("store")} placeholder="Restaurant Depot" autoComplete="off" />
+        <input id="p-store" className="input-3d" list="p-stores" value={form.store} onChange={set("store")} placeholder={defaultStore()} autoComplete="off" />
         <datalist id="p-stores">
           {stores.map((s) => (
             <option key={s} value={s} />

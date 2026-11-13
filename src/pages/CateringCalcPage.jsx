@@ -12,7 +12,7 @@ import { useQuotes } from "../hooks/useQuotes.js";
 import { isDemo } from "../lib/demo.js";
 import { useAuth } from "../lib/auth.jsx";
 import Swal from "sweetalert2";
-import { CATERING_MENU, DEMO_PRICES, TRAY_SIZES } from "../lib/cateringMenu.js";
+import { DEMO_PRICES, getCateringMenu, TRAY_SIZES } from "../lib/cateringMenu.js";
 import { pressDish, pressOp, pressDelete, pressEquals, evaluate, dishCounts, dishLines } from "../lib/cateringCalc.js";
 import { formatMoney } from "../lib/format.js";
 
@@ -375,7 +375,7 @@ function CalculatorView({ shared, linkToken }) {
           {/* Dishes take the number keys' place and scroll; × − + = stay put. */}
           <div className="relative col-span-3">
             <div className="absolute inset-0 overflow-y-auto overscroll-contain rounded-2xl no-scrollbar">
-              {CATERING_MENU.map(({ category, dishes }) => {
+              {getCateringMenu().map(({ category, dishes }) => {
                 const isOpen = openCategory === category;
                 const picked = dishes.reduce((n, d) => n + (counts[`${d.id}:half`] || 0) + (counts[`${d.id}:whole`] || 0), 0);
                 const panelId = `cat-${dishes[0].id}`;

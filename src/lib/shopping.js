@@ -1,4 +1,11 @@
-// Shopping lists: small pure helpers for the page (pages/ShoppingPage.jsx).
+import { isDemo } from "./demo.js";
+
+// Shopping lists: small helpers for the page (pages/ShoppingPage.jsx).
+
+// Where products come from when no store is filled in. The demo has its own
+// made-up store, so nothing of the real restaurant shows there.
+export const DEMO_STORE = "Demo Wholesale Club";
+export const defaultStore = () => (isDemo() ? DEMO_STORE : "Restaurant Depot");
 
 // Typed or pasted lines → items. "2 cases tomatoes", "Tomatoes - 2 cases",
 // "2x Tomatoes" and "Tomatoes x2" all become { name, qty }. A line that's
@@ -147,7 +154,7 @@ export function groupItemsByStore(items, productById) {
   const groups = new Map();
   for (const item of items || []) {
     const product = productById.get(item.productId);
-    const store = product ? String(product.store || "").trim() || "Restaurant Depot" : "";
+    const store = product ? String(product.store || "").trim() || defaultStore() : "";
     if (!groups.has(store)) groups.set(store, []);
     groups.get(store).push(item);
   }

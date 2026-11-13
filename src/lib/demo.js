@@ -39,7 +39,27 @@ export function isDemo() {
   return memoryFlag || read(FLAG_KEY) === "1";
 }
 
+// Other demo-only data the app keeps in the browser (saved catering quotes,
+// an unfinished order). Cleared whenever a demo starts or ends.
+const DEMO_EXTRA_KEYS = ["pim-catering-quotes-demo", "pim-order-draft-demo"];
+function clearDemoExtras() {
+  for (const key of DEMO_EXTRA_KEYS) {
+    write(key, null);
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Storage blocked: nothing was saved there.
+    }
+  }
+}
+
+// Sections that keep demo data only in memory (e.g. Shopping) listen for
+// this and start over, like everything else in the demo.
+export const DEMO_RESET_EVENT = "pim:demo-reset";
+
 export function startDemo() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(DEMO_RESET_EVENT));
+  clearDemoExtras();
   memoryFlag = true;
   memoryData = null;
   write(FLAG_KEY, "1");
@@ -49,6 +69,7 @@ export function startDemo() {
 
 export function endDemo() {
   if (isDemo()) document.title = REAL_TITLE;
+  clearDemoExtras();
   memoryFlag = false;
   memoryData = null;
   write(FLAG_KEY, null);

@@ -1,17 +1,19 @@
 import { useMemo } from "react";
 import { priceList } from "../lib/cateringList.js";
-import { CATERING_MENU, TRAY_SIZES } from "../lib/cateringMenu.js";
+import { getCateringMenu, TRAY_SIZES } from "../lib/cateringMenu.js";
+import { isDemo } from "../lib/demo.js";
 import { formatMoney } from "../lib/format.js";
 
-const DISHES = CATERING_MENU.flatMap((c) => c.dishes);
 const SIZE_SHORT = Object.fromEntries(TRAY_SIZES.map((s) => [s.id, s.short]));
 const PLACEHOLDER = "2 carnitas entera\n• Chivo (media charola)\nmole poblano\n3x arroz mexicano, frijoles";
+const DEMO_PLACEHOLDER = "2 slider burgers whole\n• Caesar salad (half tray)\nbaked ziti\n3x fries, brownies";
 
 // "Type a list": staff type or paste dishes, and the total is worked out
 // as they type. Each line shows what it matched, so a wrong match is easy
 // to spot; vague lines ("mole") offer the dishes they could mean.
 export default function CateringListMode({ text, onTextChange, size, onSizeChange, onSendToCalculator }) {
-  const { lines, total, unmatched } = useMemo(() => priceList(text, DISHES, size), [text, size]);
+  const dishes = useMemo(() => getCateringMenu().flatMap((c) => c.dishes), []);
+  const { lines, total, unmatched } = useMemo(() => priceList(text, dishes, size), [text, dishes, size]);
   const matched = lines.filter((l) => l.dish);
 
   // Picking a suggestion rewrites that line with the dish's full name,
@@ -43,7 +45,7 @@ export default function CateringListMode({ text, onTextChange, size, onSizeChang
         id="catering-list"
         value={text}
         onChange={(e) => onTextChange(e.target.value)}
-        placeholder={PLACEHOLDER}
+        placeholder={isDemo() ? DEMO_PLACEHOLDER : PLACEHOLDER}
         rows={6}
         spellCheck={false}
         autoCapitalize="none"

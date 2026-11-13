@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startDemo, endDemo, isDemo, demoApi, DEMO_BRAND } from "../src/lib/demo.js";
 import * as sheetdb from "../src/api/sheetdb.js";
 import { getBrand, getMenu } from "../src/lib/brand.js";
+import { getCateringMenu } from "../src/lib/cateringMenu.js";
+import { createList, loadShopping } from "../src/api/shopping.js";
+import { defaultStore } from "../src/lib/shopping.js";
 
 const fetchSpy = vi.fn(() => Promise.reject(new Error("fetch must not be called in demo mode")));
 
@@ -32,6 +35,42 @@ describe("demo mode", () => {
     expect(getBrand()).toMatchObject({ name: DEMO_BRAND.name, demo: true });
     expect(JSON.stringify(getMenu())).not.toMatch(/Chivo|Carnitas|Consomé/);
     expect(document.title).toBe(DEMO_BRAND.pageTitle);
+  });
+
+  it("the catering calculator uses the demo's own menu", () => {
+    const names = JSON.stringify(getCateringMenu());
+    expect(names).not.toMatch(/Chivo|Carnitas|Mole|Pernil|charola/i);
+    expect(names).toMatch(/Slider Burgers/);
+    endDemo();
+    expect(JSON.stringify(getCateringMenu())).toMatch(/Carnitas/);
+    startDemo();
+  });
+
+  it("shopping uses a made-up store and products, never the real ones", async () => {
+    const data = await loadShopping();
+    const text = JSON.stringify(data);
+    expect(text).not.toMatch(/Restaurant Depot|Open Pit|Sirloin|\/imgs\/products\//);
+    expect(data.products.length).toBeGreaterThan(0);
+    for (const p of data.products) expect(p.store).toBe("Demo Wholesale Club");
+    expect(defaultStore()).toBe("Demo Wholesale Club");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("leaving the demo clears its saved catering quotes", () => {
+    localStorage.setItem("pim-catering-quotes-demo", "[1]");
+    localStorage.setItem("pim-catering-quotes", "[2]");
+    endDemo();
+    expect(localStorage.getItem("pim-catering-quotes-demo")).toBeNull();
+    expect(localStorage.getItem("pim-catering-quotes")).toBe("[2]"); // the real ones stay
+    startDemo();
+  });
+
+  it("a new demo starts with fresh shopping lists", async () => {
+    await createList({ title: "Temp list", items: [{ name: "x" }] });
+    expect((await loadShopping()).lists.some((l) => l.title === "Temp list")).toBe(true);
+    endDemo();
+    startDemo();
+    expect((await loadShopping()).lists.some((l) => l.title === "Temp list")).toBe(false);
   });
 
   it("answers every data call from the browser and never calls fetch", async () => {

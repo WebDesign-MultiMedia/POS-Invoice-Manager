@@ -1,3 +1,5 @@
+import { isDemo } from "./demo.js";
+
 // Catering menu for the Catering Calculator page (/catering), taken from the
 // dish list on buffetluciasfiestamexicana.com. Every dish is sold by the
 // tray: a half tray (media charola) or a whole tray (charola entera).
@@ -86,12 +88,28 @@ const slug = (s) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-export const CATERING_MENU = CATEGORIES.map(({ category, half, whole, dishes }) => ({
-  category,
-  dishes: dishes.map((d) => {
-    const dish = typeof d === "string" ? { name: d } : d;
-    return { id: slug(dish.name), name: dish.name, prices: { half: dish.half ?? half, whole: dish.whole ?? whole } };
-  }),
-}));
+const build = (categories) =>
+  categories.map(({ category, half, whole, dishes }) => ({
+    category,
+    dishes: dishes.map((d) => {
+      const dish = typeof d === "string" ? { name: d } : d;
+      return { id: slug(dish.name), name: dish.name, prices: { half: dish.half ?? half, whole: dish.whole ?? whole } };
+    }),
+  }));
 
+export const CATERING_MENU = build(CATEGORIES);
 export const CATERING_DISHES = Object.fromEntries(CATERING_MENU.flatMap((c) => c.dishes).map((d) => [d.id, d]));
+
+// The demo's fictional café caters its own made-up menu, so nothing of the
+// real restaurant shows in the demo.
+const DEMO_CATEGORIES = [
+  { category: "Mains", half: 85, whole: 160, dishes: ["Slider Burgers", "Veggie Sliders", "Chicken Wraps", "BBQ Pulled Pork", "Lemon Herb Chicken"] },
+  { category: "Pasta", half: 60, whole: 110, dishes: ["Baked Ziti", "Mac and Cheese", "Pasta Primavera"] },
+  { category: "Salads", half: 45, whole: 85, dishes: ["Garden Salad", "Caesar Salad", "Fruit Salad", "Potato Salad"] },
+  { category: "Sides", half: 35, whole: 65, dishes: ["Fries", "Roasted Vegetables", "Rice Pilaf", { name: "Dinner Rolls", half: 20, whole: 35 }] },
+  { category: "Desserts", half: 40, whole: 75, dishes: ["Brownies", "Cookie Platter", "Lemon Bars"] },
+];
+export const DEMO_CATERING_MENU = build(DEMO_CATEGORIES);
+
+// What the Catering Calculator shows: the demo's menu while in demo mode.
+export const getCateringMenu = () => (isDemo() ? DEMO_CATERING_MENU : CATERING_MENU);

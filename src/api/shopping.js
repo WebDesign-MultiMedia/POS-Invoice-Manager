@@ -1,7 +1,8 @@
 // Shopping lists and receipt photos (api/shopping.js → the "Shopping" sheet
 // tab + private photo storage). In the demo, everything stays in this tab.
 import { reportIfLoggedOut } from "../lib/auth.jsx";
-import { isDemo } from "../lib/demo.js";
+import { DEMO_RESET_EVENT, isDemo } from "../lib/demo.js";
+import { DEMO_STORE } from "../lib/shopping.js";
 import { ApiError, apiErrorFrom } from "../lib/errors.js";
 
 const API = "/api/shopping";
@@ -56,6 +57,14 @@ export const finishTrip = (id, spent) => post({ action: "finish", id, spent });
 const demoPhotos = new Map();
 let demoLists = null;
 let demoProducts = null;
+// A new demo starts with fresh sample lists and products.
+if (typeof window !== "undefined") {
+  window.addEventListener(DEMO_RESET_EVENT, () => {
+    demoLists = null;
+    demoProducts = null;
+    demoPhotos.clear();
+  });
+}
 const hex = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const later = (v) => new Promise((resolve) => setTimeout(() => resolve(clone(v)), 200));
@@ -70,7 +79,7 @@ function seedLists() {
       assignedTo: "",
       assignedName: "",
       status: "Open",
-      items: [item("Tomatoes", "2 cases", "38.00", { got: true }), item("Onions", "1 bag (50 lb)", "24.00"), item("Limes", "1 case", "30.00"), item("Cilantro", "6 bunches", "6.00", { note: "Fresh, not wilted" })],
+      items: [item("Roma Tomatoes", "2", "49.98", { got: true, note: "25 lb case", productId: "pdemo00000002" }), item("Yellow Onions", "1", "21.49", { note: "50 lb bag", productId: "pdemo00000003" }), item("Limes", "1 case", "30.00"), item("Cilantro", "6 bunches", "6.00", { note: "Fresh, not wilted" })],
       notes: "Get the receipt for everything.",
       spent: "",
       receipts: [],
@@ -99,11 +108,20 @@ function seedLists() {
   ];
 }
 
-// The demo's catalog: the two real products, so the pictures show.
-const seedProducts = () => [
-  { id: "p0d0e0m0o0b0b0q1", store: "Restaurant Depot", name: "Open Pit BBQ Sauce", size: "1 gallon (128 fl oz)", category: "Sauces", bin: "3002", itemNo: "25849", upc: "4300080603", unit: "each", price: "22.65", estEach: "", casePrice: "79.99", caseQty: "4", priceNote: "$0.18/fl oz single, $0.16/fl oz by the case", photo: "/imgs/products/open-pit-bbq-sauce-gallon.webp" },
-  { id: "p0d0e0m0o0b0e0f2", store: "Restaurant Depot", name: "Beef Top Sirloin Butts, USDA Select", size: "About 16 lb each", category: "Meat", bin: "60035", itemNo: "77004", upc: "2077004000", unit: "lb", price: "5.59", estEach: "89.44", casePrice: "", caseQty: "", priceNote: "Final cost by weight. $5.59/lb when buying 80 lb or more.", photo: "/imgs/products/beef-top-sirloin-butts-usda-select.webp" },
-];
+// The demo's catalog: made-up products at a made-up store, with simple
+// drawn pictures, so nothing of the real restaurant shows in the demo.
+const demoPicture = (emoji) =>
+  `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="50" y="58" font-size="72" text-anchor="middle" dominant-baseline="middle">${emoji}</text></svg>`)}`;
+const seedProducts = () => {
+  const p = (id, name, size, category, bin, itemNo, unit, price, extra = {}) => ({ id, store: DEMO_STORE, name, size, category, bin, itemNo, upc: "", unit, price, estEach: "", casePrice: "", caseQty: "", priceNote: "", photo: "", ...extra });
+  return [
+    p("pdemo00000001", "Tomato Sauce", "#10 can (6 lb)", "Canned goods", "1204", "50011", "each", "6.49", { casePrice: "36.99", caseQty: "6", photo: demoPicture("🥫") }),
+    p("pdemo00000002", "Roma Tomatoes", "25 lb case", "Produce", "210", "50012", "each", "24.99", { photo: demoPicture("🍅") }),
+    p("pdemo00000003", "Yellow Onions", "50 lb bag", "Produce", "214", "50013", "each", "21.49", { photo: demoPicture("🧅") }),
+    p("pdemo00000004", "Chicken Breast", "About 10 lb pack", "Meat", "6010", "50014", "lb", "2.99", { estEach: "29.90", priceNote: "Final cost by weight.", photo: demoPicture("🍗") }),
+    p("pdemo00000005", "Paper Napkins", "Case of 6,000", "Paper goods", "880", "50015", "each", "42.00", { photo: demoPicture("🧻") }),
+  ];
+};
 
 function demo(body) {
   if (!demoLists) demoLists = seedLists();
@@ -153,16 +171,16 @@ function demo(body) {
   if (body.action === "readReceipt") {
     // The demo can't really read photos, so it shows a made-up receipt.
     const details = {
-      store: "Demo Wholesale Market",
+      store: DEMO_STORE,
       date: now.slice(0, 10),
       items: [
-        { name: "Tomatoes, case", qty: "2", price: 36.5 },
-        { name: "Onions, 50 lb bag", qty: "1", price: 22.99 },
+        { name: "Roma Tomatoes, 25 lb case", qty: "2", price: 49.98 },
+        { name: "Yellow Onions, 50 lb bag", qty: "1", price: 21.49 },
         { name: "Ice, bag", qty: "2", price: 4.5 },
       ],
-      subtotal: 63.99,
+      subtotal: 75.97,
       tax: 0,
-      total: 63.99,
+      total: 75.97,
       note: "Sample receipt: the demo doesn't read real photos.",
     };
     list.receipts = list.receipts.map((r) => (r.path === body.path ? { ...r, details } : r));

@@ -5,9 +5,9 @@ import { SiteNav } from "../components/NavFab.jsx";
 const UPDATES = [
   {
     icon: "fa-store",
-    title: "Restaurant Depot catalog",
+    title: "Product catalog",
     date: "2026-11-12",
-    body: "Managers keep a catalog of the things you buy all the time, with pictures, prices and bin numbers. Making a shopping list is now tapping products instead of typing, and whoever shops sees each picture and where to find it.",
+    body: "Managers keep a catalog of the things you buy all the time at your wholesale stores, grouped by store, with pictures, prices and bin numbers. Tap a picture to see it bigger. Making a shopping list is now tapping products instead of typing, and whoever shops sees each picture and where to find it.",
   },
   {
     icon: "fa-wand-magic-sparkles",
