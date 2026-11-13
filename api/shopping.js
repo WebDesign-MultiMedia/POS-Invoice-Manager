@@ -3,7 +3,7 @@ import { requireAccess, sellerName } from "./_lib/auth.js";
 import { listEmployees } from "./_lib/employees.js";
 import { UnreadableReceipt, readReceipt, readerReady } from "./_lib/receiptReader.js";
 import { parseAccess } from "./_lib/permissions.js";
-import { PRODUCTS_SHEET, cleanProductId, isUploadedPhoto, newProductId, productFields, publicProduct } from "./_lib/products.js";
+import { DEFAULT_STORE, PRODUCTS_SHEET, cleanProductId, isUploadedPhoto, newProductId, priceUpdatesFromReceipt, productFields, publicProduct } from "./_lib/products.js";
 import { sheetdbBase, sheetdbHeaders } from "./_lib/sheetdb.js";
 import {
   BadRequest,
@@ -315,14 +315,31 @@ export default async function handler(req, res) {
       const blob = await get(photo.path, { access: "private" });
       if (!blob || blob.statusCode !== 200) throw new NotFound();
       const buffer = Buffer.from(await new Response(blob.stream).arrayBuffer());
+      // The catalog products this receipt could have: the photo's store's
+      // (or the trip's only store's), else the ones on the list.
+      const listStores = [...new Set(itemsOf(row).map((i) => String(i.store || "").trim()).filter(Boolean))];
+      const store = String(photo.store || "").trim() || (listStores.length === 1 ? listStores[0] : "");
+      const onList = new Set(itemsOf(row).map((i) => i.productId).filter(Boolean));
+      const candidates = ((await productRows()) || []).filter((p) => (store ? (String(p.Store || "").trim() || DEFAULT_STORE) === store : onList.has(p.ProductId)));
       let details;
       try {
-        details = await readReceipt({ buffer, contentType: blob.blob.contentType || "image/jpeg" });
+        details = await readReceipt({ buffer, contentType: blob.blob.contentType || "image/jpeg" }, { products: candidates.map((p) => ({ id: p.ProductId, name: p.Name, size: p.Size })) });
       } catch (err) {
         if (err instanceof UnreadableReceipt) throw new BadRequest("Couldn't read that receipt. Try a clearer photo, flat and in good light.");
         console.error("shopping: receipt reader failed", err);
         return res.status(502).json({ error: "The receipt reader isn't working right now. The photo is saved; press Read receipt again later." });
       }
+      // Keep the catalog's prices up to date from what was actually paid.
+      const applied = [];
+      for (const u of priceUpdatesFromReceipt(details, candidates, { date: details.date })) {
+        try {
+          await sheetdb(productPath(u.productId), { method: "PATCH", body: JSON.stringify({ data: { ...u.fields, UpdatedAt: now } }) });
+          applied.push({ name: u.name, field: u.field, from: u.from, to: u.to });
+        } catch (err) {
+          console.error("shopping: couldn't update a catalog price", u.productId, err);
+        }
+      }
+      if (applied.length) details.catalog = applied;
       // Read the row again: someone may have checked items off meanwhile.
       const fresh = (await findRow(id)) || row;
       const updated = receiptsOf(fresh).map((r) => (r.path === photo.path ? { ...r, details } : r));

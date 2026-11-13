@@ -98,6 +98,7 @@ Tap the **cart** button. You see it only if the owner ticked **Shopping lists** 
 - Bought something that wasn't on the list? Add it under **Bought something not on the list?**
 - Press **Scan receipt** and take a photo. On a trip to several stores, first pick which store the receipt is from; the app adds up all the receipts for the total. Lay it flat in good light. For a long receipt, take more than one photo.
 - The app reads the photo and shows the store, date, items and total under it, and fills in **Receipt total** for you. Check it against the paper receipt before you finish.
+- It also keeps the **catalog's prices up to date**: products on the receipt get the price actually paid (an empty price is filled in, a changed one is updated and the old price is kept in the note). The changes are listed under the receipt. That's why it helps to pick the right store before scanning.
 - Type the **Receipt total** and press **Finish trip**. After that only a manager can change the list (or **Reopen** it).
 
 Managers see every trip, its receipt photos and **Spent this month**. Employees see prices and totals only if **See shopping prices** is ticked for them.

@@ -74,3 +74,58 @@ export function publicProduct(row, { prices }) {
 // Pictures shipped with the app are public files; uploaded ones are private.
 export const isBundledPhoto = (photo) => /^\/imgs\/products\/[a-z0-9-]+\.(webp|png|jpg)$/.test(String(photo || ""));
 export const isUploadedPhoto = (photo, id) => String(photo || "").startsWith(`products/${id}/`);
+
+// ---------- keeping prices up to date from scanned receipts ----------
+//
+// details: what the receipt reader found; each line may name a catalog
+// product (productId). rows: those products' sheet rows. Returns the
+// changes to make: [{ productId, name, field, from, to, fields }], at most
+// one per product. Rules:
+//   - sold by the pound: price per lb = line total / pounds on the line
+//   - otherwise: price each = line total / how many; if that's close to the
+//     case price, it was a case and the case price is updated instead
+//   - an empty price is filled; a changed one is updated, with the old price
+//     kept in the note; a jump to more than double or less than half is
+//     skipped as a likely mismatch
+const money2 = (n) => (Math.round(n * 100) / 100).toFixed(2);
+const positive = (v) => {
+  const n = Number(String(v ?? "").replace(/[$,\s]/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+const RECEIPT_STAMP = /\s*(?:Price|Case price|Price per lb) (?:was \$[\d.]+ before|from) the [\d-]+ receipt\.\s*/g;
+
+export function priceUpdatesFromReceipt(details, rows, { date = "" } = {}) {
+  const byId = new Map((rows || []).map((r) => [r.ProductId, r]));
+  const seen = new Set();
+  const when = date || new Date().toISOString().slice(0, 10);
+  const out = [];
+  for (const item of details?.items || []) {
+    const row = byId.get(item.productId);
+    if (!row || seen.has(row.ProductId) || !(item.price > 0)) continue;
+    seen.add(row.ProductId);
+    const qty = String(item.qty || "");
+    let field = "Price";
+    let value;
+    if (row.Unit === "lb") {
+      const lb = /([\d.]+)\s*(?:lb|lbs|#)/i.exec(qty);
+      if (!lb || !(Number(lb[1]) > 0)) continue; // can't tell the weight
+      value = item.price / Number(lb[1]);
+    } else {
+      const count = Number.parseFloat(qty);
+      value = item.price / (count > 0 && !/lb|oz|#/i.test(qty) ? count : 1);
+      const casePrice = positive(row.CasePrice);
+      if (casePrice && Math.abs(value - casePrice) / casePrice < 0.15) field = "CasePrice";
+    }
+    const from = positive(row[field]);
+    if (from && (value > from * 2 || value < from / 2)) continue;
+    if (from && Math.abs(value - from) < 0.01) continue;
+    const to = money2(value);
+    const label = field === "CasePrice" ? "Case price" : row.Unit === "lb" ? "Price per lb" : "Price";
+    const oldNote = String(row.PriceNote || "").replace(RECEIPT_STAMP, " ").trim();
+    const stamp = from ? `${label} was $${money2(from)} before the ${when} receipt.` : `${label} from the ${when} receipt.`;
+    const fields = { [field]: to, PriceNote: `${stamp} ${oldNote}`.trim().slice(0, 200) };
+    if (!String(row.Size || "").trim() && item.size) fields.Size = item.size;
+    out.push({ productId: row.ProductId, name: row.Name, field: label, from: from ? money2(from) : "", to, fields });
+  }
+  return out;
+}

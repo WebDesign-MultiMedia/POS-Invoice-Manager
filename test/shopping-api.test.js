@@ -275,6 +275,37 @@ describe("reading a receipt photo", () => {
     blob.get.mockImplementation(async () => ({ statusCode: 200, stream: new Blob([new Uint8Array([9, 9])]).stream(), blob: { contentType: "image/jpeg" } }));
   });
 
+  it("updates catalog prices from the receipt, using that store's products", async () => {
+    // The photo is from Restaurant Depot; the BBQ sauce (in the test catalog) is on it.
+    shopping[0].Receipts = JSON.stringify([{ path: PATH, at: "2026-11-12T10:00:00Z", by: "Carlos", store: "Restaurant Depot" }]);
+    products.push({ ProductId: "p99aa11bb22cc33dd", Store: "Jetro", Name: "Rice", Unit: "each", Price: "10.00" });
+    claude.create.mockResolvedValue(
+      reply({
+        is_receipt: true,
+        store: "Restaurant Depot",
+        date: "2026-11-14",
+        items: [
+          { name: "OPEN PIT BBQ GAL", qty: "2", price: 46.98, size: "1 gal", product_id: "p00aa11bb22cc33dd" },
+          { name: "RICE", qty: "1", price: 9, size: "", product_id: "p99aa11bb22cc33dd" },
+        ],
+        subtotal: 55.98,
+        tax: 0,
+        total: 55.98,
+        note: "",
+      })
+    );
+    const res = await post({ action: "readReceipt", id: LIST_ID, path: PATH }, carlos());
+    expect(res.statusCode).toBe(200);
+    // Only Restaurant Depot's products were offered to the reader.
+    const prompt = claude.create.mock.calls[0][0].messages[0].content[1].text;
+    expect(prompt).toContain("p00aa11bb22cc33dd | Open Pit BBQ Sauce");
+    expect(prompt).not.toContain("Rice");
+    expect(products[0]).toMatchObject({ Price: "23.49", PriceNote: "Price was $22.65 before the 2026-11-14 receipt." });
+    expect(products[1].Price).toBe("10.00"); // not offered, so not changed
+    expect(res.body.details.catalog).toEqual([{ name: "Open Pit BBQ Sauce", field: "Price", from: "22.65", to: "23.49" }]);
+    expect(JSON.parse(shopping[0].Receipts)[0].details.catalog).toHaveLength(1);
+  });
+
   it("saves what the receipt says next to the photo", async () => {
     claude.create.mockResolvedValue(
       reply({ is_receipt: true, store: "Restaurant Depot", date: "2026-11-12", items: [{ name: "Tomatoes", qty: "2", price: 36.5 }, { name: "", qty: "", price: 1 }], subtotal: 36.5, tax: null, total: 36.5, note: "" })

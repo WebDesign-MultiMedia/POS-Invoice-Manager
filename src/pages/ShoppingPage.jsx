@@ -94,7 +94,7 @@ export default function ShoppingPage() {
           }}
         />
       ) : openList ? (
-        <TripView list={openList} products={data.products} manager={data.manager} prices={prices} photos={data.photos} reader={data.reader} onBack={goHome} onChange={replace} onEdit={() => setView({ edit: openList.id })} onDeleted={(id) => (drop(id), goHome())} />
+        <TripView list={openList} products={data.products} manager={data.manager} prices={prices} photos={data.photos} reader={data.reader} onBack={goHome} onChange={replace} onEdit={() => setView({ edit: openList.id })} onDeleted={(id) => (drop(id), goHome())} onCatalogChanged={load} />
       ) : (
         <Home data={data} prices={prices} onOpen={(id) => setView({ open: id })} onNew={() => setView({ edit: null })} onCatalog={() => setView("catalog")} onRefresh={load} />
       )}
@@ -225,7 +225,7 @@ function Home({ data, prices, onOpen, onNew, onCatalog, onRefresh }) {
 
 // ---------- one trip: check off, receipts, finish ----------
 
-function TripView({ list, products = [], manager, prices, photos, reader, onBack, onChange, onEdit, onDeleted }) {
+function TripView({ list, products = [], manager, prices, photos, reader, onBack, onChange, onEdit, onDeleted, onCatalogChanged }) {
   const productById = new Map(products.map((x) => [x.id, x]));
   // One line of the list: check box, picture, name, where to find it.
   const renderItem = (item) => {
@@ -362,6 +362,8 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
     // Receipt total = every receipt read so far added up (one per store).
     const totals = (res?.list?.receipts || []).map((r) => r.details?.total).filter((t) => t != null);
     if (totals.length && !spentTyped) setSpent((totals.reduce((a, b) => a + Math.round(b * 100), 0) / 100).toFixed(2));
+    // Catalog prices were updated from this receipt: show the new ones.
+    if (res?.details?.catalog?.length) onCatalogChanged?.();
   };
 
   const dropPhoto = async (path) => {
@@ -970,6 +972,21 @@ function ReceiptDetails({ details, label }) {
         <p className="mt-2 text-xs text-brand-gold">
           <i className="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> {details.note}
         </p>
+      )}
+      {details.catalog?.length > 0 && (
+        <div className="mt-2 rounded-lg border border-brand-teal/40 px-2 py-1.5 text-xs" role="status">
+          <p className="font-semibold text-brand-teal">
+            <i className="fa-solid fa-tags" aria-hidden="true"></i> Catalog prices updated from this receipt
+          </p>
+          <ul>
+            {details.catalog.map((c) => (
+              <li key={c.name + c.field}>
+                {c.name}: {c.field.toLowerCase()} ${c.to}
+                {c.from ? <span className="text-brand-navydeep/65"> (was ${c.from})</span> : <span className="text-brand-navydeep/65"> (new)</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       <p className="mt-2 text-[11px] text-brand-navydeep/60">Read by AI from the photo. Check it against the paper receipt.</p>
     </div>

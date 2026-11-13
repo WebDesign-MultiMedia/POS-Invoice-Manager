@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 // Reads a receipt photo with Claude and returns its details:
-//   { store, date, items: [{ name, qty, price }], subtotal, tax, total, note }
+//   { store, date, items: [{ name, qty, price, size, productId }], subtotal, tax, total, note }
+// When given the store's catalog products, it also says which product each
+// line is (productId), so the catalog's prices can be kept up to date.
 // Amounts are numbers (or null when the receipt doesn't show one). Needs
 // ANTHROPIC_API_KEY; without it the Shopping page just keeps the photo.
 
@@ -21,11 +23,13 @@ const SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "qty", "price"],
+        required: ["name", "qty", "price", "size", "product_id"],
         properties: {
           name: { type: "string", description: "Item as printed, with abbreviations expanded only when obvious." },
           qty: { type: "string", description: "Quantity or weight if printed (e.g. \"2\", \"3.4 lb\"), else empty." },
           price: { ...MONEY, description: "Line total in dollars." },
+          size: { type: "string", description: "Package size if printed in the item's name (e.g. \"5 lb\", \"#10 can\", \"1 gal\"), else empty." },
+          product_id: { type: "string", description: "The id of the catalog product this line clearly is, from the list given, else empty. Never guess." },
         },
       },
     },
@@ -51,7 +55,10 @@ export function cleanDetails(raw) {
   return {
     store: str(raw?.store, 80),
     date: /^\d{4}-\d{2}-\d{2}$/.test(String(raw?.date || "")) ? raw.date : "",
-    items: (Array.isArray(raw?.items) ? raw.items : []).slice(0, 80).map((i) => ({ name: str(i?.name, 80), qty: str(i?.qty, 20), price: num(i?.price) })).filter((i) => i.name),
+    items: (Array.isArray(raw?.items) ? raw.items : [])
+      .slice(0, 80)
+      .map((i) => ({ name: str(i?.name, 80), qty: str(i?.qty, 20), price: num(i?.price), size: str(i?.size, 30), productId: /^p[a-f0-9]{8,40}$/.test(String(i?.product_id)) ? i.product_id : "" }))
+      .filter((i) => i.name),
     subtotal: num(raw?.subtotal),
     tax: num(raw?.tax),
     total: num(raw?.total),
@@ -61,8 +68,15 @@ export function cleanDetails(raw) {
 
 export class UnreadableReceipt extends Error {}
 
-// image: { buffer, contentType } from decodeImage().
-export async function readReceipt(image) {
+// image: { buffer, contentType } from decodeImage(). products: the catalog
+// products this receipt could have, [{ id, name, size }].
+export async function readReceipt(image, { products = [] } = {}) {
+  const catalog = products.length
+    ? `\n\nCatalog products from this store (id | name | size). For each receipt line that is clearly one of these, put its id in product_id; otherwise leave product_id empty:\n${products
+        .slice(0, 150)
+        .map((p) => `${p.id} | ${String(p.name).replace(/\s+/g, " ")} | ${String(p.size || "").replace(/\s+/g, " ")}`)
+        .join("\n")}`
+    : "";
   const response = await anthropic().beta.messages.create({
     model: "claude-opus-5-5",
     max_tokens: 16000,
@@ -76,7 +90,7 @@ export async function readReceipt(image) {
         role: "user",
         content: [
           { type: "image", source: { type: "base64", media_type: image.contentType, data: image.buffer.toString("base64") } },
-          { type: "text", text: PROMPT },
+          { type: "text", text: PROMPT + catalog },
         ],
       },
     ],
@@ -90,5 +104,9 @@ export async function readReceipt(image) {
     throw new UnreadableReceipt("bad json");
   }
   if (!parsed.is_receipt) throw new UnreadableReceipt("not a receipt");
-  return cleanDetails(parsed);
+  const details = cleanDetails(parsed);
+  // Only ids we actually offered count.
+  const offered = new Set(products.map((p) => p.id));
+  for (const item of details.items) if (!offered.has(item.productId)) item.productId = "";
+  return details;
 }

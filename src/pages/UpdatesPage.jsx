@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-tags",
+    title: "Receipts keep catalog prices up to date",
+    date: "2026-11-14",
+    body: "When a receipt is scanned on a shopping trip, the products on it get the price actually paid in the catalog: missing prices are filled in and changed ones updated, with the old price kept in the note. Each change is listed under the receipt.",
+  },
+  {
     icon: "fa-paste",
     title: "Paste a texted shopping list",
     date: "2026-11-13",
