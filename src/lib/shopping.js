@@ -140,3 +140,18 @@ export function productPriceLine(p) {
   if (p.casePrice) parts.push(`case${p.caseQty ? ` of ${p.caseQty}` : ""} ${dollars(toCents(p.casePrice))}`);
   return parts.join(" · ");
 }
+
+// A trip's items in sections by store: catalog items under their store
+// (A–Z), typed ones last with store "" ("Other items").
+export function groupItemsByStore(items, productById) {
+  const groups = new Map();
+  for (const item of items || []) {
+    const product = productById.get(item.productId);
+    const store = product ? String(product.store || "").trim() || "Restaurant Depot" : "";
+    if (!groups.has(store)) groups.set(store, []);
+    groups.get(store).push(item);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => (!a ? 1 : !b ? -1 : a.localeCompare(b)))
+    .map(([store, list]) => ({ store, items: list }));
+}

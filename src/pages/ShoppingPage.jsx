@@ -5,8 +5,8 @@ import { SiteNav } from "../components/NavFab.jsx";
 import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip, loadShopping, readReceipt, receiptSrc, removeReceipt, reopenList, setItem } from "../api/shopping.js";
 import { useAuth } from "../lib/auth.jsx";
 import { friendlyMessage } from "../lib/errors.js";
-import { CatalogManager, CatalogPicker, ProductThumb, whereToFind } from "../components/ProductCatalog.jsx";
-import { addProduct, dollars, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
+import { CatalogManager, CatalogPicker, ZoomThumb, whereToFind } from "../components/ProductCatalog.jsx";
+import { addProduct, dollars, groupItemsByStore, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
 
 // Shopping lists. A manager (the owner, or an employee with Shopping lists
 // + "Can edit & delete") writes a list and gives it to someone, or to
@@ -221,6 +221,53 @@ function Home({ data, prices, onOpen, onNew, onCatalog, onRefresh }) {
 
 function TripView({ list, products = [], manager, prices, photos, reader, onBack, onChange, onEdit, onDeleted }) {
   const productById = new Map(products.map((x) => [x.id, x]));
+  // One line of the list: check box, picture, name, where to find it.
+  const renderItem = (item) => {
+    const product = productById.get(item.productId);
+    return (
+      <li key={item.id} className="py-2 flex items-start gap-3">
+        <label className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer py-1">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-6 w-6 shrink-0 accent-[rgb(var(--brand-teal))]"
+            checked={item.got}
+            disabled={locked}
+            onChange={() => mark(item, { got: !item.got, out: false })}
+          />
+          {product && <ZoomThumb product={product} size="h-12 w-12" />}
+          <span className="min-w-0">
+            <span className={`block text-brand-navy break-words ${item.got ? "line-through opacity-60" : ""} ${item.out ? "opacity-60" : ""}`}>
+              {item.qty && <span className="font-semibold">{item.qty} </span>}
+              {item.name}
+              {item.extra && <span className="ml-2 rounded-full border border-brand-gold/60 px-1.5 text-[10px] uppercase tracking-wide text-brand-gold">Extra</span>}
+              {item.out && <span className="ml-2 rounded-full border border-brand-error/60 px-1.5 text-[10px] uppercase tracking-wide text-brand-error">Out of stock</span>}
+            </span>
+            {item.note && <span className="block text-xs text-brand-navydeep/75">{item.note}</span>}
+            {product && whereToFind(product) && (
+              <span className="block text-xs text-brand-teal">
+                <i className="fa-solid fa-location-dot" aria-hidden="true"></i> {whereToFind(product)}
+              </span>
+            )}
+            {prices && item.price && <span className="block text-xs text-brand-navydeep/70">About {dollars(toCents(item.price))}</span>}
+          </span>
+        </label>
+        {!locked && !item.got && !item.extra && (
+          <button
+            type="button"
+            className={`shrink-0 rounded-full border px-2 py-1 text-xs ${item.out ? "border-brand-error/60 text-brand-error" : "border-brand-navydeep/30 text-brand-navydeep/75"}`}
+            aria-pressed={item.out}
+            onClick={() => mark(item, { got: false, out: !item.out })}
+            title="The store didn't have it"
+          >
+            {item.out ? "Out" : "None?"}
+          </button>
+        )}
+      </li>
+    );
+  };
+  // Grouped by store when items come from the catalog; typed ones go last.
+  const sections = groupItemsByStore(list.items, productById);
+
   const [busy, setBusy] = useState("");
   const [extra, setExtra] = useState({ name: "", qty: "" });
   const [spent, setSpent] = useState("");
@@ -381,51 +428,17 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
           {p.extras ? ` · ${p.extras} extra` : ""}
         </p>
 
-        <ul className="flex flex-col divide-y divide-brand-navydeep/15">
-          {list.items.map((item) => {
-            const product = productById.get(item.productId);
-            return (
-            <li key={item.id} className="py-2 flex items-start gap-3">
-              <label className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer py-1">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-6 w-6 shrink-0 accent-[rgb(var(--brand-teal))]"
-                  checked={item.got}
-                  disabled={locked}
-                  onChange={() => mark(item, { got: !item.got, out: false })}
-                />
-                {product && <ProductThumb product={product} size="h-12 w-12" />}
-                <span className="min-w-0">
-                  <span className={`block text-brand-navy break-words ${item.got ? "line-through opacity-60" : ""} ${item.out ? "opacity-60" : ""}`}>
-                    {item.qty && <span className="font-semibold">{item.qty} </span>}
-                    {item.name}
-                    {item.extra && <span className="ml-2 rounded-full border border-brand-gold/60 px-1.5 text-[10px] uppercase tracking-wide text-brand-gold">Extra</span>}
-                    {item.out && <span className="ml-2 rounded-full border border-brand-error/60 px-1.5 text-[10px] uppercase tracking-wide text-brand-error">Out of stock</span>}
-                  </span>
-                  {item.note && <span className="block text-xs text-brand-navydeep/75">{item.note}</span>}
-                  {product && whereToFind(product) && (
-                    <span className="block text-xs text-brand-teal">
-                      <i className="fa-solid fa-location-dot" aria-hidden="true"></i> {whereToFind(product)}
-                    </span>
-                  )}
-                  {prices && item.price && <span className="block text-xs text-brand-navydeep/70">About {dollars(toCents(item.price))}</span>}
-                </span>
-              </label>
-              {!locked && !item.got && !item.extra && (
-                <button
-                  type="button"
-                  className={`shrink-0 rounded-full border px-2 py-1 text-xs ${item.out ? "border-brand-error/60 text-brand-error" : "border-brand-navydeep/30 text-brand-navydeep/75"}`}
-                  aria-pressed={item.out}
-                  onClick={() => mark(item, { got: false, out: !item.out })}
-                  title="The store didn't have it"
-                >
-                  {item.out ? "Out" : "None?"}
-                </button>
-              )}
-            </li>
-            );
-          })}
-        </ul>
+        {sections.map((section) => (
+          <section key={section.store || "other"} aria-label={section.store || "Other items"}>
+            {sections.length > 1 || section.store ? (
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-brand-navy mt-1">
+                <i className={`fa-solid ${section.store ? "fa-store text-brand-teal" : "fa-list text-brand-navydeep/60"}`} aria-hidden="true"></i>
+                {section.store || "Other items"}
+              </h3>
+            ) : null}
+            <ul className="flex flex-col divide-y divide-brand-navydeep/15">{section.items.map(renderItem)}</ul>
+          </section>
+        ))}
         {prices && expected > 0 && <p className="text-xs text-right text-brand-navydeep/70">Expected about {dollars(expected)}</p>}
 
         {!locked && (
@@ -545,7 +558,8 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
 
   // There's always one empty row at the end to type the next thing into.
   const isBlank = (r) => !r.name.trim() && !r.qty && !r.price;
-  const update = (next) => setRows(next.length && isBlank(next[next.length - 1]) ? next : [...next, blankRow()]);
+  const withBlank = (next) => (next.length && isBlank(next[next.length - 1]) ? next : [...next, blankRow()]);
+  const update = (next) => setRows(withBlank(next));
   const setRow = (key, field, value) => update(rows.map((r) => (r.key === key ? { ...r, [field]: value } : r)));
   const removeRow = (key) => update(rows.filter((r) => r.key !== key));
 
@@ -595,10 +609,9 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
   };
 
   // Tapping a catalog product adds it, or one more of it.
-  const pick = (product) => {
-    const kept = rows.filter((r) => !isBlank(r));
-    update(addProduct(kept, product).map((r) => (r.key ? r : { ...r, key: Math.random().toString(36).slice(2) })));
-  };
+  // Works from the latest rows, so quick taps on several products all count.
+  const pick = (product) =>
+    setRows((current) => withBlank(addProduct(current.filter((r) => !isBlank(r)), product).map((r) => (r.key ? r : { ...r, key: Math.random().toString(36).slice(2) }))));
   const counts = {};
   for (const r of rows) if (r.productId) counts[r.productId] = Number(r.qty) > 0 ? Number(r.qty) : 1;
 

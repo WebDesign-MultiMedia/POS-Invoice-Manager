@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Swal from "sweetalert2";
 import { deleteProduct, productSrc, saveProduct } from "../api/shopping.js";
 import { friendlyMessage } from "../lib/errors.js";
@@ -22,18 +23,125 @@ export function ProductThumb({ product, size = "h-12 w-12" }) {
   );
 }
 
+// The picture full size, over the page, with what's useful at the store.
+// Tap outside, the ×, or press Escape to close. Rendered at the end of
+// <body> so it isn't caught inside a card, a tilt or a checkbox label.
+export function ImageViewer({ product, onClose }) {
+  const closeRef = useRef(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const details = [product.size, whereToFind(product), productPriceLine(product)].filter(Boolean);
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label={product.name} className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="relative w-full max-w-md flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+        <button ref={closeRef} type="button" onClick={onClose} aria-label="Close picture" className="absolute -top-2 right-0 h-10 w-10 rounded-full bg-white/15 text-white text-lg">
+          <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+        <img src={productSrc(product)} alt={product.name} className="w-full max-h-[65vh] object-contain mt-8" />
+        <div className="text-center text-white">
+          <p className="font-semibold text-lg leading-tight">{product.name}</p>
+          {details.map((d) => (
+            <p key={d} className="text-sm text-white/80">
+              {d}
+            </p>
+          ))}
+          {product.store && <p className="text-xs text-white/60 mt-1">{product.store}</p>}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// A product picture you can tap to see bigger. Works inside a checkbox
+// label too: the tap opens the picture instead of ticking the box.
+export function ZoomThumb({ product, size = "h-12 w-12" }) {
+  const [open, setOpen] = useState(false);
+  if (!productSrc(product)) return <ProductThumb product={product} size={size} />;
+  return (
+    <>
+      <button
+        type="button"
+        className="shrink-0 rounded-lg"
+        aria-label={`See a bigger picture of ${product.name}`}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+      >
+        <ProductThumb product={product} size={size} />
+      </button>
+      {open && <ImageViewer product={product} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
 // "Bin 3002 · Item #25849": what helps find it in the store.
 export const whereToFind = (p) => [p?.bin && `Bin ${p.bin}`, p?.itemNo && `Item #${p.itemNo}`].filter(Boolean).join(" · ");
+
+const storeOf = (p) => String(p?.store || "").trim() || "Restaurant Depot";
+
+// Products grouped by store (business), stores A–Z: [{ store, products }].
+export function byStore(products) {
+  const groups = new Map();
+  for (const p of products) {
+    const store = storeOf(p);
+    if (!groups.has(store)) groups.set(store, []);
+    groups.get(store).push(p);
+  }
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([store, list]) => ({ store, products: list }));
+}
 
 function useSearch(products) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
-  const categories = useMemo(() => [...new Set(products.map((p) => p.category).filter(Boolean))].sort(), [products]);
+  const [store, setStore] = useState("");
+  const stores = useMemo(() => [...new Set(products.map(storeOf))].sort(), [products]);
+  const inStore = store ? products.filter((p) => storeOf(p) === store) : products;
+  const categories = [...new Set(inStore.map((p) => p.category).filter(Boolean))].sort();
   const q = query.trim().toLowerCase();
-  const shown = products.filter(
-    (p) => (!category || p.category === category) && (!q || [p.name, p.size, p.category, p.bin, p.itemNo, p.upc].some((v) => String(v || "").toLowerCase().includes(q)))
+  const shown = inStore.filter(
+    (p) => (!category || p.category === category) && (!q || [p.name, p.size, p.category, p.bin, p.itemNo, p.upc, p.store].some((v) => String(v || "").toLowerCase().includes(q)))
   );
-  return { query, setQuery, category, setCategory, categories, shown };
+  const pickStore = (s) => {
+    setStore(s);
+    setCategory("");
+  };
+  return { query, setQuery, category, setCategory, categories, store, setStore: pickStore, stores, shown, groups: byStore(shown) };
+}
+
+// A store's heading above its products.
+function StoreHeading({ store, count }) {
+  return (
+    <h3 className="flex items-center gap-2 text-sm font-semibold text-brand-navy">
+      <i className="fa-solid fa-store text-brand-teal" aria-hidden="true"></i>
+      <span className="min-w-0 truncate">{store}</span>
+      <span className="text-xs font-normal text-brand-navydeep/65">({count})</span>
+    </h3>
+  );
+}
+
+function Chips({ label, options, value, onChange, allLabel }) {
+  return (
+    <div className="flex gap-2 overflow-x-auto no-scrollbar" role="group" aria-label={label}>
+      {["", ...options].map((c) => (
+        <button
+          key={c || "all"}
+          type="button"
+          aria-pressed={value === c}
+          onClick={() => onChange(c)}
+          className={`shrink-0 rounded-full border px-3 py-1 text-xs ${value === c ? "border-brand-teal bg-brand-teal/15 text-brand-teal" : "border-brand-navydeep/30 text-brand-navydeep/80"}`}
+        >
+          {c || allLabel}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function SearchBar({ search, id }) {
@@ -49,21 +157,8 @@ function SearchBar({ search, id }) {
         aria-label="Search the catalog"
         autoComplete="off"
       />
-      {search.categories.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto no-scrollbar" role="group" aria-label="Category">
-          {["", ...search.categories].map((c) => (
-            <button
-              key={c || "all"}
-              type="button"
-              aria-pressed={search.category === c}
-              onClick={() => search.setCategory(c)}
-              className={`shrink-0 rounded-full border px-3 py-1 text-xs ${search.category === c ? "border-brand-teal bg-brand-teal/15 text-brand-teal" : "border-brand-navydeep/30 text-brand-navydeep/80"}`}
-            >
-              {c || "All"}
-            </button>
-          ))}
-        </div>
-      )}
+      {search.stores.length > 1 && <Chips label="Store" options={search.stores} value={search.store} onChange={search.setStore} allLabel="All stores" />}
+      {search.categories.length > 1 && <Chips label="Category" options={search.categories} value={search.category} onChange={search.setCategory} allLabel="All" />}
     </div>
   );
 }
@@ -74,6 +169,7 @@ function SearchBar({ search, id }) {
 export function CatalogPicker({ products, counts, onPick }) {
   const search = useSearch(products);
   const [open, setOpen] = useState(true);
+  const [zoomed, setZoomed] = useState(null);
   if (!products.length) return null;
   return (
     <section className="glass-panel px-3 py-3 flex flex-col gap-3" aria-labelledby="pick-h">
@@ -86,11 +182,15 @@ export function CatalogPicker({ products, counts, onPick }) {
       {open && (
         <div id="pick-body" className="flex flex-col gap-3">
           <SearchBar search={search} id="pick-search" />
-          <ul className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[26rem] overflow-y-auto pr-1">
-            {search.shown.map((p) => {
+          <div className="flex flex-col gap-4 max-h-[28rem] overflow-y-auto pr-1">
+            {search.groups.map((group) => (
+              <section key={group.store} className="flex flex-col gap-2" aria-label={group.store}>
+                <StoreHeading store={group.store} count={group.products.length} />
+                <ul className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {group.products.map((p) => {
               const n = counts[p.id] || 0;
               return (
-                <li key={p.id}>
+                <li key={p.id} className="relative">
                   <button
                     type="button"
                     onClick={() => onPick(p)}
@@ -103,13 +203,27 @@ export function CatalogPicker({ products, counts, onPick }) {
                     {p.size && <span className="text-[11px] text-brand-navydeep/70 leading-tight">{p.size}</span>}
                     {p.price && <span className="text-[11px] text-brand-teal">{productPriceLine(p).split(" · ")[0]}</span>}
                   </button>
+                  {productSrc(p) && (
+                    <button
+                      type="button"
+                      onClick={() => setZoomed(p)}
+                      aria-label={`See a bigger picture of ${p.name}`}
+                      className="absolute top-1 left-1 h-7 w-7 rounded-full bg-black/45 text-white text-xs flex items-center justify-center"
+                    >
+                      <i className="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>
+                    </button>
+                  )}
                 </li>
               );
             })}
-          </ul>
+                </ul>
+              </section>
+            ))}
+          </div>
           {!search.shown.length && <p className="text-center text-sm text-brand-navydeep/75">Nothing matches.</p>}
         </div>
       )}
+      {zoomed && <ImageViewer product={zoomed} onClose={() => setZoomed(null)} />}
     </section>
   );
 }
@@ -128,6 +242,7 @@ export function CatalogManager({ products, photos, onBack, onSaved, onDeleted })
         product={editing}
         photos={photos}
         categories={search.categories}
+        stores={search.stores}
         onCancel={() => setEditing(null)}
         onSaved={(p) => {
           onSaved(p);
@@ -155,11 +270,14 @@ export function CatalogManager({ products, photos, onBack, onSaved, onDeleted })
           <i className="fa-solid fa-plus" aria-hidden="true"></i> Add a product
         </button>
         {products.length > 0 && <SearchBar search={search} id="cat-search" />}
-        <ul className="flex flex-col divide-y divide-brand-navydeep/15">
-          {search.shown.map((p) => (
-            <li key={p.id}>
-              <button type="button" className="w-full text-left py-2 flex items-center gap-3" onClick={() => setEditing(p)}>
-                <ProductThumb product={p} size="h-14 w-14" />
+        {search.groups.map((group) => (
+          <section key={group.store} className="flex flex-col gap-1" aria-label={group.store}>
+            <StoreHeading store={group.store} count={group.products.length} />
+            <ul className="flex flex-col divide-y divide-brand-navydeep/15">
+              {group.products.map((p) => (
+            <li key={p.id} className="flex items-center gap-3 py-2">
+              <ZoomThumb product={p} size="h-14 w-14" />
+              <button type="button" className="min-w-0 flex-1 text-left flex items-center gap-3" onClick={() => setEditing(p)} aria-label={`Change ${p.name}`}>
                 <span className="min-w-0 flex-1">
                   <span className="block font-semibold text-brand-navy leading-tight">{p.name}</span>
                   <span className="block text-xs text-brand-navydeep/75">{[p.size, p.category].filter(Boolean).join(" · ")}</span>
@@ -171,6 +289,8 @@ export function CatalogManager({ products, photos, onBack, onSaved, onDeleted })
             </li>
           ))}
         </ul>
+          </section>
+        ))}
         {!products.length && <p className="text-center text-sm text-brand-navydeep/75">No products yet.</p>}
       </section>
     </div>
@@ -188,7 +308,7 @@ function Field({ id, label, icon, children, className = "" }) {
   );
 }
 
-function ProductForm({ product, photos, categories, onCancel, onSaved, onDeleted }) {
+function ProductForm({ product, photos, categories, stores, onCancel, onSaved, onDeleted }) {
   const [form, setForm] = useState(product);
   const [image, setImage] = useState(""); // a new picture, as a data URL
   const [saving, setSaving] = useState(false);
@@ -255,7 +375,7 @@ function ProductForm({ product, photos, categories, onCancel, onSaved, onDeleted
       </h2>
 
       <div className="flex items-center gap-4">
-        <ProductThumb product={preview} size="h-28 w-28" />
+        <ZoomThumb product={preview} size="h-28 w-28" />
         <div className="flex flex-col gap-2 min-w-0">
           {photos ? (
             <>
@@ -332,7 +452,13 @@ function ProductForm({ product, photos, categories, onCancel, onSaved, onDeleted
       </fieldset>
 
       <Field id="p-store" label="Store" icon="fa-store">
-        <input id="p-store" className="input-3d" value={form.store} onChange={set("store")} autoComplete="off" />
+        <input id="p-store" className="input-3d" list="p-stores" value={form.store} onChange={set("store")} placeholder="Restaurant Depot" autoComplete="off" />
+        <datalist id="p-stores">
+          {stores.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+        <p className="text-xs text-brand-navydeep/70 mt-1">Products are grouped by store in the catalog and on shopping lists.</p>
       </Field>
 
       <div className={`grid gap-3 ${isNew ? "grid-cols-2" : "grid-cols-3"}`}>

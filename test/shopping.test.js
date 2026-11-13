@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addProduct, expectedCents, itemsFromText, productPriceLine, progress, spendingByMonth } from "../src/lib/shopping.js";
+import { addProduct, expectedCents, groupItemsByStore, itemsFromText, productPriceLine, progress, spendingByMonth } from "../src/lib/shopping.js";
 
 describe("itemsFromText", () => {
   it("splits a pasted list into names and amounts", () => {
@@ -59,5 +59,21 @@ describe("catalog products on a list", () => {
   it("describes prices", () => {
     expect(productPriceLine(sauce)).toBe("$22.65 each · case of 4 $79.99");
     expect(productPriceLine(beef)).toBe("$5.59/lb · about $89.44 each");
+  });
+});
+
+describe("grouping a trip by store", () => {
+  it("puts catalog items under their store, A–Z, and typed items last", () => {
+    const products = new Map([
+      ["p1", { id: "p1", store: "Restaurant Depot" }],
+      ["p2", { id: "p2", store: "Jetro" }],
+      ["p3", { id: "p3", store: "" }],
+    ]);
+    const items = [{ name: "Ice" }, { name: "Sauce", productId: "p1" }, { name: "Rice", productId: "p2" }, { name: "Beef", productId: "p3" }];
+    expect(groupItemsByStore(items, products).map((g) => [g.store, g.items.map((i) => i.name)])).toEqual([
+      ["Jetro", ["Rice"]],
+      ["Restaurant Depot", ["Sauce", "Beef"]],
+      ["", ["Ice"]],
+    ]);
   });
 });
