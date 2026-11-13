@@ -17,6 +17,7 @@ import {
   itemsOf,
   money,
   newListId,
+  canEditList,
   publicList,
   receiptsOf,
   seesPrices,
@@ -36,9 +37,9 @@ import {
 //   GET  ?action=productPhoto&id=…       → an uploaded product picture
 //   POST { action: "saveProduct", product, image? }   manager (new if no product.id)
 //   POST { action: "deleteProduct", id }  manager
-//   POST { action: "create", list }      manager
-//   POST { action: "edit", id, list }    manager
-//   POST { action: "delete", id }        manager (photos too)
+//   POST { action: "create", list }      anyone; an employee's list is for themselves
+//   POST { action: "edit", id, list }    manager, or whoever made it while it's open
+//   POST { action: "delete", id }        same (photos too)
 //   POST { action: "reopen", id }        manager
 //   POST { action: "item", id, itemId, got, out }
 //   POST { action: "addItem", id, name, qty, store? }
@@ -117,16 +118,17 @@ async function shoppers() {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// Title, items, notes and who it's for, from a manager's form.
-async function listFields(list) {
+// Title, items, notes and who it's for, from the list form. `self` (an
+// employee who isn't a manager) can only make lists for themselves.
+async function listFields(list, self = null) {
   if (!list || typeof list !== "object") throw new BadRequest("Missing list");
   const title = String(list.title ?? "").replace(/\s+/g, " ").trim().slice(0, LIMITS.text);
   if (!title) throw new BadRequest("Give the list a name, e.g. \"Restaurant Depot Friday\".");
   const items = cleanItems(list.items);
   if (!items.length) throw new BadRequest("Add at least one thing to buy.");
-  const assignedTo = String(list.assignedTo ?? "").replace(/\D/g, "").slice(-10);
-  let assignedName = "";
-  if (assignedTo) {
+  const assignedTo = self ? self.login : String(list.assignedTo ?? "").replace(/\D/g, "").slice(-10);
+  let assignedName = self ? self.name : "";
+  if (assignedTo && !self) {
     const person = (await shoppers()).find((p) => p.phone === assignedTo);
     if (!person) throw new BadRequest("That employee can't use Shopping lists. Tick it for them on the Team page first.");
     assignedName = person.name;
@@ -160,7 +162,12 @@ export default async function handler(req, res) {
   if (!session) return;
   const manager = isManager(session);
   const managerOnly = () => {
-    if (!manager) throw new Forbidden("Only a manager can make or change lists.");
+    if (!manager) throw new Forbidden("Only a manager can do that.");
+  };
+  // Employees may change or delete a list they made themselves, until it's finished.
+  const self = manager ? null : { login: session.login, name: session.name };
+  const mayChange = (row) => {
+    if (!canEditList(session, row)) throw new Forbidden("Only a manager, or whoever made this list, can change it before it's finished.");
   };
 
   try {
@@ -203,9 +210,10 @@ export default async function handler(req, res) {
     const now = new Date().toISOString();
 
     if (body.action === "create") {
-      managerOnly();
+      // Anyone with Shopping lists may make one (e.g. pasting a list the
+      // manager texted); an employee's list is always for themselves.
       const id = newListId();
-      const row = { ListId: id, ...(await listFields(body.list)), Status: "Open", Spent: "", Receipts: "[]", CreatedBy: who, CreatedAt: now, UpdatedAt: now, DoneBy: "", DoneAt: "" };
+      const row = { ListId: id, ...(await listFields(body.list, self)), Status: "Open", Spent: "", Receipts: "[]", CreatedBy: who, CreatedAt: now, UpdatedAt: now, DoneBy: "", DoneAt: "" };
       await sheetdb(`?sheet=${SHEET}`, { method: "POST", body: JSON.stringify({ data: [row] }) });
       return res.status(200).json({ ok: true, list: publicList(row, session) });
     }
@@ -247,17 +255,17 @@ export default async function handler(req, res) {
     };
 
     if (body.action === "edit") {
-      managerOnly();
+      mayChange(row);
       // Check marks come from the sheet, not the manager's screen, so an
       // edit made while someone is at the store doesn't undo what they ticked.
-      const fields = await listFields(body.list);
+      const fields = await listFields(body.list, self);
       const before = new Map(itemsOf(row).map((i) => [i.id, i]));
       const items = JSON.parse(fields.Items).map((i) => (before.has(i.id) ? { ...i, got: before.get(i.id).got === true, out: before.get(i.id).out === true } : { ...i, got: false, out: false }));
       return await reply({ ...fields, Items: JSON.stringify(items) });
     }
 
     if (body.action === "delete") {
-      managerOnly();
+      mayChange(row);
       const paths = receiptsOf(row).map((r) => r.path);
       if (paths.length && photosReady()) await del(paths).catch((err) => console.error("shopping: couldn't delete photos", err));
       await sheetdb(rowPath(id), { method: "DELETE" }, { notFoundOk: true });

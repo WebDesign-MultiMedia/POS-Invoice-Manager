@@ -81,6 +81,8 @@ Tap the **megaphone**. Type the message, then press **Text Specials Subscribers*
 
 Tap the **cart** button. You see it only if the owner ticked **Shopping lists** for you on the Team page.
 
+**Got the list by text?** Anyone with Shopping lists can press **New shopping list**, open **Got the list by text? Paste it here**, paste the message and press **Make the list from this**. Put each store's name on its own line (e.g. `Restaurant Depot:` or `BJ's`) with its items under it; things in the catalog are matched by themselves. An employee's list is for them, and they can fix or delete it until the trip is finished.
+
 **Making a list** (the owner, or someone with Shopping lists + **Can edit & delete**):
 
 1. Press **New shopping list** and give it a name, e.g. *Restaurant Depot Friday*.

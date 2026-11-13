@@ -94,6 +94,9 @@ export function canSee(session, row) {
   return !to || to === session.login;
 }
 
+// Managers may change any list; an employee only one they made, while it's open.
+export const canEditList = (session, row) => isManager(session) || (String(row?.CreatedBy || "") === session.name && row?.Status !== "Done");
+
 // The row as the app gets it. Without "prices", the manager's expected
 // prices are left out, and so is what the trip cost unless they finished it.
 export function publicList(row, session) {
@@ -115,6 +118,7 @@ export function publicList(row, session) {
     updatedAt: row.UpdatedAt || "",
     doneBy: row.DoneBy || "",
     doneAt: row.DoneAt || "",
+    canEdit: canEditList(session, row),
   };
 }
 

@@ -150,13 +150,29 @@ describe("who can use Shopping lists", () => {
     expect(res.body.people.map((p) => p.name)).toEqual(["Ana", "Carlos"]);
   });
 
-  it("only managers make, change or delete lists", async () => {
-    const newList = { title: "Paper goods", items: [{ name: "Napkins" }] };
-    expect((await post({ action: "create", list: newList }, carlos())).statusCode).toBe(403);
+  it("an employee can make a list, always for themselves, and fix it until it's done", async () => {
+    const newList = { title: "From the boss's text", assignedTo: ANA, items: [{ name: "Napkins", store: "BJ's" }] };
+    const made = await post({ action: "create", list: newList }, carlos());
+    expect(made.statusCode).toBe(200);
+    expect(shopping[1]).toMatchObject({ Title: "From the boss's text", AssignedTo: CARLOS, AssignedName: "Carlos", CreatedBy: "Carlos" });
+    expect(made.body.list.canEdit).toBe(true);
+    const id = made.body.list.id;
+    expect((await post({ action: "edit", id, list: { ...newList, title: "Fixed" } }, carlos())).statusCode).toBe(200);
+    expect(shopping[1].AssignedTo).toBe(CARLOS);
+    // Not someone else's list, and not once it's finished.
     expect((await post({ action: "delete", id: LIST_ID }, carlos())).statusCode).toBe(403);
-    expect((await post({ action: "create", list: newList }, staff())).statusCode).toBe(200);
-    expect(shopping).toHaveLength(2);
-    expect(shopping[1]).toMatchObject({ Title: "Paper goods", Status: "Open", CreatedBy: "staff@example.com" });
+    await post({ action: "finish", id, spent: "10" }, carlos());
+    expect((await post({ action: "edit", id, list: newList }, carlos())).statusCode).toBe(403);
+    expect((await post({ action: "delete", id }, carlos())).statusCode).toBe(403);
+    expect((await post({ action: "reopen", id }, carlos())).statusCode).toBe(403);
+    // A manager still can.
+    expect((await post({ action: "delete", id }, ana())).statusCode).toBe(200);
+  });
+
+  it("managers make lists for anyone", async () => {
+    const res = await post({ action: "create", list: { title: "Paper goods", assignedTo: CARLOS, items: [{ name: "Napkins" }] } }, staff());
+    expect(res.statusCode).toBe(200);
+    expect(shopping[1]).toMatchObject({ AssignedTo: CARLOS, CreatedBy: "staff@example.com" });
   });
 
   it("an employee can't touch someone else's list", async () => {

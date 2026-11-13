@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-paste",
+    title: "Paste a texted shopping list",
+    date: "2026-11-13",
+    body: "Got the list by text? Paste it into a new shopping list and the app splits it by store and matches things to the catalog. Employees can now make their own lists this way, and fix them until the trip is done.",
+  },
+  {
     icon: "fa-route",
     title: "One list, several stores",
     date: "2026-11-12",

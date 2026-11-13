@@ -166,3 +166,117 @@ export function groupItemsByStore(items, productById) {
   }
   return [...groups.entries()].sort(([a], [b]) => (!a ? 1 : !b ? -1 : 0)).map(([store, list]) => ({ store, items: list }));
 }
+
+// ---------- a list texted by the manager, pasted in ----------
+//
+//   Restaurant Depot:
+//   2 cases tomatoes
+//   1 bbq sauce
+//
+//   BJ's
+//   - paper towels
+//   2x milk
+//
+// A line that names a store starts that store's part of the list: any line
+// ending in ":" ("Jetro:"), or one that is just a store we know ("BJ's",
+// "Restaurant Depot", "RD"), optionally after "at" / "from" / "en". Every
+// other line is an item. Items are matched to the catalog when the name
+// clearly points to one product at that store.
+
+const COMMON_STORES = ["Restaurant Depot", "BJ's", "Costco", "Jetro", "Sam's Club", "Walmart", "Target", "ShopRite", "Stop & Shop", "Key Food", "C-Town", "Western Beef", "Food Bazaar", "Aldi", "Home Depot", "Amazon"];
+const STORE_ALIASES = { rd: "Restaurant Depot", depot: "Restaurant Depot", bj: "BJ's", sams: "Sam's Club" };
+
+// "BJ's" → "bjs", "Jalapeños" → "jalapenos".
+const plain = (s) =>
+  String(s ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+
+function storeFromLine(line, knownStores) {
+  let s = String(line ?? "")
+    .replace(/^[\s*#>•\-–—]+|[\s*]+$/g, "")
+    .replace(/^\p{Extended_Pictographic}+\s*/u, "")
+    .trim();
+  const heading = s.endsWith(":");
+  s = s.replace(/:+$/, "").trim();
+  s = s.replace(/^(?:at|from|en|para|@)\s+/i, "").trim();
+  if (!s) return null;
+  const key = plain(s);
+  const known = [...knownStores, ...COMMON_STORES].find((st) => plain(st) === key);
+  if (known) return known;
+  if (STORE_ALIASES[key]) return knownStores.find((st) => plain(st) === plain(STORE_ALIASES[key])) || STORE_ALIASES[key];
+  // An unknown store is only trusted when written as a heading ("Jetro:"),
+  // and never when it has a number in it ("2 cases tomatoes:").
+  return heading && !/\d/.test(s) && s.length <= 40 && s.split(/\s+/).length <= 5 ? s : null;
+}
+
+const words = (s) =>
+  String(s ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 1 && !["of", "the", "and", "de", "la", "el", "lb", "lbs", "oz", "case", "cases", "box", "bag", "bags", "can", "cans"].includes(w))
+    .map((w) => (w.length > 4 && w.endsWith("es") ? w.slice(0, -2) : w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w));
+
+// The one catalog product an item name points to, or null when there's no
+// clear match (several equally good ones count as no match).
+export function matchProduct(name, products) {
+  const want = words(name);
+  if (!want.length) return null;
+  let best = null;
+  let bestScore = 0;
+  let tie = false;
+  for (const p of products || []) {
+    const have = new Set(words(p.name));
+    const hits = want.filter((w) => have.has(w)).length;
+    const score = hits / want.length;
+    if (score > bestScore) {
+      best = p;
+      bestScore = score;
+      tie = false;
+    } else if (score === bestScore && score > 0) tie = true;
+  }
+  return bestScore >= 0.6 && !tie ? best : null;
+}
+
+// Text → [{ store, items: [{ name, qty, ...catalog fields }] }], stores in
+// the order they appear; items before any store heading have store "".
+export function parseTextList(text, { stores = [], products = [], defaultStore: fallback = "" } = {}) {
+  const sections = [];
+  let current = null;
+  const section = (store) => {
+    let s = sections.find((x) => x.store === store);
+    if (!s) sections.push((s = { store, items: [] }));
+    return s;
+  };
+  for (const raw of String(text ?? "").split(/\r?\n/)) {
+    if (!raw.trim()) continue;
+    const store = storeFromLine(raw, stores);
+    if (store) {
+      current = section(store);
+      continue;
+    }
+    const line = raw
+      .replace(/^\s*(?:[-*•▪◦]|\d+[.)])\s+/, "")
+      .replace(/^\s*\[\s?[xX ]?\s?\]\s*/, "")
+      .replace(/:+\s*$/, "")
+      .trim();
+    if (!line) continue;
+    const target = current || section("");
+    const { name, qty } = parseLine(line);
+    const atStore = products.filter((p) => (String(p.store || "").trim() || fallback) === target.store);
+    const product = target.store ? matchProduct(name, atStore) : null;
+    if (product) {
+      const item = itemFromProduct(product);
+      const n = Number(qty);
+      const each = toCents(item.price);
+      target.items.push({ ...item, qty: qty || "1", price: each && n > 0 ? ((each * n) / 100).toFixed(2) : item.price, typed: name });
+    } else {
+      target.items.push({ name, qty, note: "", price: "", productId: "", store: target.store });
+    }
+  }
+  return sections.filter((s) => s.items.length);
+}

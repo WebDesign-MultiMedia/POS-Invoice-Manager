@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addProduct, expectedCents, groupItemsByStore, storesOf, itemsFromText, productPriceLine, progress, spendingByMonth } from "../src/lib/shopping.js";
+import { addProduct, expectedCents, groupItemsByStore, parseTextList, storesOf, itemsFromText, productPriceLine, progress, spendingByMonth } from "../src/lib/shopping.js";
 
 describe("itemsFromText", () => {
   it("splits a pasted list into names and amounts", () => {
@@ -89,5 +89,50 @@ describe("grouping a trip by store", () => {
   });
   it("a catalog product brings its store onto the list", () => {
     expect(addProduct([], { id: "p2", name: "Rice", store: "Jetro", unit: "each", price: "1" })[0].store).toBe("Jetro");
+  });
+});
+
+describe("pasting a list texted by the manager", () => {
+  const products = [
+    { id: "p1", store: "Restaurant Depot", name: "Open Pit BBQ Sauce", size: "1 gallon", unit: "each", price: "22.65" },
+    { id: "p2", store: "Restaurant Depot", name: "Tomatoes, 5x6 (Extra Large)", size: "25 lb case", unit: "each", price: "59.95" },
+    { id: "p3", store: "Restaurant Depot", name: "La Morena Sliced Jalapeños", size: "#10 can", unit: "each", price: "10.49" },
+    { id: "p4", store: "Restaurant Depot", name: "La Morena Whole Pickled Jalapeños", size: "#10 can", unit: "each", price: "8.49" },
+    { id: "p5", store: "Restaurant Depot", name: "Jumbo Chicken Leg Quarters", unit: "lb", price: "0.60", estEach: "24.00" },
+  ];
+  const stores = ["Restaurant Depot"];
+  const read = (text) => parseTextList(text, { stores, products, defaultStore: "Restaurant Depot" });
+
+  it("splits the text into stores and items", () => {
+    const sections = read("Restaurant Depot:\n2 bbq sauce\n- tomatoes\n\nBJ's\n• paper towels\n2x milk\n\nJetro:\n1. rice 50 lb");
+    expect(sections.map((s) => [s.store, s.items.map((i) => [i.name, i.qty])])).toEqual([
+      ["Restaurant Depot", [["Open Pit BBQ Sauce", "2"], ["Tomatoes, 5x6 (Extra Large)", "1"]]],
+      ["BJ's", [["paper towels", ""], ["milk", "2"]]],
+      ["Jetro", [["rice 50 lb", ""]]],
+    ]);
+  });
+
+  it("brings the catalog's price, size and picture link along", () => {
+    const [rd] = read("RD\n2 bbq sauce\n1 chicken leg quarters");
+    expect(rd.store).toBe("Restaurant Depot");
+    expect(rd.items[0]).toMatchObject({ productId: "p1", price: "45.30", note: "1 gallon", store: "Restaurant Depot" });
+    expect(rd.items[1]).toMatchObject({ productId: "p5", price: "24.00" });
+  });
+
+  it("doesn't guess when the name fits two products", () => {
+    const [rd] = read("Restaurant Depot:\njalapenos");
+    expect(rd.items[0]).toMatchObject({ name: "jalapenos", productId: "" });
+    expect(read("Restaurant Depot:\nsliced jalapenos")[0].items[0].productId).toBe("p3");
+  });
+
+  it("knows store names however they're written", () => {
+    expect(read("bjs\nx")[0].store).toBe("BJ's");
+    expect(read("At Costco:\nx")[0].store).toBe("Costco");
+    expect(read("🛒 Restaurant depot\nx")[0].store).toBe("Restaurant Depot");
+  });
+
+  it("items before any store go under no store, and item lines are never stores", () => {
+    const sections = read("ice\n2 cases tomatoes:\nonions");
+    expect(sections).toEqual([{ store: "", items: [expect.objectContaining({ name: "ice" }), expect.objectContaining({ name: "tomatoes", qty: "2 cases" }), expect.objectContaining({ name: "onions" })] }]);
   });
 });

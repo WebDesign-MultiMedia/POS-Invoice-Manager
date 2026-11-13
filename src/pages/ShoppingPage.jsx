@@ -6,7 +6,7 @@ import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip,
 import { useAuth } from "../lib/auth.jsx";
 import { friendlyMessage } from "../lib/errors.js";
 import { CatalogManager, CatalogPicker, ZoomThumb, whereToFind } from "../components/ProductCatalog.jsx";
-import { addProduct, defaultStore, dollars, groupItemsByStore, storesOf, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
+import { addProduct, defaultStore, dollars, groupItemsByStore, parseTextList, storesOf, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
 
 // Shopping lists. A manager (the owner, or an employee with Shopping lists
 // + "Can edit & delete") writes a list and gives it to someone, or to
@@ -84,6 +84,8 @@ export default function ShoppingPage() {
         <ListEditor
           list={view.edit ? data.lists.find((l) => l.id === view.edit) : null}
           people={data.people}
+          manager={data.manager}
+          prices={prices}
           products={data.products}
           onCancel={() => (view.edit ? setView({ open: view.edit }) : goHome())}
           onSaved={(list) => {
@@ -110,15 +112,15 @@ function Home({ data, prices, onOpen, onNew, onCatalog, onRefresh }) {
 
   return (
     <div className="w-full max-w-md flex flex-col gap-6">
-      {data.manager && (
-        <div className="grid grid-cols-[1fr_auto] gap-3 stagger-in">
-          <button type="button" className="btn-3d justify-center" onClick={onNew}>
-            <i className="fa-solid fa-plus" aria-hidden="true"></i> New shopping list
-          </button>
-          <button type="button" className={OUTLINE} onClick={onRefresh} aria-label="Refresh lists" title="Refresh lists">
-            <i className="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
-          </button>
-          {data.catalog ? (
+      <div className="grid grid-cols-[1fr_auto] gap-3 stagger-in">
+        <button type="button" className="btn-3d justify-center" onClick={onNew}>
+          <i className="fa-solid fa-plus" aria-hidden="true"></i> New shopping list
+        </button>
+        <button type="button" className={OUTLINE} onClick={onRefresh} aria-label="Refresh lists" title="Refresh lists">
+          <i className="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+        </button>
+        {data.manager &&
+          (data.catalog ? (
             <button type="button" className={`${OUTLINE} col-span-2`} onClick={onCatalog}>
               <i className="fa-solid fa-store" aria-hidden="true"></i> Product catalog ({data.products.length})
             </button>
@@ -126,9 +128,8 @@ function Home({ data, prices, onOpen, onNew, onCatalog, onRefresh }) {
             <p className="col-span-2 text-xs text-center text-brand-navydeep/70">
               To pick things from a catalog instead of typing, add a tab named <strong>Products</strong> to the sheet.
             </p>
-          )}
-        </div>
-      )}
+          ))}
+      </div>
 
       {prices && (
         <section className="glass-card p-5 text-center stagger-in" aria-label="Spent this month">
@@ -147,7 +148,7 @@ function Home({ data, prices, onOpen, onNew, onCatalog, onRefresh }) {
           <i className="fa-solid fa-cart-shopping" aria-hidden="true"></i> To buy
         </h2>
         {!open.length ? (
-          <p className="text-center text-sm text-brand-navydeep/80">{data.manager ? "No open lists. Make one with New shopping list." : "Nothing to buy right now."}</p>
+          <p className="text-center text-sm text-brand-navydeep/80">{data.manager ? "No open lists. Make one with New shopping list." : "Nothing to buy right now. Got a list by text? Press New shopping list and paste it."}</p>
         ) : (
           <ul className="flex flex-col gap-3">
             {open.map((l) => {
@@ -547,12 +548,14 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
         </form>
       )}
 
-      {manager && (
-        <div className={`grid gap-2 ${done ? "grid-cols-3" : "grid-cols-2"}`}>
-          <button type="button" className={OUTLINE} onClick={onEdit} disabled={!!busy}>
-            <i className="fa-solid fa-pen" aria-hidden="true"></i> Edit
-          </button>
-          {done && (
+      {(manager || list.canEdit) && (
+        <div className={`grid gap-2 ${done && manager ? "grid-cols-3" : "grid-cols-2"}`}>
+          {list.canEdit && (
+            <button type="button" className={OUTLINE} onClick={onEdit} disabled={!!busy}>
+              <i className="fa-solid fa-pen" aria-hidden="true"></i> Edit
+            </button>
+          )}
+          {done && manager && (
             <button type="button" className={OUTLINE} disabled={!!busy} onClick={() => run("reopen", () => reopenList(list.id), "Not reopened", "Couldn't reopen the list.")}>
               <i className="fa-solid fa-rotate-left" aria-hidden="true"></i> Reopen
             </button>
@@ -572,6 +575,10 @@ const newKey = () => Math.random().toString(36).slice(2);
 const blankRow = (store = "") => ({ key: newKey(), name: "", qty: "", price: "", store });
 const isBlank = (r) => !r.name.trim() && !r.qty && !r.price;
 const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_4.25rem_3.5rem_1.75rem] sm:grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_2rem] gap-1.5 sm:gap-2";
+// Without "See shopping prices" there's no About $ column.
+const ROW_GRID_NO_PRICE = "grid grid-cols-[minmax(0,1fr)_5.5rem_1.75rem] sm:grid-cols-[minmax(0,1fr)_7rem_2rem] gap-1.5 sm:gap-2";
+// The example in the paste box (the demo's own store in the demo).
+const pasteExample = () => `${defaultStore()}:\n2 tomato sauce\n1 case tomatoes\n\nBJ's:\npaper towels\n2 milk`;
 
 // The rows shown: the real ones, plus one empty row at the end of every
 // section (store) to type the next thing into. Empty rows keep the same key
@@ -585,7 +592,7 @@ function tidyRows(rows, sections, blankKeys) {
   return out;
 }
 
-function ListEditor({ list, people, products = [], onCancel, onSaved }) {
+function ListEditor({ list, people, products = [], manager = true, prices = true, onCancel, onSaved }) {
   const [title, setTitle] = useState(list?.title || "");
   const [assignedTo, setAssignedTo] = useState(list?.assignedTo || "");
   const [notes, setNotes] = useState(list?.notes || "");
@@ -593,6 +600,9 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
   const [stops, setStops] = useState(() => storesOf(list?.items));
   const [rows, setRows] = useState(() => (list?.items || []).map((i) => ({ ...i, store: i.store || "", key: i.id })));
   const [newStore, setNewStore] = useState("");
+  // The "paste a texted list" box: open on a new list until it's used.
+  const [pasteOpen, setPasteOpen] = useState(!list);
+  const [pasteText, setPasteText] = useState("");
   const [saving, setSaving] = useState(false);
   const blankKeys = useRef({});
 
@@ -684,7 +694,34 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
     }
   };
 
+  // A list texted by the manager → stores (stops) and items, matched to the
+  // catalog where it's clear. Adds to whatever is already on the list.
+  const readPasted = () => {
+    const sections = parseTextList(pasteText, { stores: knownStores, products, defaultStore: defaultStore() });
+    const count = sections.reduce((n, s) => n + s.items.length, 0);
+    if (!count) {
+      Swal.fire({ ...ALERT, title: "Nothing to add", text: "Paste the list first: the store name on its own line, then one thing per line.", icon: "info" });
+      return;
+    }
+    const named = sections.map((s) => s.store).filter(Boolean);
+    named.forEach(addStop);
+    setRows((cur) => [...cur, ...sections.flatMap((s) => s.items.map(({ typed: _typed, ...i }) => ({ ...i, store: s.store, key: newKey() })))]);
+    if (!title.trim()) setTitle(`${named.length ? named.join(" + ") : "Shopping"} · ${new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`);
+    setPasteText("");
+    setPasteOpen(false);
+    const matched = sections.reduce((n, s) => n + s.items.filter((i) => i.productId).length, 0);
+    Swal.fire({
+      ...ALERT,
+      title: `Added ${count} item${count === 1 ? "" : "s"}`,
+      text: `${named.length ? `From ${named.join(", ")}. ` : ""}${matched ? `${matched} matched to the catalog. ` : ""}Check the list below, then save.`,
+      icon: "success",
+      timer: 2600,
+      showConfirmButton: false,
+    });
+  };
+
   const filled = rows.filter((r) => r.name.trim()).length;
+  const grid = prices ? ROW_GRID : ROW_GRID_NO_PRICE;
   const pickable = people.some((p) => p.phone === assignedTo) || !assignedTo ? people : [...people, { phone: assignedTo, name: list?.assignedName || assignedTo }];
   const productsAt = (store) => (store ? products.filter((p) => (String(p.store || "").trim() || defaultStore()) === store) : stops.length ? [] : products);
 
@@ -699,20 +736,50 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
         </label>
         <input id="list-title" className="input-3d" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`e.g. ${defaultStore()} Friday`} autoComplete="off" />
       </div>
-      <div className="field-group !mb-0">
-        <label htmlFor="list-who" className="field-label">
-          <i className="fa-solid fa-user" aria-hidden="true"></i> Who&apos;s buying
-        </label>
-        <select id="list-who" className="input-3d" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
-          <option value="">Anyone with Shopping lists</option>
-          {pickable.map((p) => (
-            <option key={p.phone} value={p.phone}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        {!people.length && <p className="text-xs text-brand-navydeep/70 mt-1">To give a list to one person, tick Shopping lists for them on the Team page.</p>}
-      </div>
+      <section className="glass-panel px-3 py-3 flex flex-col gap-2 min-w-0" aria-labelledby="paste-h">
+        <button type="button" className="flex items-center justify-between text-sm font-semibold text-brand-navy text-left" aria-expanded={pasteOpen} aria-controls="paste-body" onClick={() => setPasteOpen((o) => !o)}>
+          <span id="paste-h">
+            <i className="fa-solid fa-paste" aria-hidden="true"></i> Got the list by text? Paste it here
+          </span>
+          <i className={`fa-solid fa-chevron-down text-xs transition-transform ${pasteOpen ? "rotate-180" : ""}`} aria-hidden="true"></i>
+        </button>
+        {pasteOpen && (
+          <div id="paste-body" className="flex flex-col gap-2">
+            <p className="text-xs text-brand-navydeep/75">Put each store&apos;s name on its own line (like <strong>{defaultStore()}:</strong> or <strong>BJ&apos;s</strong>), then one thing per line under it. Things from the catalog are matched by themselves.</p>
+            <textarea
+              aria-label="Paste the texted list"
+              className="input-3d min-h-[9rem] font-mono text-sm"
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder={pasteExample()}
+            />
+            <button type="button" className="btn-3d justify-center disabled:opacity-60" disabled={!pasteText.trim()} onClick={readPasted}>
+              <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Make the list from this
+            </button>
+          </div>
+        )}
+      </section>
+
+      {manager ? (
+        <div className="field-group !mb-0">
+          <label htmlFor="list-who" className="field-label">
+            <i className="fa-solid fa-user" aria-hidden="true"></i> Who&apos;s buying
+          </label>
+          <select id="list-who" className="input-3d" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
+            <option value="">Anyone with Shopping lists</option>
+            {pickable.map((p) => (
+              <option key={p.phone} value={p.phone}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          {!people.length && <p className="text-xs text-brand-navydeep/70 mt-1">To give a list to one person, tick Shopping lists for them on the Team page.</p>}
+        </div>
+      ) : (
+        <p className="text-sm text-brand-navydeep/80">
+          <i className="fa-solid fa-user text-brand-teal" aria-hidden="true"></i> This list is for you.
+        </p>
+      )}
 
       <fieldset className="glass-panel px-3 py-3 flex flex-col gap-2 min-w-0">
         <legend className="field-label !mb-0 px-1">
@@ -782,14 +849,14 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
                 </h3>
               )}
               <CatalogPicker products={atStore} counts={counts} onPick={pick} />
-              <div className={`${ROW_GRID} text-[11px] uppercase tracking-wide text-brand-navydeep/70 px-1`}>
+              <div className={`${grid} text-[11px] uppercase tracking-wide text-brand-navydeep/70 px-1`}>
                 <span>{atStore.length ? "Or type it" : "Item"}</span>
                 <span>How many</span>
-                <span>About $</span>
+                {prices && <span>About $</span>}
                 <span className="sr-only">Remove</span>
               </div>
               {sectionRows.map((r, index) => (
-                <div key={r.key} className={`${ROW_GRID} items-center`}>
+                <div key={r.key} className={`${grid} items-center`}>
                   <input
                     id={`item-${r.key}`}
                     aria-label={`${store || "Item"} ${index + 1}`}
@@ -802,7 +869,7 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
                     autoComplete="off"
                   />
                   <input aria-label={`How many ${r.name || ""}`} className="input-3d !py-2 !px-2 min-w-0" value={r.qty} onChange={(e) => setRow(r.key, "qty", e.target.value)} onKeyDown={onEnter(r)} placeholder={index === 0 ? "2 cases" : ""} autoComplete="off" />
-                  <input aria-label={`Expected price for ${r.name || "this item"}`} className="input-3d !py-2 !px-2 min-w-0" inputMode="decimal" value={r.price} onChange={(e) => setRow(r.key, "price", e.target.value.replace(/[^\d.]/g, ""))} onKeyDown={onEnter(r)} autoComplete="off" />
+                  {prices && <input aria-label={`Expected price for ${r.name || "this item"}`} className="input-3d !py-2 !px-2 min-w-0" inputMode="decimal" value={r.price} onChange={(e) => setRow(r.key, "price", e.target.value.replace(/[^\d.]/g, ""))} onKeyDown={onEnter(r)} autoComplete="off" />}
                   {!isBlank(r) ? (
                     <button type="button" onClick={() => removeRow(r.key)} aria-label={`Remove ${r.name || "line"}`} className="h-8 w-7 rounded-full text-brand-error">
                       <i className="fa-solid fa-xmark" aria-hidden="true"></i>
@@ -815,7 +882,7 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
             </section>
           );
         })}
-        <p className="text-xs text-brand-navydeep/70">Press Enter for the next line. You can paste a whole list too, one thing per line. About $ is optional; only managers and people allowed to see prices see it.</p>
+        <p className="text-xs text-brand-navydeep/70">Press Enter for the next line.{prices ? " About $ is optional; only managers and people allowed to see prices see it." : ""}</p>
       </fieldset>
 
       <div className="field-group !mb-0">
