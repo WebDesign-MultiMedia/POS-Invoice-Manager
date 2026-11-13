@@ -37,6 +37,7 @@ import {
 //   GET  ?action=productPhoto&id=…       → an uploaded product picture
 //   POST { action: "saveProduct", product, image? }   manager (new if no product.id)
 //   POST { action: "deleteProduct", id }  manager
+//   POST { action: "saveBarcode", productId, code }  anyone if the product has none; managers to replace
 //   POST { action: "create", list }      anyone; an employee's list is for themselves
 //   POST { action: "edit", id, list }    manager, or whoever made it while it's open
 //   POST { action: "delete", id }        same (photos too)
@@ -245,6 +246,18 @@ export default async function handler(req, res) {
       if (isUploadedPhoto(product.Photo, product.ProductId) && photosReady()) await del(product.Photo).catch((err) => console.error("shopping: couldn't delete product photo", err));
       await sheetdb(productPath(product.ProductId), { method: "DELETE" }, { notFoundOk: true });
       return res.status(200).json({ ok: true });
+    }
+
+    if (body.action === "saveBarcode") {
+      // Scanning a product that has no barcode yet teaches the catalog its
+      // code, so it can be checked next time. Only managers may replace one.
+      const product = await findProduct(cleanProductId(body.productId));
+      if (!product) throw new NotFound();
+      const code = String(body.code ?? "").replace(/\D/g, "");
+      if (code.length < 6 || code.length > 14) throw new BadRequest("That barcode couldn't be read. Try scanning again.");
+      if (String(product.UPC || "").trim() && !manager) throw new Forbidden("This product already has a barcode. Ask a manager to change it.");
+      await sheetdb(productPath(product.ProductId), { method: "PATCH", body: JSON.stringify({ data: { UPC: code, UpdatedAt: now } }) });
+      return res.status(200).json({ ok: true, product: publicProduct({ ...product, UPC: code }, { prices: seesPrices(session) }) });
     }
 
     const id = cleanListId(body.id);

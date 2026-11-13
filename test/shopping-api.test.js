@@ -404,3 +404,14 @@ describe("a trip to several stores", () => {
     expect(photo.body.list.receipts[0].store).toBe("Jetro");
   });
 });
+
+describe("saving a product's barcode", () => {
+  it("anyone can add a missing barcode; only managers can replace one", async () => {
+    products[0].UPC = "";
+    expect((await post({ action: "saveBarcode", productId: "p00aa11bb22cc33dd", code: "0 43000 80603 7" }, carlos())).statusCode).toBe(200);
+    expect(products[0].UPC).toBe("043000806037");
+    expect((await post({ action: "saveBarcode", productId: "p00aa11bb22cc33dd", code: "012345678905" }, carlos())).statusCode).toBe(403);
+    expect((await post({ action: "saveBarcode", productId: "p00aa11bb22cc33dd", code: "012345678905" }, ana())).statusCode).toBe(200);
+    expect((await post({ action: "saveBarcode", productId: "p00aa11bb22cc33dd", code: "12" }, ana())).statusCode).toBe(400);
+  });
+});

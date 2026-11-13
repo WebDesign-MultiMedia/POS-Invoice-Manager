@@ -94,6 +94,7 @@ Tap the **cart** button. You see it only if the owner ticked **Shopping lists** 
 
 **At the store:**
 
+- **Scan to be sure it's the right one:** press **Scan what you're picking** and point the phone at the product's barcode. The app finds it on the list and ticks it off, or tells you it isn't on the list. The small barcode button next to an item checks that one item: green means it's the right product, red means it's not. The first time a product without a barcode is scanned, the app offers to save its barcode. (The phone asks to use the camera the first time; allow it.)
 - Tick each thing as you put it in the cart. If the store doesn't have it, press **None?** so it shows as *Out of stock*.
 - Bought something that wasn't on the list? Add it under **Bought something not on the list?**
 - Press **Scan receipt** and take a photo. On a trip to several stores, first pick which store the receipt is from; the app adds up all the receipts for the total. Lay it flat in good light. For a long receipt, take more than one photo.

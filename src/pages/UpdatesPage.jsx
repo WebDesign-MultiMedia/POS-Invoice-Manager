@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-barcode",
+    title: "Scan to pick the right product",
+    date: "2026-11-14",
+    body: "On a shopping trip, scan a product's barcode: the app finds it on the list and ticks it off, or warns you when it's the wrong one or not on the list. New lists also name themselves with the stores, date and time.",
+  },
+  {
     icon: "fa-tags",
     title: "Receipts keep catalog prices up to date",
     date: "2026-11-14",

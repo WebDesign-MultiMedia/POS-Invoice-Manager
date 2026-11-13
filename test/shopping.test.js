@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addProduct, expectedCents, groupItemsByStore, parseTextList, storesOf, itemsFromText, productPriceLine, progress, spendingByMonth } from "../src/lib/shopping.js";
+import { addProduct, barcodeMatches, expectedCents, groupItemsByStore, parseTextList, storesOf, itemsFromText, productPriceLine, progress, spendingByMonth } from "../src/lib/shopping.js";
 
 describe("itemsFromText", () => {
   it("splits a pasted list into names and amounts", () => {
@@ -142,5 +142,27 @@ describe("the business's regular stores", () => {
     const read = (text) => parseTextList(text, { stores: [], products: [] }).map((s) => s.store);
     expect(read("Lucero Produce:\ncilantro\nReyes\nlimes")).toEqual(["Lucero Produce", "Reyes Produce"]);
     expect(read("lucero\nonions")).toEqual(["Lucero Produce"]);
+  });
+});
+
+describe("barcodes", () => {
+  it("matches the printed code to the store's shortened UPC", () => {
+    expect(barcodeMatches("043000806037", "4300080603")).toBe(true); // leading 0 and check digit dropped
+    expect(barcodeMatches("072745200030", "72745200030")).toBe(true); // leading 0 dropped
+    expect(barcodeMatches("0072745200030", "72745200030")).toBe(true); // EAN-13 form
+    expect(barcodeMatches("076069501685", "76069501685")).toBe(true);
+  });
+  it("meat sold by weight matches on the item part, whatever the price", () => {
+    expect(barcodeMatches("220770442678", "20770440000")).toBe(false);
+    expect(barcodeMatches("207704426785", "20770440000")).toBe(true);
+    expect(barcodeMatches("207704431991", "20770440000")).toBe(true);
+    expect(barcodeMatches("207705426785", "20770440000")).toBe(false);
+  });
+  it("doesn't match other products or junk", () => {
+    expect(barcodeMatches("043000806037", "72745200030")).toBe(false);
+    // Two products whose codes differ only in the last digit are different products.
+    expect(barcodeMatches("01234500002", "01234500003")).toBe(false);
+    expect(barcodeMatches("123", "123")).toBe(false);
+    expect(barcodeMatches("043000806037", "")).toBe(false);
   });
 });

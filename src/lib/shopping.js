@@ -290,3 +290,24 @@ export function parseTextList(text, { stores = [], products = [], defaultStore: 
   }
   return sections.filter((s) => s.items.length);
 }
+
+// ---------- barcodes ----------
+//
+// Does a scanned barcode belong to a product with this UPC? Store listings
+// often drop the leading 0 and/or the last (check) digit of the printed
+// code, so both are tried. Meat sold by weight has the price inside its
+// barcode ("2 07704 4 2678 5"): those match on the item part only.
+const digitsOf = (v) => String(v ?? "").replace(/\D/g, "");
+const noLeadingZeros = (s) => s.replace(/^0+/, "");
+
+export function barcodeMatches(scanned, upc) {
+  const a = digitsOf(scanned);
+  const b = noLeadingZeros(digitsOf(upc));
+  if (a.length < 6 || b.length < 6) return false;
+  if (b.length === 11 && b.startsWith("2") && b.endsWith("0000")) {
+    const item = b.slice(0, 6);
+    return noLeadingZeros(a).startsWith(item);
+  }
+  // The scanned code always has its check digit; the store's number may not.
+  return [noLeadingZeros(a), noLeadingZeros(a.slice(0, -1))].some((x) => x.length >= 6 && x === b);
+}

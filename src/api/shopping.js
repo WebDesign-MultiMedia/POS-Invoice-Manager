@@ -38,6 +38,8 @@ export const removeReceipt = (id, path) => post({ action: "removeReceipt", id, p
 // Product catalog (managers). image: an optional new picture as a data URL.
 export const saveProduct = (product, image) => post({ action: "saveProduct", product, image });
 export const deleteProduct = (id) => post({ action: "deleteProduct", id });
+// Teach the catalog a product's barcode (first scan of a product without one).
+export const saveBarcode = (productId, code) => post({ action: "saveBarcode", productId, code });
 
 // A product's picture: shipped with the app ("/imgs/products/…"), or
 // uploaded from the app and served privately.
@@ -120,8 +122,10 @@ const seedProducts = () => {
     p("pdemo00000003", "Yellow Onions", "50 lb bag", "Produce", "214", "50013", "each", "21.49", { photo: demoPicture("🧅") }),
     p("pdemo00000004", "Chicken Breast", "About 10 lb pack", "Meat", "6010", "50014", "lb", "2.99", { estEach: "29.90", priceNote: "Final cost by weight.", photo: demoPicture("🍗") }),
     p("pdemo00000005", "Paper Napkins", "Case of 6,000", "Paper goods", "880", "50015", "each", "42.00", { photo: demoPicture("🧻") }),
-  ];
+    // Made-up barcodes, so the scanner can be tried by typing one (DEMO_BARCODE_HINT).
+  ].map((x, i) => ({ ...x, upc: `0123450000${i + 1}` }));
 };
+export const DEMO_BARCODE_HINT = "Demo: type 01234500002 (Roma Tomatoes).";
 
 function demo(body) {
   if (!demoLists) demoLists = seedLists();
@@ -133,6 +137,12 @@ function demo(body) {
     const old = demoProducts.find((p) => p.id === body.product.id);
     const product = { ...(old || {}), ...body.product, id: old?.id || `p${hex(16)}`, photo: body.image || old?.photo || "" };
     demoProducts = old ? demoProducts.map((p) => (p === old ? product : p)) : [...demoProducts, product];
+    return later({ ok: true, product });
+  }
+  if (body.action === "saveBarcode") {
+    const product = demoProducts.find((p) => p.id === body.productId);
+    if (!product) return Promise.reject(new ApiError(404, "That product isn't there any more."));
+    product.upc = String(body.code).replace(/\D/g, "");
     return later({ ok: true, product });
   }
   if (body.action === "deleteProduct") {

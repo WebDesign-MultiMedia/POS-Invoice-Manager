@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
-import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip, loadShopping, readReceipt, receiptSrc, removeReceipt, reopenList, setItem } from "../api/shopping.js";
+import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip, loadShopping, readReceipt, receiptSrc, removeReceipt, reopenList, saveBarcode, setItem, DEMO_BARCODE_HINT } from "../api/shopping.js";
+import BarcodeScanner from "../components/BarcodeScanner.jsx";
+import { isDemo } from "../lib/demo.js";
 import { useAuth } from "../lib/auth.jsx";
 import { friendlyMessage } from "../lib/errors.js";
 import { CatalogManager, CatalogPicker, ZoomThumb, whereToFind } from "../components/ProductCatalog.jsx";
-import { addProduct, defaultStore, dollars, groupItemsByStore, parseTextList, regularStores, storesOf, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
+import { addProduct, barcodeMatches, defaultStore, dollars, groupItemsByStore, parseTextList, regularStores, storesOf, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
 
 // Shopping lists. A manager (the owner, or an employee with Shopping lists
 // + "Can edit & delete") writes a list and gives it to someone, or to
@@ -257,6 +259,17 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
             {prices && item.price && <span className="block text-xs text-brand-navydeep/70">About {dollars(toCents(item.price))}</span>}
           </span>
         </label>
+        {!locked && !item.got && product && (
+          <button
+            type="button"
+            className="shrink-0 h-8 w-8 rounded-full border border-brand-teal/50 text-brand-teal text-sm"
+            onClick={() => setScanFor({ item })}
+            aria-label={`Scan ${item.name} to check it's the right one`}
+            title="Scan to check it's the right one"
+          >
+            <i className="fa-solid fa-barcode" aria-hidden="true"></i>
+          </button>
+        )}
         {!locked && !item.got && !item.extra && (
           <button
             type="button"
@@ -328,6 +341,92 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
       }
     });
   };
+
+  // ---------- barcode scanning: make sure the right product is picked ----------
+  // scanFor: null (closed), { item } (check one item), or { any: true }
+  // (scan whatever was picked; the app finds it on the list).
+  const [scanFor, setScanFor] = useState(null);
+  const toast = (title, icon = "success") => Swal.fire({ ...ALERT, toast: true, position: "top", title, icon, timer: 2200, showConfirmButton: false });
+  const catalogFor = (code) => products.find((x) => x.upc && barcodeMatches(code, x.upc));
+
+  const onScanned = async (code) => {
+    const target = scanFor?.item;
+    setScanFor(null);
+    if (target) {
+      const product = productById.get(target.productId);
+      if (!product) return;
+      if (!product.upc) {
+        // First time: teach the catalog this product's barcode.
+        const { isConfirmed } = await Swal.fire({
+          ...ALERT,
+          title: "Save this barcode?",
+          text: `${product.name} doesn't have a barcode in the catalog yet. Save ${code} as its barcode, so it can be checked next time?`,
+          icon: "question",
+          showCancelButton: true,
+          confirmButtonText: "Save and tick it",
+          cancelButtonText: "Not now",
+        });
+        if (!isConfirmed) return;
+        if (await run("barcode", () => saveBarcode(product.id, code), "Barcode not saved", "Couldn't save the barcode.")) {
+          mark(target, { got: true, out: false });
+          onCatalogChanged?.();
+          toast(`Saved. ${product.name} ticked off`);
+        }
+        return;
+      }
+      if (barcodeMatches(code, product.upc)) {
+        mark(target, { got: true, out: false });
+        toast(`Right one: ${product.name}`);
+        return;
+      }
+      const other = catalogFor(code);
+      const { isConfirmed, isDenied } = await Swal.fire({
+        ...ALERT,
+        title: `That's not ${product.name}`,
+        html: `You scanned ${other ? `<strong>${other.name.replace(/</g, "&lt;")}</strong>` : "a different product"} <small>(${code})</small>.<br>Check the shelf for the right one.`,
+        icon: "error",
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: "Scan again",
+        denyButtonText: "It's right, tick it",
+        cancelButtonText: "Close",
+      });
+      if (isConfirmed) setScanFor({ item: target });
+      if (isDenied) mark(target, { got: true, out: false });
+      return;
+    }
+    // Scanned without picking an item first: find it on the list.
+    const hits = list.items.filter((i) => {
+      const pr = productById.get(i.productId);
+      return pr?.upc && barcodeMatches(code, pr.upc);
+    });
+    const open = hits.find((i) => !i.got);
+    if (open) {
+      mark(open, { got: true, out: false });
+      toast(`${open.name} ticked off`);
+      return;
+    }
+    if (hits.length) {
+      toast(`${hits[0].name} is already ticked off`, "info");
+      return;
+    }
+    const other = catalogFor(code);
+    if (other) {
+      const { isConfirmed } = await Swal.fire({
+        ...ALERT,
+        title: "Not on this list",
+        text: `That's ${other.name}. It isn't on this list.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Add it as extra",
+        cancelButtonText: "Put it back",
+      });
+      if (isConfirmed) await run("extra", () => addExtraItem(list.id, other.name, "1", String(other.store || "").trim() || defaultStore()), "Not added", "Couldn't add it to the list.");
+      return;
+    }
+    Swal.fire({ ...ALERT, title: "Not in the catalog", text: `Barcode ${code} isn't in the catalog and doesn't match anything on this list. If it's the right product, tick it by hand.`, icon: "info" });
+  };
+  const canScan = !locked && list.items.some((i) => productById.has(i.productId));
 
   const addExtra = async (e) => {
     e.preventDefault();
@@ -444,6 +543,19 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
           {p.got} of {p.total} bought{p.out ? ` · ${p.out} out of stock` : ""}
           {p.extras ? ` · ${p.extras} extra` : ""}
         </p>
+        {canScan && (
+          <button type="button" className={`${OUTLINE} w-full`} onClick={() => setScanFor({ any: true })}>
+            <i className="fa-solid fa-barcode" aria-hidden="true"></i> Scan what you&apos;re picking
+          </button>
+        )}
+        {scanFor && (
+          <BarcodeScanner
+            title={scanFor.item ? `Scan ${scanFor.item.name}` : "Scan what you're picking"}
+            hint={`${scanFor.item ? "It's checked against the catalog." : "The app finds it on the list and ticks it off."}${isDemo() ? ` ${DEMO_BARCODE_HINT}` : ""}`}
+            onCode={onScanned}
+            onClose={() => setScanFor(null)}
+          />
+        )}
 
         {sections.map((section) => (
           <section key={section.store || "other"} aria-label={section.store || "Other items"}>
@@ -595,7 +707,11 @@ function tidyRows(rows, sections, blankKeys) {
 }
 
 function ListEditor({ list, people, products = [], manager = true, prices = true, onCancel, onSaved }) {
+  // The name fills itself in ("Restaurant Depot + Lucero Produce · Thu, Nov 13,
+  // 2:30 PM") and follows the stores, until someone types their own.
   const [title, setTitle] = useState(list?.title || "");
+  const [titleTyped, setTitleTyped] = useState(Boolean(list?.title));
+  const [startedAt] = useState(() => new Date());
   const [assignedTo, setAssignedTo] = useState(list?.assignedTo || "");
   const [notes, setNotes] = useState(list?.notes || "");
   // The stops on this trip, in order. Items with no store go under "Other items".
@@ -682,11 +798,11 @@ function ListEditor({ list, people, products = [], manager = true, prices = true
     e.preventDefault();
     if (saving) return;
     const items = rows.filter((r) => r.name.trim()).map(({ key: _key, ...r }) => r);
-    if (!title.trim()) return Swal.fire({ ...ALERT, title: "Name the list", text: `e.g. "${defaultStore()} Friday".`, icon: "info" });
+    const name = (titleTyped && title.trim()) || autoTitle;
     if (!items.length) return Swal.fire({ ...ALERT, title: "Nothing to buy yet", text: "Add at least one thing to the list.", icon: "info" });
     setSaving(true);
     try {
-      const payload = { title: title.trim(), assignedTo, notes, items };
+      const payload = { title: name, assignedTo, notes, items };
       const res = list ? await editList(list.id, payload) : await createList(payload);
       onSaved(res.list);
     } catch (err) {
@@ -708,7 +824,6 @@ function ListEditor({ list, people, products = [], manager = true, prices = true
     const named = sections.map((s) => s.store).filter(Boolean);
     named.forEach(addStop);
     setRows((cur) => [...cur, ...sections.flatMap((s) => s.items.map(({ typed: _typed, ...i }) => ({ ...i, store: s.store, key: newKey() })))]);
-    if (!title.trim()) setTitle(`${named.length ? named.join(" + ") : "Shopping"} · ${new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`);
     setPasteText("");
     setPasteOpen(false);
     const matched = sections.reduce((n, s) => n + s.items.filter((i) => i.productId).length, 0);
@@ -722,6 +837,7 @@ function ListEditor({ list, people, products = [], manager = true, prices = true
     });
   };
 
+  const autoTitle = `${stops.length ? stops.join(" + ") : "Shopping"} · ${startedAt.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
   const filled = rows.filter((r) => r.name.trim()).length;
   const grid = prices ? ROW_GRID : ROW_GRID_NO_PRICE;
   const pickable = people.some((p) => p.phone === assignedTo) || !assignedTo ? people : [...people, { phone: assignedTo, name: list?.assignedName || assignedTo }];
@@ -736,7 +852,18 @@ function ListEditor({ list, people, products = [], manager = true, prices = true
         <label htmlFor="list-title" className="field-label">
           <i className="fa-solid fa-tag" aria-hidden="true"></i> List name
         </label>
-        <input id="list-title" className="input-3d" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`e.g. ${defaultStore()} Friday`} autoComplete="off" />
+        <input
+          id="list-title"
+          className="input-3d"
+          value={titleTyped ? title : autoTitle}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            // Clearing the box goes back to the automatic name.
+            setTitleTyped(Boolean(e.target.value.trim()));
+          }}
+          autoComplete="off"
+        />
+        <p className="text-xs text-brand-navydeep/70 mt-1">{titleTyped ? "Clear it to go back to the automatic name." : "Filled in for you with the stores, date and time. Type to rename it."}</p>
       </div>
       <section className="glass-panel px-3 py-3 flex flex-col gap-2 min-w-0" aria-labelledby="paste-h">
         <button type="button" className="flex items-center justify-between text-sm font-semibold text-brand-navy text-left" aria-expanded={pasteOpen} aria-controls="paste-body" onClick={() => setPasteOpen((o) => !o)}>
