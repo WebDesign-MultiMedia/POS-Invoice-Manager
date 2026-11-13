@@ -339,3 +339,21 @@ describe("product catalog", () => {
     expect(res.body.list.items.map((i) => i.productId)).toEqual(["p00aa11bb22cc33dd", ""]);
   });
 });
+
+describe("a trip to several stores", () => {
+  it("keeps which store each item and receipt is for", async () => {
+    const items = [
+      { name: "BBQ Sauce", store: "Restaurant Depot" },
+      { name: "Rice", store: "Jetro" },
+      { name: "Ice" },
+    ];
+    const created = await post({ action: "create", list: { title: "Supply run", items } }, ana());
+    expect(created.body.list.items.map((i) => i.store)).toEqual(["Restaurant Depot", "Jetro", ""]);
+    const id = created.body.list.id;
+    const extra = await post({ action: "addItem", id, name: "Foil", qty: "1", store: "Jetro" }, ana());
+    expect(extra.body.list.items.at(-1)).toMatchObject({ name: "Foil", store: "Jetro", extra: true });
+    const image = `data:image/jpeg;base64,${Buffer.from("x").toString("base64")}`;
+    const photo = await post({ action: "receipt", id, image, store: "Jetro" }, ana());
+    expect(photo.body.list.receipts[0].store).toBe("Jetro");
+  });
+});

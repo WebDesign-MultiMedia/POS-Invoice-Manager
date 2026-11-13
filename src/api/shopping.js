@@ -32,8 +32,8 @@ export const editList = (id, list) => post({ action: "edit", id, list });
 export const deleteList = (id) => post({ action: "delete", id });
 export const reopenList = (id) => post({ action: "reopen", id });
 export const setItem = (id, itemId, { got, out }) => post({ action: "item", id, itemId, got, out });
-export const addExtraItem = (id, name, qty) => post({ action: "addItem", id, name, qty });
-export const addReceipt = (id, image) => post({ action: "receipt", id, image });
+export const addExtraItem = (id, name, qty, store = "") => post({ action: "addItem", id, name, qty, store });
+export const addReceipt = (id, image, store = "") => post({ action: "receipt", id, image, store });
 export const removeReceipt = (id, path) => post({ action: "removeReceipt", id, path });
 // Product catalog (managers). image: an optional new picture as a data URL.
 export const saveProduct = (product, image) => post({ action: "saveProduct", product, image });
@@ -141,7 +141,7 @@ function demo(body) {
   }
   const now = new Date().toISOString();
   const cleanItems = (items) =>
-    (items || []).filter((i) => String(i.name || "").trim()).map((i) => ({ id: i.id || `i${hex(10)}`, name: i.name.trim(), qty: i.qty || "", note: i.note || "", price: i.price ? Number(i.price).toFixed(2) : "", got: !!i.got, out: !!i.out && !i.got, extra: !!i.extra, productId: i.productId || "" }));
+    (items || []).filter((i) => String(i.name || "").trim()).map((i) => ({ id: i.id || `i${hex(10)}`, name: i.name.trim(), qty: i.qty || "", note: i.note || "", price: i.price ? Number(i.price).toFixed(2) : "", got: !!i.got, out: !!i.out && !i.got, extra: !!i.extra, productId: i.productId || "", store: i.store || "" }));
   const fields = (l) => ({ title: l.title.trim(), assignedTo: l.assignedTo || "", assignedName: people.find((p) => p.phone === l.assignedTo)?.name || "", items: cleanItems(l.items), notes: l.notes || "" });
   if (body.action === "create") {
     if (!String(body.list?.title || "").trim()) return Promise.reject(new ApiError(400, "Give the list a name, e.g. \"Restaurant Depot Friday\"."));
@@ -162,11 +162,11 @@ function demo(body) {
     const item = list.items.find((i) => i.id === body.itemId);
     if (item) Object.assign(item, { got: !!body.got, out: !body.got && !!body.out });
   }
-  if (body.action === "addItem") list.items.push(...cleanItems([{ name: body.name, qty: body.qty, got: true, extra: true }]));
+  if (body.action === "addItem") list.items.push(...cleanItems([{ name: body.name, qty: body.qty, store: body.store, got: true, extra: true }]));
   if (body.action === "receipt") {
     const path = `receipts/${list.id}/demo-${hex(8)}.jpg`;
     demoPhotos.set(path, body.image);
-    list.receipts.push({ path, at: now, by: "Demo" });
+    list.receipts.push({ path, at: now, by: "Demo", store: body.store || "" });
   }
   if (body.action === "readReceipt") {
     // The demo can't really read photos, so it shows a made-up receipt.

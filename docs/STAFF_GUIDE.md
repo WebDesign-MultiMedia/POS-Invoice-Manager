@@ -85,7 +85,8 @@ Tap the **cart** button. You see it only if the owner ticked **Shopping lists** 
 
 1. Press **New shopping list** and give it a name, e.g. *Restaurant Depot Friday*.
 2. Pick **Who's buying**, or leave it as *Anyone with Shopping lists*.
-3. Tap products from **the catalog** (tap again for one more), or type one thing per line (press Enter for the next). You can also paste a whole list someone texted you. **How many** and **About $** are optional.
+3. Under **Where are they buying?**, tap every store on the trip (e.g. Restaurant Depot and Jetro), or type another one and press **Add**. Each store gets its own part of the list.
+4. In each store's part, tap products from **the catalog** (tap again for one more), or type one thing per line (press Enter for the next). You can also paste a whole list someone texted you. **How many** and **About $** are optional.
 
 **The product catalog** (managers): press **Product catalog** to add the things you buy all the time, with a picture, price, bin and item number. Pictures look best square with a see-through background (PNG or WebP). At the store, each item shows its picture and **bin number** so it's quick to find.
 
@@ -93,7 +94,7 @@ Tap the **cart** button. You see it only if the owner ticked **Shopping lists** 
 
 - Tick each thing as you put it in the cart. If the store doesn't have it, press **None?** so it shows as *Out of stock*.
 - Bought something that wasn't on the list? Add it under **Bought something not on the list?**
-- Press **Scan receipt** and take a photo. Lay it flat in good light. For a long receipt, take more than one photo.
+- Press **Scan receipt** and take a photo. On a trip to several stores, first pick which store the receipt is from; the app adds up all the receipts for the total. Lay it flat in good light. For a long receipt, take more than one photo.
 - The app reads the photo and shows the store, date, items and total under it, and fills in **Receipt total** for you. Check it against the paper receipt before you finish.
 - Type the **Receipt total** and press **Finish trip**. After that only a manager can change the list (or **Reopen** it).
 

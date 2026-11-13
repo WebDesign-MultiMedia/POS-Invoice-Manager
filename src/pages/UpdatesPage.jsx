@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-route",
+    title: "One list, several stores",
+    date: "2026-11-12",
+    body: "A shopping list can now cover several stops, like a wholesale club and then a grocery store. Each store gets its own part of the list, receipts are labeled by store, and the receipt totals are added up for you.",
+  },
+  {
     icon: "fa-store",
     title: "Product catalog",
     date: "2026-11-12",

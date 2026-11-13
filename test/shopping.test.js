@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addProduct, expectedCents, groupItemsByStore, itemsFromText, productPriceLine, progress, spendingByMonth } from "../src/lib/shopping.js";
+import { addProduct, expectedCents, groupItemsByStore, storesOf, itemsFromText, productPriceLine, progress, spendingByMonth } from "../src/lib/shopping.js";
 
 describe("itemsFromText", () => {
   it("splits a pasted list into names and amounts", () => {
@@ -49,7 +49,7 @@ describe("catalog products on a list", () => {
   const beef = { id: "p2", name: "Beef Top Sirloin Butts", size: "About 16 lb each", unit: "lb", price: "5.59", estEach: "89.44" };
   it("adds a product, then one more each tap", () => {
     let items = addProduct([], sauce);
-    expect(items).toEqual([{ name: "Open Pit BBQ Sauce", qty: "1", note: "1 gallon", price: "22.65", productId: "p1" }]);
+    expect(items).toEqual([{ name: "Open Pit BBQ Sauce", qty: "1", note: "1 gallon", price: "22.65", productId: "p1", store: "Restaurant Depot" }]);
     items = addProduct(items, sauce);
     expect(items[0]).toMatchObject({ qty: "2", price: "45.30" });
   });
@@ -63,17 +63,31 @@ describe("catalog products on a list", () => {
 });
 
 describe("grouping a trip by store", () => {
-  it("puts catalog items under their store, A–Z, and typed items last", () => {
-    const products = new Map([
-      ["p1", { id: "p1", store: "Restaurant Depot" }],
-      ["p2", { id: "p2", store: "Jetro" }],
-      ["p3", { id: "p3", store: "" }],
-    ]);
-    const items = [{ name: "Ice" }, { name: "Sauce", productId: "p1" }, { name: "Rice", productId: "p2" }, { name: "Beef", productId: "p3" }];
+  const products = new Map([
+    ["p1", { id: "p1", store: "Restaurant Depot" }],
+    ["p2", { id: "p2", store: "Jetro" }],
+    ["p3", { id: "p3", store: "" }],
+  ]);
+  it("keeps the order of the stops, typed items for a store with it, and no-store items last", () => {
+    const items = [
+      { name: "Ice" },
+      { name: "Sauce", productId: "p1", store: "Restaurant Depot" },
+      { name: "Limes", store: "Restaurant Depot" },
+      { name: "Rice", productId: "p2", store: "Jetro" },
+      { name: "Paper towels", store: "Costco" },
+    ];
     expect(groupItemsByStore(items, products).map((g) => [g.store, g.items.map((i) => i.name)])).toEqual([
+      ["Restaurant Depot", ["Sauce", "Limes"]],
       ["Jetro", ["Rice"]],
-      ["Restaurant Depot", ["Sauce", "Beef"]],
+      ["Costco", ["Paper towels"]],
       ["", ["Ice"]],
     ]);
+    expect(storesOf(items)).toEqual(["Restaurant Depot", "Jetro", "Costco"]);
+  });
+  it("older items without a store use their product's store", () => {
+    expect(groupItemsByStore([{ name: "Beef", productId: "p3" }], products)[0].store).toBe("Restaurant Depot");
+  });
+  it("a catalog product brings its store onto the list", () => {
+    expect(addProduct([], { id: "p2", name: "Rice", store: "Jetro", unit: "each", price: "1" })[0].store).toBe("Jetro");
   });
 });

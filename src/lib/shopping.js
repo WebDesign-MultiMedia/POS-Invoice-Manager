@@ -124,7 +124,7 @@ async function loadImage(file) {
 // cost of one piece. Picking the same product again adds one more.
 export function itemFromProduct(product) {
   const price = product.unit === "lb" ? product.estEach : product.price;
-  return { name: product.name, qty: "1", note: product.size || "", price: price || "", productId: product.id };
+  return { name: product.name, qty: "1", note: product.size || "", price: price || "", productId: product.id, store: String(product.store || "").trim() || defaultStore() };
 }
 
 export function addProduct(items, product) {
@@ -148,17 +148,21 @@ export function productPriceLine(p) {
   return parts.join(" · ");
 }
 
-// A trip's items in sections by store: catalog items under their store
-// (A–Z), typed ones last with store "" ("Other items").
+// The stores (stops) a list covers, in the order they first appear.
+export function storesOf(items) {
+  return [...new Set((items || []).map((i) => String(i.store || "").trim()).filter(Boolean))];
+}
+
+// A trip's items in sections by store, in the order of the stops; items with
+// no store ("Other items") last. Older items without a store take their
+// catalog product's store.
 export function groupItemsByStore(items, productById) {
   const groups = new Map();
   for (const item of items || []) {
     const product = productById.get(item.productId);
-    const store = product ? String(product.store || "").trim() || defaultStore() : "";
+    const store = String(item.store || "").trim() || (product ? String(product.store || "").trim() || defaultStore() : "");
     if (!groups.has(store)) groups.set(store, []);
     groups.get(store).push(item);
   }
-  return [...groups.entries()]
-    .sort(([a], [b]) => (!a ? 1 : !b ? -1 : a.localeCompare(b)))
-    .map(([store, list]) => ({ store, items: list }));
+  return [...groups.entries()].sort(([a], [b]) => (!a ? 1 : !b ? -1 : 0)).map(([store, list]) => ({ store, items: list }));
 }

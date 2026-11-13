@@ -6,7 +6,7 @@ import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip,
 import { useAuth } from "../lib/auth.jsx";
 import { friendlyMessage } from "../lib/errors.js";
 import { CatalogManager, CatalogPicker, ZoomThumb, whereToFind } from "../components/ProductCatalog.jsx";
-import { addProduct, defaultStore, dollars, groupItemsByStore, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
+import { addProduct, defaultStore, dollars, groupItemsByStore, storesOf, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
 
 // Shopping lists. A manager (the owner, or an employee with Shopping lists
 // + "Can edit & delete") writes a list and gives it to someone, or to
@@ -161,6 +161,11 @@ function Home({ data, prices, onOpen, onNew, onCatalog, onRefresh }) {
                         For {l.assignedName || "anyone"} · {shortDate(l.createdAt)}
                         {l.receipts.length ? ` · ${l.receipts.length} receipt${l.receipts.length === 1 ? "" : "s"}` : ""}
                       </span>
+                      {storesOf(l.items).length > 0 && (
+                        <span className="block text-xs text-brand-teal truncate">
+                          <i className="fa-solid fa-store" aria-hidden="true"></i> {storesOf(l.items).join(" · ")}
+                        </span>
+                      )}
                     </span>
                     <span className="shrink-0 text-sm font-semibold text-brand-teal">
                       {p.got}/{p.total}
@@ -269,8 +274,16 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
   const sections = groupItemsByStore(list.items, productById);
 
   const [busy, setBusy] = useState("");
-  const [extra, setExtra] = useState({ name: "", qty: "" });
+  const [extra, setExtra] = useState({ name: "", qty: "", store: "" });
+  // The stores on this trip, so an extra item or a receipt goes with the right one.
+  const tripStores = sections.map((sec) => sec.store).filter(Boolean);
+  const [receiptStore, setReceiptStore] = useState("");
+  // Default: the first store that has no receipt photo yet.
+  const photoStore = tripStores.includes(receiptStore) ? receiptStore : tripStores.find((st) => !list.receipts.some((r) => r.store === st)) || tripStores[0] || "";
+  const extraStore = tripStores.includes(extra.store) ? extra.store : tripStores[0] || "";
   const [spent, setSpent] = useState("");
+  // Once someone types the total themselves, the app stops filling it in.
+  const [spentTyped, setSpentTyped] = useState(false);
   const fileRef = useRef(null);
   const done = list.status === "Done";
   const locked = done && !manager;
@@ -318,8 +331,8 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
   const addExtra = async (e) => {
     e.preventDefault();
     if (!extra.name.trim()) return;
-    const res = await run("extra", () => addExtraItem(list.id, extra.name.trim(), extra.qty.trim()), "Not added", "Couldn't add it to the list.");
-    if (res) setExtra({ name: "", qty: "" });
+    const res = await run("extra", () => addExtraItem(list.id, extra.name.trim(), extra.qty.trim(), extraStore), "Not added", "Couldn't add it to the list.");
+    if (res) setExtra((x) => ({ name: "", qty: "", store: x.store }));
   };
 
   const takePhoto = async (e) => {
@@ -334,7 +347,7 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
         Swal.fire({ ...ALERT, title: "Photo not added", text: "That picture couldn't be opened. Try taking it again.", icon: "error" });
         return;
       }
-      const res = await run("photo", () => addReceipt(list.id, image), "Photo not saved", "Couldn't save the receipt photo.");
+      const res = await run("photo", () => addReceipt(list.id, image, photoStore), "Photo not saved", "Couldn't save the receipt photo.");
       if (!res) return;
       const added = res.list?.receipts?.[res.list.receipts.length - 1];
       if (reader && added) await read(added.path);
@@ -345,8 +358,9 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
   // nothing's typed there yet (they can still change it).
   const read = async (path) => {
     const res = await run(`read:${path}`, () => readReceipt(list.id, path), "Receipt not read", "Couldn't read the receipt.");
-    const total = res?.details?.total;
-    if (total != null) setSpent((s) => (s.trim() ? s : total.toFixed(2)));
+    // Receipt total = every receipt read so far added up (one per store).
+    const totals = (res?.list?.receipts || []).map((r) => r.details?.total).filter((t) => t != null);
+    if (totals.length && !spentTyped) setSpent((totals.reduce((a, b) => a + Math.round(b * 100), 0) / 100).toFixed(2));
   };
 
   const dropPhoto = async (path) => {
@@ -453,6 +467,9 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
             <button type="submit" className={OUTLINE} disabled={busy === "extra" || !extra.name.trim()} aria-label="Add">
               <i className={`fa-solid ${busy === "extra" ? "fa-spinner fa-spin" : "fa-plus"}`} aria-hidden="true"></i>
             </button>
+            {tripStores.length > 1 && (
+              <StoreSelect id="extra-store" label="Bought at" stores={tripStores} value={extraStore} onChange={(v) => setExtra((x) => ({ ...x, store: v }))} className="col-span-3" />
+            )}
           </form>
         )}
       </section>
@@ -466,8 +483,9 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
             {list.receipts.map((r) => (
               <li key={r.path} className="relative">
                 <a href={receiptSrc(list.id, r.path)} target="_blank" rel="noopener noreferrer" className="block">
-                  <img src={receiptSrc(list.id, r.path)} alt={`Receipt photo by ${r.by || "someone"}`} loading="lazy" className="w-full aspect-[3/4] object-cover object-top rounded-lg border border-brand-navydeep/20 bg-white" />
+                  <img src={receiptSrc(list.id, r.path)} alt={`Receipt photo${r.store ? ` from ${r.store}` : ""} by ${r.by || "someone"}`} loading="lazy" className="w-full aspect-[3/4] object-cover object-top rounded-lg border border-brand-navydeep/20 bg-white" />
                 </a>
+                {r.store && <p className="mt-1 text-[11px] text-center text-brand-navydeep/80 truncate">{r.store}</p>}
                 {!locked && (
                   <button type="button" onClick={() => dropPhoto(r.path)} disabled={busy === r.path} aria-label="Remove photo" className="absolute top-1 right-1 h-7 w-7 rounded-full bg-black/60 text-white text-xs">
                     <i className="fa-solid fa-xmark" aria-hidden="true"></i>
@@ -481,7 +499,7 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
         )}
         {list.receipts.map((r, i) =>
           r.details ? (
-            <ReceiptDetails key={`d-${r.path}`} details={r.details} label={list.receipts.length > 1 ? `Receipt ${i + 1}` : "What the receipt says"} />
+            <ReceiptDetails key={`d-${r.path}`} details={r.details} label={r.store ? `${r.store} receipt` : list.receipts.length > 1 ? `Receipt ${i + 1}` : "What the receipt says"} />
           ) : busy === `read:${r.path}` ? (
             <p key={`d-${r.path}`} className="glass-panel px-3 py-2 text-sm text-center text-brand-navydeep/85" role="status">
               <i className="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Reading {list.receipts.length > 1 ? `receipt ${i + 1}` : "the receipt"}…
@@ -498,8 +516,9 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
           (photos ? (
             <>
               <input ref={fileRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={takePhoto} tabIndex={-1} aria-hidden="true" />
+              {tripStores.length > 1 && <StoreSelect id="receipt-store" label="Receipt from" stores={tripStores} value={photoStore} onChange={setReceiptStore} />}
               <button type="button" className="btn-3d justify-center disabled:opacity-60" disabled={busy === "photo"} onClick={() => fileRef.current?.click()}>
-                <i className={`fa-solid ${busy === "photo" ? "fa-spinner fa-spin" : "fa-camera"}`} aria-hidden="true"></i> {busy === "photo" ? "Saving photo…" : "Scan receipt"}
+                <i className={`fa-solid ${busy === "photo" ? "fa-spinner fa-spin" : "fa-camera"}`} aria-hidden="true"></i> {busy === "photo" ? "Saving photo…" : tripStores.length > 1 ? `Scan ${photoStore} receipt` : "Scan receipt"}
               </button>
               <p className="text-xs text-center text-brand-navydeep/70">Lay the receipt flat, in good light. Long receipt? Take more than one photo.</p>
             </>
@@ -515,9 +534,12 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
           </h2>
           <div className="field-group !mb-0">
             <label htmlFor="spent" className="field-label">
-              <i className="fa-solid fa-dollar-sign" aria-hidden="true"></i> Receipt total
+              <i className="fa-solid fa-dollar-sign" aria-hidden="true"></i> {tripStores.length > 1 ? "Receipt total, all stores" : "Receipt total"}
             </label>
-            <input id="spent" className="input-3d" inputMode="decimal" autoComplete="off" value={spent} onChange={(e) => setSpent(e.target.value.replace(/[^\d.,$]/g, ""))} placeholder="e.g. 84.37" />
+            <input id="spent" className="input-3d" inputMode="decimal" autoComplete="off" value={spent} onChange={(e) => {
+                setSpentTyped(true);
+                setSpent(e.target.value.replace(/[^\d.,$]/g, ""));
+              }} placeholder="e.g. 84.37" />
           </div>
           <button type="submit" className="btn-3d justify-center disabled:opacity-60" disabled={busy === "finish"}>
             <i className={`fa-solid ${busy === "finish" ? "fa-spinner fa-spin" : "fa-check"}`} aria-hidden="true"></i> {busy === "finish" ? "Saving…" : "Finish trip"}
@@ -546,49 +568,103 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
 
 // ---------- making or changing a list (managers) ----------
 
-const blankRow = () => ({ key: Math.random().toString(36).slice(2), name: "", qty: "", price: "" });
+const newKey = () => Math.random().toString(36).slice(2);
+const blankRow = (store = "") => ({ key: newKey(), name: "", qty: "", price: "", store });
+const isBlank = (r) => !r.name.trim() && !r.qty && !r.price;
+const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_4.25rem_3.5rem_1.75rem] sm:grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_2rem] gap-1.5 sm:gap-2";
+
+// The rows shown: the real ones, plus one empty row at the end of every
+// section (store) to type the next thing into. Empty rows keep the same key
+// until something is typed in them, so the cursor doesn't jump.
+function tidyRows(rows, sections, blankKeys) {
+  const out = rows.filter((r) => !isBlank(r));
+  for (const store of sections) {
+    blankKeys[store] ||= newKey();
+    out.push({ ...blankRow(store), key: blankKeys[store] });
+  }
+  return out;
+}
 
 function ListEditor({ list, people, products = [], onCancel, onSaved }) {
   const [title, setTitle] = useState(list?.title || "");
   const [assignedTo, setAssignedTo] = useState(list?.assignedTo || "");
   const [notes, setNotes] = useState(list?.notes || "");
-  const [rows, setRows] = useState(() => [...(list?.items || []).map((i) => ({ ...i, key: i.id })), blankRow()]);
+  // The stops on this trip, in order. Items with no store go under "Other items".
+  const [stops, setStops] = useState(() => storesOf(list?.items));
+  const [rows, setRows] = useState(() => (list?.items || []).map((i) => ({ ...i, store: i.store || "", key: i.id })));
+  const [newStore, setNewStore] = useState("");
   const [saving, setSaving] = useState(false);
-  const focusKey = useRef(null);
+  const blankKeys = useRef({});
 
-  // There's always one empty row at the end to type the next thing into.
-  const isBlank = (r) => !r.name.trim() && !r.qty && !r.price;
-  const withBlank = (next) => (next.length && isBlank(next[next.length - 1]) ? next : [...next, blankRow()]);
-  const update = (next) => setRows(withBlank(next));
-  const setRow = (key, field, value) => update(rows.map((r) => (r.key === key ? { ...r, [field]: value } : r)));
+  const hasOther = rows.some((r) => !r.store && !isBlank(r));
+  const sections = stops.length ? (hasOther ? [...stops, ""] : stops) : [""];
+  const shown = tidyRows(rows, sections, blankKeys.current);
+  const update = (next) => setRows(next.filter((r) => !isBlank(r)));
+  const setRow = (key, field, value) => {
+    const exists = rows.some((r) => r.key === key);
+    const blank = !exists && shown.find((r) => r.key === key);
+    // Typing in a section's empty row makes it a real row; that section gets a new empty one.
+    if (blank) delete blankKeys.current[blank.store || ""];
+    const base = exists ? rows : [...rows, { ...blank }];
+    update(base.map((r) => (r.key === key ? { ...r, [field]: value } : r)));
+  };
   const removeRow = (key) => update(rows.filter((r) => r.key !== key));
 
+  // Stores to pick from: the catalog's, plus any already on this list.
+  const knownStores = [...new Set([...products.map((p) => String(p.store || "").trim() || defaultStore()), ...stops])].sort();
+  const addStop = (store) => {
+    const name = String(store || "").replace(/\s+/g, " ").trim();
+    if (!name) return;
+    const match = knownStores.find((s) => s.toLowerCase() === name.toLowerCase()) || name;
+    setStops((cur) => (cur.some((s) => s.toLowerCase() === match.toLowerCase()) ? cur : [...cur, match]));
+  };
+  const removeStop = async (store) => {
+    const count = rows.filter((r) => r.store === store && !isBlank(r)).length;
+    if (count) {
+      const { isConfirmed } = await Swal.fire({
+        ...ALERT,
+        title: `Take ${store} off this trip?`,
+        text: `Its ${count} item${count === 1 ? "" : "s"} come off the list too.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Take it off",
+        focusCancel: true,
+      });
+      if (!isConfirmed) return;
+    }
+    setStops((cur) => cur.filter((s) => s !== store));
+    setRows((cur) => cur.filter((r) => r.store !== store));
+  };
+
   // Pasting several lines (e.g. a list texted by the boss) makes one row each.
-  const onPasteName = (key) => (e) => {
+  const onPasteName = (row) => (e) => {
     const text = e.clipboardData?.getData("text") || "";
     if (!/\n/.test(text.trim())) return;
     e.preventDefault();
-    const parsed = itemsFromText(text).map((i) => ({ ...blankRow(), ...i }));
-    const at = rows.findIndex((r) => r.key === key);
-    update([...rows.slice(0, at + 1), ...parsed, ...rows.slice(at + 1)].filter((r) => !isBlank(r)));
+    const parsed = itemsFromText(text).map((i) => ({ ...blankRow(row.store), ...i }));
+    const kept = rows.filter((r) => r.key !== row.key || !isBlank(r));
+    const at = kept.findIndex((r) => r.key === row.key);
+    update(at >= 0 ? [...kept.slice(0, at + 1), ...parsed, ...kept.slice(at + 1)] : [...kept, ...parsed]);
   };
 
-  const onEnter = (index) => (e) => {
+  // Enter moves to the next line of the same store.
+  const onEnter = (row) => (e) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
-    const next = rows[index + 1];
-    if (next) focusKey.current = next.key;
-    else {
-      const row = blankRow();
-      focusKey.current = row.key;
-      setRows([...rows, row]);
-    }
+    const same = shown.filter((r) => (r.store || "") === (row.store || ""));
+    const next = same[same.findIndex((r) => r.key === row.key) + 1];
+    if (next) document.getElementById(`item-${next.key}`)?.focus();
   };
-  useEffect(() => {
-    if (!focusKey.current) return;
-    document.getElementById(`item-${focusKey.current}`)?.focus();
-    focusKey.current = null;
-  });
+
+  // Tapping a catalog product adds it (with its store as a stop), or one more
+  // of it. Works from the latest rows, so quick taps all count.
+  const pick = (product) => {
+    const store = String(product.store || "").trim() || defaultStore();
+    addStop(store);
+    setRows((cur) => addProduct(cur, product).map((r) => (r.key ? r : { ...r, key: newKey() })));
+  };
+  const counts = {};
+  for (const r of rows) if (r.productId) counts[r.productId] = Number(r.qty) > 0 ? Number(r.qty) : 1;
 
   const save = async (e) => {
     e.preventDefault();
@@ -608,15 +684,9 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
     }
   };
 
-  // Tapping a catalog product adds it, or one more of it.
-  // Works from the latest rows, so quick taps on several products all count.
-  const pick = (product) =>
-    setRows((current) => withBlank(addProduct(current.filter((r) => !isBlank(r)), product).map((r) => (r.key ? r : { ...r, key: Math.random().toString(36).slice(2) }))));
-  const counts = {};
-  for (const r of rows) if (r.productId) counts[r.productId] = Number(r.qty) > 0 ? Number(r.qty) : 1;
-
   const filled = rows.filter((r) => r.name.trim()).length;
   const pickable = people.some((p) => p.phone === assignedTo) || !assignedTo ? people : [...people, { phone: assignedTo, name: list?.assignedName || assignedTo }];
+  const productsAt = (store) => (store ? products.filter((p) => (String(p.store || "").trim() || defaultStore()) === store) : stops.length ? [] : products);
 
   return (
     <form onSubmit={save} className="glass-card w-full max-w-md p-5 sm:p-6 flex flex-col gap-4" aria-labelledby="edit-h">
@@ -644,33 +714,108 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
         {!people.length && <p className="text-xs text-brand-navydeep/70 mt-1">To give a list to one person, tick Shopping lists for them on the Team page.</p>}
       </div>
 
-      <fieldset className="flex flex-col gap-2 min-w-0">
+      <fieldset className="glass-panel px-3 py-3 flex flex-col gap-2 min-w-0">
+        <legend className="field-label !mb-0 px-1">
+          <i className="fa-solid fa-store" aria-hidden="true"></i> Where are they buying?
+        </legend>
+        <p className="text-xs text-brand-navydeep/70">Pick every store on this trip. Each one gets its own part of the list.</p>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Stores on this trip">
+          {knownStores.map((store) => {
+            const on = stops.includes(store);
+            return (
+              <button
+                key={store}
+                type="button"
+                aria-pressed={on}
+                onClick={() => (on ? removeStop(store) : addStop(store))}
+                className={`rounded-full border px-3 py-1.5 text-sm ${on ? "border-brand-teal bg-brand-teal/15 text-brand-teal font-semibold" : "border-brand-navydeep/30 text-brand-navydeep/85"}`}
+              >
+                <i className={`fa-solid ${on ? "fa-check" : "fa-plus"} text-xs`} aria-hidden="true"></i> {store}
+              </button>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <input
+            aria-label="Another store"
+            className="input-3d !py-2 min-w-0"
+            value={newStore}
+            onChange={(e) => setNewStore(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              addStop(newStore);
+              setNewStore("");
+            }}
+            placeholder="Another store, e.g. Costco"
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            className={OUTLINE}
+            disabled={!newStore.trim()}
+            onClick={() => {
+              addStop(newStore);
+              setNewStore("");
+            }}
+          >
+            <i className="fa-solid fa-plus" aria-hidden="true"></i> Add
+          </button>
+        </div>
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-4 min-w-0">
         <legend className="field-label">
           <i className="fa-solid fa-list-check" aria-hidden="true"></i> What to buy {filled ? `(${filled})` : ""}
         </legend>
-        <CatalogPicker products={products} counts={counts} onPick={pick} />
-        <p className="text-xs text-brand-navydeep/70">{products.length ? "Or type it: press" : "Press"} Enter for the next line. You can paste a whole list too, one thing per line.</p>
-        <div className="grid grid-cols-[minmax(0,1fr)_4.25rem_3.5rem_1.75rem] sm:grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_2rem] gap-1.5 sm:gap-2 text-[11px] uppercase tracking-wide text-brand-navydeep/70 px-1">
-          <span>Item</span>
-          <span>How many</span>
-          <span>About $</span>
-          <span className="sr-only">Remove</span>
-        </div>
-        {rows.map((r, index) => (
-          <div key={r.key} className="grid grid-cols-[minmax(0,1fr)_4.25rem_3.5rem_1.75rem] sm:grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_2rem] gap-1.5 sm:gap-2 items-center">
-            <input id={`item-${r.key}`} aria-label={`Item ${index + 1}`} className="input-3d !py-2 !px-3 min-w-0" value={r.name} onChange={(e) => setRow(r.key, "name", e.target.value)} onPaste={onPasteName(r.key)} onKeyDown={onEnter(index)} placeholder={index === 0 ? "Tomatoes" : ""} autoComplete="off" />
-            <input aria-label={`How many ${r.name || ""}`} className="input-3d !py-2 !px-2 min-w-0" value={r.qty} onChange={(e) => setRow(r.key, "qty", e.target.value)} onKeyDown={onEnter(index)} placeholder={index === 0 ? "2 cases" : ""} autoComplete="off" />
-            <input aria-label={`Expected price for ${r.name || "this item"}`} className="input-3d !py-2 !px-2 min-w-0" inputMode="decimal" value={r.price} onChange={(e) => setRow(r.key, "price", e.target.value.replace(/[^\d.]/g, ""))} onKeyDown={onEnter(index)} placeholder="" autoComplete="off" />
-            {r.name || r.qty || r.price ? (
-              <button type="button" onClick={() => removeRow(r.key)} aria-label={`Remove ${r.name || "line"}`} className="h-8 w-7 rounded-full text-brand-error">
-                <i className="fa-solid fa-xmark" aria-hidden="true"></i>
-              </button>
-            ) : (
-              <span />
-            )}
-          </div>
-        ))}
-        <p className="text-xs text-brand-navydeep/70">About $ is optional. Only managers and people allowed to see prices see it.</p>
+        {sections.map((store) => {
+          const sectionRows = shown.filter((r) => (r.store || "") === store);
+          const count = sectionRows.filter((r) => !isBlank(r)).length;
+          const atStore = productsAt(store);
+          return (
+            <section key={store || "other"} className={`flex flex-col gap-2 ${store || stops.length ? "border-t border-brand-navydeep/15 pt-3" : ""}`} aria-label={store || "Items"}>
+              {(store || stops.length > 0) && (
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-brand-navy">
+                  <i className={`fa-solid ${store ? "fa-store text-brand-teal" : "fa-list text-brand-navydeep/60"}`} aria-hidden="true"></i>
+                  <span className="min-w-0 flex-1 truncate">{store || "Other items (any store)"}</span>
+                  <span className="text-xs font-normal text-brand-navydeep/65">{count ? `${count} item${count === 1 ? "" : "s"}` : ""}</span>
+                </h3>
+              )}
+              <CatalogPicker products={atStore} counts={counts} onPick={pick} />
+              <div className={`${ROW_GRID} text-[11px] uppercase tracking-wide text-brand-navydeep/70 px-1`}>
+                <span>{atStore.length ? "Or type it" : "Item"}</span>
+                <span>How many</span>
+                <span>About $</span>
+                <span className="sr-only">Remove</span>
+              </div>
+              {sectionRows.map((r, index) => (
+                <div key={r.key} className={`${ROW_GRID} items-center`}>
+                  <input
+                    id={`item-${r.key}`}
+                    aria-label={`${store || "Item"} ${index + 1}`}
+                    className="input-3d !py-2 !px-3 min-w-0"
+                    value={r.name}
+                    onChange={(e) => setRow(r.key, "name", e.target.value)}
+                    onPaste={onPasteName(r)}
+                    onKeyDown={onEnter(r)}
+                    placeholder={index === 0 ? "Tomatoes" : ""}
+                    autoComplete="off"
+                  />
+                  <input aria-label={`How many ${r.name || ""}`} className="input-3d !py-2 !px-2 min-w-0" value={r.qty} onChange={(e) => setRow(r.key, "qty", e.target.value)} onKeyDown={onEnter(r)} placeholder={index === 0 ? "2 cases" : ""} autoComplete="off" />
+                  <input aria-label={`Expected price for ${r.name || "this item"}`} className="input-3d !py-2 !px-2 min-w-0" inputMode="decimal" value={r.price} onChange={(e) => setRow(r.key, "price", e.target.value.replace(/[^\d.]/g, ""))} onKeyDown={onEnter(r)} autoComplete="off" />
+                  {!isBlank(r) ? (
+                    <button type="button" onClick={() => removeRow(r.key)} aria-label={`Remove ${r.name || "line"}`} className="h-8 w-7 rounded-full text-brand-error">
+                      <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+              ))}
+            </section>
+          );
+        })}
+        <p className="text-xs text-brand-navydeep/70">Press Enter for the next line. You can paste a whole list too, one thing per line. About $ is optional; only managers and people allowed to see prices see it.</p>
       </fieldset>
 
       <div className="field-group !mb-0">
@@ -689,6 +834,24 @@ function ListEditor({ list, people, products = [], onCancel, onSaved }) {
         </button>
       </div>
     </form>
+  );
+}
+
+// Which store (stop) something belongs to, on a trip with several.
+function StoreSelect({ id, label, stores, value, onChange, className = "" }) {
+  return (
+    <div className={`flex items-center gap-2 min-w-0 ${className}`}>
+      <label htmlFor={id} className="text-xs text-brand-navydeep/75 shrink-0">
+        <i className="fa-solid fa-store" aria-hidden="true"></i> {label}
+      </label>
+      <select id={id} className="input-3d !py-1.5 min-w-0 flex-1" value={value} onChange={(e) => onChange(e.target.value)}>
+        {stores.map((st) => (
+          <option key={st} value={st}>
+            {st}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 

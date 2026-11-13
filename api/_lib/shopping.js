@@ -42,7 +42,8 @@ const parseJson = (raw, fallback) => {
   }
 };
 
-// An item: { id, name, qty, note, price, got, out, extra, productId }.
+// An item: { id, name, qty, note, price, got, out, extra, productId, store }.
+//   store  which business it's bought at (a list can cover several stops)
 //   price  what the manager expects that line to cost ("" if not given)
 //   got    bought; out = the store didn't have it
 //   extra  added at the store by the person shopping, not on the list
@@ -68,12 +69,13 @@ export function cleanItems(list, { keepState = true } = {}) {
       extra: raw?.extra === true,
       // From the product catalog (api/_lib/products.js), for its picture and bin.
       productId: /^p[a-f0-9]{8,40}$/.test(String(raw?.productId)) ? String(raw.productId) : "",
+      store: text(raw?.store, 60),
     });
   }
   return items;
 }
 
-// A receipt photo: { path, at, by, details? }. path is the private Vercel Blob
+// A receipt photo: { path, at, by, store?, details? }. store: which stop it's from. path is the private Vercel Blob
 // pathname; details is what the receipt reader found (api/_lib/receiptReader.js).
 export function receiptsOf(row) {
   return parseJson(row?.Receipts, []).filter((r) => r && typeof r.path === "string" && r.path.startsWith(`receipts/${row.ListId}/`));
@@ -107,7 +109,7 @@ export function publicList(row, session) {
     items,
     notes: row.Notes || "",
     spent: prices || mine ? row.Spent || "" : "",
-    receipts: receiptsOf(row).map(({ path, at, by, details }) => ({ path, at, by, details: details || null })),
+    receipts: receiptsOf(row).map(({ path, at, by, store, details }) => ({ path, at, by, store: store || "", details: details || null })),
     createdBy: row.CreatedBy || "",
     createdAt: row.CreatedAt || "",
     updatedAt: row.UpdatedAt || "",

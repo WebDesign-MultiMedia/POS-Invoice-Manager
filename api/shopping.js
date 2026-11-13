@@ -41,8 +41,8 @@ import {
 //   POST { action: "delete", id }        manager (photos too)
 //   POST { action: "reopen", id }        manager
 //   POST { action: "item", id, itemId, got, out }
-//   POST { action: "addItem", id, name, qty }
-//   POST { action: "receipt", id, image }   image: data:image/jpeg;base64,…
+//   POST { action: "addItem", id, name, qty, store? }
+//   POST { action: "receipt", id, image, store? }   image: data:image/jpeg;base64,…
 //   POST { action: "readReceipt", id, path }  → reads the photo with Claude
 //   POST { action: "removeReceipt", id, path }
 //   POST { action: "finish", id, spent }
@@ -284,7 +284,7 @@ export default async function handler(req, res) {
     if (body.action === "addItem") {
       const items = itemsOf(row);
       if (items.length >= LIMITS.items) throw new BadRequest("This list is full.");
-      const [added] = cleanItems([{ name: body.name, qty: body.qty, got: true, extra: true }]);
+      const [added] = cleanItems([{ name: body.name, qty: body.qty, store: body.store, got: true, extra: true }]);
       if (!added) throw new BadRequest("Type what you bought.");
       return await reply({ Items: JSON.stringify([...items, added]) });
     }
@@ -295,7 +295,8 @@ export default async function handler(req, res) {
       if (receipts.length >= LIMITS.receipts) throw new BadRequest(`A trip can have up to ${LIMITS.receipts} receipt photos.`);
       const image = decodeImage(body.image);
       const blob = await put(`receipts/${id}/receipt.${image.ext}`, image.buffer, { access: "private", contentType: image.contentType, addRandomSuffix: true });
-      return await reply({ Receipts: JSON.stringify([...receipts, { path: blob.pathname, at: now, by: who }]) });
+      const store = String(body.store ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+      return await reply({ Receipts: JSON.stringify([...receipts, { path: blob.pathname, at: now, by: who, ...(store ? { store } : {}) }]) });
     }
 
     if (body.action === "readReceipt") {
