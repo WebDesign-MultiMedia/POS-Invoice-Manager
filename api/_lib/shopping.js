@@ -42,7 +42,7 @@ const parseJson = (raw, fallback) => {
   }
 };
 
-// An item: { id, name, qty, note, price, got, out, extra }.
+// An item: { id, name, qty, note, price, got, out, extra, productId }.
 //   price  what the manager expects that line to cost ("" if not given)
 //   got    bought; out = the store didn't have it
 //   extra  added at the store by the person shopping, not on the list
@@ -66,6 +66,8 @@ export function cleanItems(list, { keepState = true } = {}) {
       got: keepState && raw?.got === true,
       out: keepState && raw?.out === true && raw?.got !== true,
       extra: raw?.extra === true,
+      // From the product catalog (api/_lib/products.js), for its picture and bin.
+      productId: /^p[a-f0-9]{8,40}$/.test(String(raw?.productId)) ? String(raw.productId) : "",
     });
   }
   return items;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expectedCents, itemsFromText, progress, spendingByMonth } from "../src/lib/shopping.js";
+import { addProduct, expectedCents, itemsFromText, productPriceLine, progress, spendingByMonth } from "../src/lib/shopping.js";
 
 describe("itemsFromText", () => {
   it("splits a pasted list into names and amounts", () => {
@@ -41,5 +41,23 @@ describe("trip math", () => {
       ["2026-11", 2125, 2],
       ["2026-10", 1010, 1],
     ]);
+  });
+});
+
+describe("catalog products on a list", () => {
+  const sauce = { id: "p1", name: "Open Pit BBQ Sauce", size: "1 gallon", unit: "each", price: "22.65", casePrice: "79.99", caseQty: "4" };
+  const beef = { id: "p2", name: "Beef Top Sirloin Butts", size: "About 16 lb each", unit: "lb", price: "5.59", estEach: "89.44" };
+  it("adds a product, then one more each tap", () => {
+    let items = addProduct([], sauce);
+    expect(items).toEqual([{ name: "Open Pit BBQ Sauce", qty: "1", note: "1 gallon", price: "22.65", productId: "p1" }]);
+    items = addProduct(items, sauce);
+    expect(items[0]).toMatchObject({ qty: "2", price: "45.30" });
+  });
+  it("uses the usual cost of one piece for things sold by the pound", () => {
+    expect(addProduct([], beef)[0].price).toBe("89.44");
+  });
+  it("describes prices", () => {
+    expect(productPriceLine(sauce)).toBe("$22.65 each · case of 4 $79.99");
+    expect(productPriceLine(beef)).toBe("$5.59/lb · about $89.44 each");
   });
 });

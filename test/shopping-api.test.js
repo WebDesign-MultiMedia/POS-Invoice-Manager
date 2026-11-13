@@ -26,6 +26,7 @@ const ANA = "3475550124";
 const LIST_ID = "s0123456789abcdef0123";
 let employees;
 let shopping;
+let products;
 const fetchMock = vi.fn();
 
 const json = (payload, status = 200) => ({ ok: status < 400, status, json: async () => payload });
@@ -34,6 +35,23 @@ function sheetFetch(url, init = {}) {
   const u = String(url);
   const method = init.method || "GET";
   if (u.includes("sheet=Employees")) return json(employees);
+  if (u.includes("sheet=Products")) {
+    if (products === null) return json({ error: "Sheet not found" }, 400);
+    if (method === "POST") {
+      products.push(...JSON.parse(init.body).data);
+      return json({ created: 1 });
+    }
+    const pid = decodeURIComponent(u.match(/ProductId[=/]([^&?]+)/)?.[1] || "");
+    if (method === "GET") return json(pid ? products.filter((r) => r.ProductId === pid) : products);
+    const prow = products.find((r) => r.ProductId === pid);
+    if (!prow) return json({ error: "No results found" }, 404);
+    if (method === "PATCH") {
+      Object.assign(prow, JSON.parse(init.body).data);
+      return json({ updated: 1 });
+    }
+    products = products.filter((r) => r !== prow);
+    return json({ deleted: 1 });
+  }
   if (!u.includes("sheet=Shopping")) return json([]);
   if (method === "POST") {
     shopping.push(...JSON.parse(init.body).data);
@@ -95,6 +113,7 @@ beforeEach(() => {
       Spent: "",
     },
   ];
+  products = [{ ProductId: "p00aa11bb22cc33dd", Name: "Open Pit BBQ Sauce", Size: "1 gallon", Bin: "3002", ItemNo: "25849", Unit: "each", Price: "22.65", CasePrice: "79.99", CaseQty: "4", Photo: "/imgs/products/open-pit-bbq-sauce-gallon.webp" }];
   clearEmployeeCache();
   fetchMock.mockReset().mockImplementation(async (url, init) => sheetFetch(url, init));
   vi.stubGlobal("fetch", fetchMock);
@@ -275,5 +294,48 @@ describe("reading a receipt photo", () => {
     expect((await post({ action: "readReceipt", id: LIST_ID, path: PATH }, carlos())).statusCode).toBe(400);
     expect((await list(carlos())).body.reader).toBe(false);
     expect(claude.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("product catalog", () => {
+  it("everyone with Shopping sees it, prices only with permission", async () => {
+    const res = await list(carlos());
+    expect(res.body.catalog).toBe(true);
+    expect(res.body.products[0]).toMatchObject({ name: "Open Pit BBQ Sauce", bin: "3002", price: "", casePrice: "", photo: "/imgs/products/open-pit-bbq-sauce-gallon.webp" });
+    expect((await list(ana())).body.products[0]).toMatchObject({ price: "22.65", casePrice: "79.99" });
+  });
+
+  it("lists still load before the Products tab exists", async () => {
+    products = null;
+    const res = await list(ana());
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ catalog: false, products: [] });
+  });
+
+  it("only managers add, change or delete products", async () => {
+    const product = { name: "Limes", size: "1 case", unit: "each", price: "$30" };
+    expect((await post({ action: "saveProduct", product }, carlos())).statusCode).toBe(403);
+    const res = await post({ action: "saveProduct", product }, ana());
+    expect(res.statusCode).toBe(200);
+    expect(products[1]).toMatchObject({ Name: "Limes", Store: "Restaurant Depot", Price: "30.00", Unit: "each" });
+    const id = res.body.product.id;
+    expect((await post({ action: "saveProduct", product: { ...product, id, price: "28" } }, ana())).statusCode).toBe(200);
+    expect(products[1].Price).toBe("28.00");
+    expect((await post({ action: "deleteProduct", id }, carlos())).statusCode).toBe(403);
+    expect((await post({ action: "deleteProduct", id }, ana())).statusCode).toBe(200);
+    expect(products).toHaveLength(1);
+  });
+
+  it("saves an uploaded picture privately, keeping it see-through", async () => {
+    const image = `data:image/webp;base64,${Buffer.from("fake webp").toString("base64")}`;
+    const res = await post({ action: "saveProduct", product: { name: "Napkins" }, image }, ana());
+    expect(res.statusCode).toBe(200);
+    expect(blob.put).toHaveBeenCalledWith(expect.stringMatching(/^products\/p[a-f0-9]+\/photo\.webp$/), expect.any(Buffer), expect.objectContaining({ access: "private", contentType: "image/webp" }));
+    expect(products[1].Photo).toMatch(/^products\//);
+  });
+
+  it("keeps the catalog link on list items", async () => {
+    const res = await post({ action: "create", list: { title: "RD", items: [{ name: "Open Pit BBQ Sauce", qty: "2", productId: "p00aa11bb22cc33dd" }, { name: "x", productId: "*" }] } }, ana());
+    expect(res.body.list.items.map((i) => i.productId)).toEqual(["p00aa11bb22cc33dd", ""]);
   });
 });

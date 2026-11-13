@@ -72,7 +72,9 @@ export function spendingByMonth(lists) {
 
 // A phone photo shrunk to a sharp-enough JPEG (longest side ≤ 1800px), as a
 // data URL. Keeps uploads small on mobile data and under the server limit.
-export async function shrinkPhoto(file, { maxSide = 1800, quality = 0.72 } = {}) {
+// transparent: keep see-through backgrounds (product pictures) by saving as
+// WebP, or PNG on browsers that can't make WebP.
+export async function shrinkPhoto(file, { maxSide = 1800, quality = 0.72, transparent = false } = {}) {
   if (!file || !/^image\//.test(file.type || "image/")) throw new Error("not an image");
   const bitmap = await loadImage(file);
   const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
@@ -80,11 +82,15 @@ export async function shrinkPhoto(file, { maxSide = 1800, quality = 0.72 } = {})
   canvas.width = Math.max(1, Math.round(bitmap.width * scale));
   canvas.height = Math.max(1, Math.round(bitmap.height * scale));
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (!transparent) {
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close?.();
-  return canvas.toDataURL("image/jpeg", quality);
+  if (!transparent) return canvas.toDataURL("image/jpeg", quality);
+  const webp = canvas.toDataURL("image/webp", 0.8);
+  return webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/png");
 }
 
 async function loadImage(file) {
@@ -105,4 +111,32 @@ async function loadImage(file) {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+// A catalog product → a shopping-list item. Sold by the pound: the usual
+// cost of one piece. Picking the same product again adds one more.
+export function itemFromProduct(product) {
+  const price = product.unit === "lb" ? product.estEach : product.price;
+  return { name: product.name, qty: "1", note: product.size || "", price: price || "", productId: product.id };
+}
+
+export function addProduct(items, product) {
+  const found = items.find((i) => i.productId === product.id);
+  if (!found) return [...items, itemFromProduct(product)];
+  const n = Number(found.qty);
+  const each = toCents(found.price) / (Number.isFinite(n) && n > 0 ? n : 1);
+  return items.map((i) => {
+    if (i !== found) return i;
+    const qty = Number.isFinite(n) && n > 0 ? String(n + 1) : i.qty;
+    return { ...i, qty, price: each && qty !== i.qty ? ((each * Number(qty)) / 100).toFixed(2) : i.price };
+  });
+}
+
+// "$22.65 each · case of 4 $79.99" / "$5.59/lb · about $89.44 each".
+export function productPriceLine(p) {
+  if (!p?.price) return "";
+  const parts = [p.unit === "lb" ? `${dollars(toCents(p.price))}/lb` : `${dollars(toCents(p.price))} each`];
+  if (p.unit === "lb" && p.estEach) parts.push(`about ${dollars(toCents(p.estEach))} each`);
+  if (p.casePrice) parts.push(`case${p.caseQty ? ` of ${p.caseQty}` : ""} ${dollars(toCents(p.casePrice))}`);
+  return parts.join(" · ");
 }

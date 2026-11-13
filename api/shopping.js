@@ -3,6 +3,7 @@ import { requireAccess, sellerName } from "./_lib/auth.js";
 import { listEmployees } from "./_lib/employees.js";
 import { UnreadableReceipt, readReceipt, readerReady } from "./_lib/receiptReader.js";
 import { parseAccess } from "./_lib/permissions.js";
+import { PRODUCTS_SHEET, cleanProductId, isUploadedPhoto, newProductId, productFields, publicProduct } from "./_lib/products.js";
 import { sheetdbBase, sheetdbHeaders } from "./_lib/sheetdb.js";
 import {
   BadRequest,
@@ -18,6 +19,7 @@ import {
   newListId,
   publicList,
   receiptsOf,
+  seesPrices,
 } from "./_lib/shopping.js";
 
 // Vercel serverless function: shopping lists and their receipt photos.
@@ -29,8 +31,11 @@ import {
 // "manage", or the owner) make, change and delete lists and see them all;
 // everyone else sees only lists given to them or to anyone.
 //
-//   GET  ?action=list                    → { lists, people, manager, photos }
+//   GET  ?action=list                    → { lists, products, people, manager, photos, reader, catalog }
 //   GET  ?action=receipt&id=…&path=…     → the photo itself
+//   GET  ?action=productPhoto&id=…       → an uploaded product picture
+//   POST { action: "saveProduct", product, image? }   manager (new if no product.id)
+//   POST { action: "deleteProduct", id }  manager
 //   POST { action: "create", list }      manager
 //   POST { action: "edit", id, list }    manager
 //   POST { action: "delete", id }        manager (photos too)
@@ -74,6 +79,24 @@ async function findRow(id) {
 async function patchRow(id, fields) {
   await sheetdb(rowPath(id), { method: "PATCH", body: JSON.stringify({ data: { ...fields, UpdatedAt: new Date().toISOString() } }) });
 }
+
+// The product catalog (api/_lib/products.js). null when the sheet has no
+// Products tab yet, so lists still work without it.
+async function productRows() {
+  try {
+    const rows = await sheetdb(`?sheet=${PRODUCTS_SHEET}`, { method: "GET" });
+    return (Array.isArray(rows) ? rows : []).filter((r) => r && r.ProductId && r.Name);
+  } catch {
+    return null;
+  }
+}
+
+async function findProduct(id) {
+  const rows = await sheetdb(`/search?ProductId=${encodeURIComponent(id)}&sheet=${PRODUCTS_SHEET}`, { method: "GET" });
+  return (Array.isArray(rows) ? rows : []).find((r) => r.ProductId === id) || null;
+}
+
+const productPath = (id) => `/ProductId/${encodeURIComponent(id)}?sheet=${PRODUCTS_SHEET}`;
 
 class NotFound extends Error {}
 class Forbidden extends Error {}
@@ -145,10 +168,29 @@ export default async function handler(req, res) {
       const params = new URL(req.url, "http://localhost").searchParams;
       const action = params.get("action");
       if (action === "receipt") return await sendPhoto(res, session, params);
+      if (action === "productPhoto") {
+        const product = await findProduct(cleanProductId(params.get("id")));
+        if (!product || !isUploadedPhoto(product.Photo, product.ProductId)) throw new NotFound();
+        const blob = await get(product.Photo, { access: "private" });
+        if (!blob || blob.statusCode !== 200) throw new NotFound();
+        res.statusCode = 200;
+        res.setHeader("Content-Type", blob.blob.contentType || "image/webp");
+        res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+        return res.end(Buffer.from(await new Response(blob.stream).arrayBuffer()));
+      }
       if (action !== "list") throw new BadRequest("Unknown action");
-      const rows = (await allRows()).filter((r) => canSee(session, r));
+      const [rows, products] = await Promise.all([allRows(), productRows()]);
       const people = manager ? await shoppers().catch(() => []) : [];
-      return res.status(200).json({ lists: rows.map((r) => publicList(r, session)), people, manager, photos: photosReady(), reader: photosReady() && readerReady() });
+      const prices = seesPrices(session);
+      return res.status(200).json({
+        lists: rows.filter((r) => canSee(session, r)).map((r) => publicList(r, session)),
+        products: (products || []).map((r) => publicProduct(r, { prices })).sort((a, b) => a.name.localeCompare(b.name)),
+        catalog: products !== null,
+        people,
+        manager,
+        photos: photosReady(),
+        reader: photosReady() && readerReady(),
+      });
     }
 
     if (req.method !== "POST") {
@@ -166,6 +208,35 @@ export default async function handler(req, res) {
       const row = { ListId: id, ...(await listFields(body.list)), Status: "Open", Spent: "", Receipts: "[]", CreatedBy: who, CreatedAt: now, UpdatedAt: now, DoneBy: "", DoneAt: "" };
       await sheetdb(`?sheet=${SHEET}`, { method: "POST", body: JSON.stringify({ data: [row] }) });
       return res.status(200).json({ ok: true, list: publicList(row, session) });
+    }
+
+    if (body.action === "saveProduct") {
+      if (!manager) throw new Forbidden("Only a manager can change the catalog.");
+      const fields = productFields(body.product);
+      const existing = body.product?.id ? await findProduct(cleanProductId(body.product.id)) : null;
+      if (body.product?.id && !existing) throw new NotFound();
+      const id = existing ? existing.ProductId : newProductId();
+      let photo = existing?.Photo || "";
+      if (body.image) {
+        if (!photosReady()) throw new BadRequest("Photo storage isn't set up yet.");
+        const image = decodeImage(body.image);
+        const blob = await put(`products/${id}/photo.${image.ext}`, image.buffer, { access: "private", contentType: image.contentType, addRandomSuffix: true });
+        if (isUploadedPhoto(photo, id)) await del(photo).catch((err) => console.error("shopping: couldn't delete old product photo", err));
+        photo = blob.pathname;
+      }
+      const row = { ...fields, Photo: photo, UpdatedAt: now };
+      if (existing) await sheetdb(productPath(id), { method: "PATCH", body: JSON.stringify({ data: row }) });
+      else await sheetdb(`?sheet=${PRODUCTS_SHEET}`, { method: "POST", body: JSON.stringify({ data: [{ ProductId: id, ...row }] }) });
+      return res.status(200).json({ ok: true, product: publicProduct({ ProductId: id, ...row }, { prices: true }) });
+    }
+
+    if (body.action === "deleteProduct") {
+      if (!manager) throw new Forbidden("Only a manager can change the catalog.");
+      const product = await findProduct(cleanProductId(body.id));
+      if (!product) throw new NotFound();
+      if (isUploadedPhoto(product.Photo, product.ProductId) && photosReady()) await del(product.Photo).catch((err) => console.error("shopping: couldn't delete product photo", err));
+      await sheetdb(productPath(product.ProductId), { method: "DELETE" }, { notFoundOk: true });
+      return res.status(200).json({ ok: true });
     }
 
     const id = cleanListId(body.id);

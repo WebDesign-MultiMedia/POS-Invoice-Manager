@@ -34,6 +34,19 @@ export const setItem = (id, itemId, { got, out }) => post({ action: "item", id, 
 export const addExtraItem = (id, name, qty) => post({ action: "addItem", id, name, qty });
 export const addReceipt = (id, image) => post({ action: "receipt", id, image });
 export const removeReceipt = (id, path) => post({ action: "removeReceipt", id, path });
+// Product catalog (managers). image: an optional new picture as a data URL.
+export const saveProduct = (product, image) => post({ action: "saveProduct", product, image });
+export const deleteProduct = (id) => post({ action: "deleteProduct", id });
+
+// A product's picture: shipped with the app ("/imgs/products/…"), or
+// uploaded from the app and served privately.
+export function productSrc(product) {
+  const photo = product?.photo || "";
+  if (!photo) return "";
+  if (photo.startsWith("/") || photo.startsWith("data:")) return photo;
+  return `${API}?action=productPhoto&id=${encodeURIComponent(product.id)}&v=${encodeURIComponent(photo.slice(-12))}`;
+}
+
 // Reads a saved photo with AI → { details, list }.
 export const readReceipt = (id, path) => post({ action: "readReceipt", id, path });
 export const finishTrip = (id, spent) => post({ action: "finish", id, spent });
@@ -42,6 +55,7 @@ export const finishTrip = (id, spent) => post({ action: "finish", id, spent });
 
 const demoPhotos = new Map();
 let demoLists = null;
+let demoProducts = null;
 const hex = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const later = (v) => new Promise((resolve) => setTimeout(() => resolve(clone(v)), 200));
@@ -85,13 +99,31 @@ function seedLists() {
   ];
 }
 
+// The demo's catalog: the two real products, so the pictures show.
+const seedProducts = () => [
+  { id: "p0d0e0m0o0b0b0q1", store: "Restaurant Depot", name: "Open Pit BBQ Sauce", size: "1 gallon (128 fl oz)", category: "Sauces", bin: "3002", itemNo: "25849", upc: "4300080603", unit: "each", price: "22.65", estEach: "", casePrice: "79.99", caseQty: "4", priceNote: "$0.18/fl oz single, $0.16/fl oz by the case", photo: "/imgs/products/open-pit-bbq-sauce-gallon.webp" },
+  { id: "p0d0e0m0o0b0e0f2", store: "Restaurant Depot", name: "Beef Top Sirloin Butts, USDA Select", size: "About 16 lb each", category: "Meat", bin: "60035", itemNo: "77004", upc: "2077004000", unit: "lb", price: "5.59", estEach: "89.44", casePrice: "", caseQty: "", priceNote: "Final cost by weight. $5.59/lb when buying 80 lb or more.", photo: "/imgs/products/beef-top-sirloin-butts-usda-select.webp" },
+];
+
 function demo(body) {
   if (!demoLists) demoLists = seedLists();
+  if (!demoProducts) demoProducts = seedProducts();
   const people = [{ phone: "5550100123", name: "Sample Employee" }];
-  if (body.action === "list") return later({ lists: demoLists, people, manager: true, photos: true, reader: true });
+  if (body.action === "list") return later({ lists: demoLists, products: demoProducts, catalog: true, people, manager: true, photos: true, reader: true });
+  if (body.action === "saveProduct") {
+    if (!String(body.product?.name || "").trim()) return Promise.reject(new ApiError(400, "Type the product's name."));
+    const old = demoProducts.find((p) => p.id === body.product.id);
+    const product = { ...(old || {}), ...body.product, id: old?.id || `p${hex(16)}`, photo: body.image || old?.photo || "" };
+    demoProducts = old ? demoProducts.map((p) => (p === old ? product : p)) : [...demoProducts, product];
+    return later({ ok: true, product });
+  }
+  if (body.action === "deleteProduct") {
+    demoProducts = demoProducts.filter((p) => p.id !== body.id);
+    return later({ ok: true });
+  }
   const now = new Date().toISOString();
   const cleanItems = (items) =>
-    (items || []).filter((i) => String(i.name || "").trim()).map((i) => ({ id: i.id || `i${hex(10)}`, name: i.name.trim(), qty: i.qty || "", note: i.note || "", price: i.price ? Number(i.price).toFixed(2) : "", got: !!i.got, out: !!i.out && !i.got, extra: !!i.extra }));
+    (items || []).filter((i) => String(i.name || "").trim()).map((i) => ({ id: i.id || `i${hex(10)}`, name: i.name.trim(), qty: i.qty || "", note: i.note || "", price: i.price ? Number(i.price).toFixed(2) : "", got: !!i.got, out: !!i.out && !i.got, extra: !!i.extra, productId: i.productId || "" }));
   const fields = (l) => ({ title: l.title.trim(), assignedTo: l.assignedTo || "", assignedName: people.find((p) => p.phone === l.assignedTo)?.name || "", items: cleanItems(l.items), notes: l.notes || "" });
   if (body.action === "create") {
     if (!String(body.list?.title || "").trim()) return Promise.reject(new ApiError(400, "Give the list a name, e.g. \"Restaurant Depot Friday\"."));

@@ -85,7 +85,9 @@ Tap the **cart** button. You see it only if the owner ticked **Shopping lists** 
 
 1. Press **New shopping list** and give it a name, e.g. *Restaurant Depot Friday*.
 2. Pick **Who's buying**, or leave it as *Anyone with Shopping lists*.
-3. Type one thing per line (press Enter for the next). You can also paste a whole list someone texted you. **How many** and **About $** are optional.
+3. Tap products from **the catalog** (tap again for one more), or type one thing per line (press Enter for the next). You can also paste a whole list someone texted you. **How many** and **About $** are optional.
+
+**The product catalog** (managers): press **Product catalog** to add the things you buy all the time, with a picture, price, bin and item number. Pictures look best square with a see-through background (PNG or WebP). At the store, each item shows its picture and **bin number** so it's quick to find.
 
 **At the store:**
 

@@ -5,7 +5,8 @@ import { SiteNav } from "../components/NavFab.jsx";
 import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip, loadShopping, readReceipt, receiptSrc, removeReceipt, reopenList, setItem } from "../api/shopping.js";
 import { useAuth } from "../lib/auth.jsx";
 import { friendlyMessage } from "../lib/errors.js";
-import { dollars, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
+import { CatalogManager, CatalogPicker, ProductThumb, whereToFind } from "../components/ProductCatalog.jsx";
+import { addProduct, dollars, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
 
 // Shopping lists. A manager (the owner, or an employee with Shopping lists
 // + "Can edit & delete") writes a list and gives it to someone, or to
@@ -23,9 +24,9 @@ const fail = (title, err, fallback) => Swal.fire({ ...ALERT, title, text: friend
 
 export default function ShoppingPage() {
   const { can } = useAuth();
-  const [data, setData] = useState({ lists: [], people: [], manager: false, photos: false, reader: false });
+  const [data, setData] = useState({ lists: [], products: [], catalog: false, people: [], manager: false, photos: false, reader: false });
   const [state, setState] = useState({ loading: true, error: "" });
-  // "home", { open: id } or { edit: id | null } (null = a new list).
+  // "home", "catalog", { open: id } or { edit: id | null } (null = a new list).
   const [view, setView] = useState("home");
 
   const load = useCallback(
@@ -48,6 +49,9 @@ export default function ShoppingPage() {
   // Swap in the server's copy of one list after a change.
   const replace = (list) => setData((d) => ({ ...d, lists: d.lists.some((l) => l.id === list.id) ? d.lists.map((l) => (l.id === list.id ? list : l)) : [...d.lists, list] }));
   const drop = (id) => setData((d) => ({ ...d, lists: d.lists.filter((l) => l.id !== id) }));
+  const sortByName = (list) => list.sort((a, b) => a.name.localeCompare(b.name));
+  const saveProductLocally = (p) => setData((d) => ({ ...d, products: sortByName(d.products.some((x) => x.id === p.id) ? d.products.map((x) => (x.id === p.id ? p : x)) : [...d.products, p]) }));
+  const dropProduct = (id) => setData((d) => ({ ...d, products: d.products.filter((x) => x.id !== id) }));
 
   const prices = data.manager || can("prices");
   const openList = typeof view === "object" && view.open ? data.lists.find((l) => l.id === view.open) : null;
@@ -74,10 +78,13 @@ export default function ShoppingPage() {
             <i className="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Try again
           </button>
         </div>
+      ) : view === "catalog" ? (
+        <CatalogManager products={data.products} photos={data.photos} onBack={goHome} onSaved={saveProductLocally} onDeleted={dropProduct} />
       ) : editing ? (
         <ListEditor
           list={view.edit ? data.lists.find((l) => l.id === view.edit) : null}
           people={data.people}
+          products={data.products}
           onCancel={() => (view.edit ? setView({ open: view.edit }) : goHome())}
           onSaved={(list) => {
             replace(list);
@@ -85,9 +92,9 @@ export default function ShoppingPage() {
           }}
         />
       ) : openList ? (
-        <TripView list={openList} manager={data.manager} prices={prices} photos={data.photos} reader={data.reader} onBack={goHome} onChange={replace} onEdit={() => setView({ edit: openList.id })} onDeleted={(id) => (drop(id), goHome())} />
+        <TripView list={openList} products={data.products} manager={data.manager} prices={prices} photos={data.photos} reader={data.reader} onBack={goHome} onChange={replace} onEdit={() => setView({ edit: openList.id })} onDeleted={(id) => (drop(id), goHome())} />
       ) : (
-        <Home data={data} prices={prices} onOpen={(id) => setView({ open: id })} onNew={() => setView({ edit: null })} onRefresh={load} />
+        <Home data={data} prices={prices} onOpen={(id) => setView({ open: id })} onNew={() => setView({ edit: null })} onCatalog={() => setView("catalog")} onRefresh={load} />
       )}
     </Layout>
   );
@@ -95,7 +102,7 @@ export default function ShoppingPage() {
 
 // ---------- the list of lists ----------
 
-function Home({ data, prices, onOpen, onNew, onRefresh }) {
+function Home({ data, prices, onOpen, onNew, onCatalog, onRefresh }) {
   const open = data.lists.filter((l) => l.status === "Open").sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const months = spendingByMonth(data.lists);
   const thisMonth = months.find((m) => m.key === monthKey(new Date().toISOString()));
@@ -111,6 +118,15 @@ function Home({ data, prices, onOpen, onNew, onRefresh }) {
           <button type="button" className={OUTLINE} onClick={onRefresh} aria-label="Refresh lists" title="Refresh lists">
             <i className="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
           </button>
+          {data.catalog ? (
+            <button type="button" className={`${OUTLINE} col-span-2`} onClick={onCatalog}>
+              <i className="fa-solid fa-store" aria-hidden="true"></i> Product catalog ({data.products.length})
+            </button>
+          ) : (
+            <p className="col-span-2 text-xs text-center text-brand-navydeep/70">
+              To pick things from a catalog instead of typing, add a tab named <strong>Products</strong> to the sheet.
+            </p>
+          )}
         </div>
       )}
 
@@ -203,7 +219,8 @@ function Home({ data, prices, onOpen, onNew, onRefresh }) {
 
 // ---------- one trip: check off, receipts, finish ----------
 
-function TripView({ list, manager, prices, photos, reader, onBack, onChange, onEdit, onDeleted }) {
+function TripView({ list, products = [], manager, prices, photos, reader, onBack, onChange, onEdit, onDeleted }) {
+  const productById = new Map(products.map((x) => [x.id, x]));
   const [busy, setBusy] = useState("");
   const [extra, setExtra] = useState({ name: "", qty: "" });
   const [spent, setSpent] = useState("");
@@ -365,7 +382,9 @@ function TripView({ list, manager, prices, photos, reader, onBack, onChange, onE
         </p>
 
         <ul className="flex flex-col divide-y divide-brand-navydeep/15">
-          {list.items.map((item) => (
+          {list.items.map((item) => {
+            const product = productById.get(item.productId);
+            return (
             <li key={item.id} className="py-2 flex items-start gap-3">
               <label className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer py-1">
                 <input
@@ -375,6 +394,7 @@ function TripView({ list, manager, prices, photos, reader, onBack, onChange, onE
                   disabled={locked}
                   onChange={() => mark(item, { got: !item.got, out: false })}
                 />
+                {product && <ProductThumb product={product} size="h-12 w-12" />}
                 <span className="min-w-0">
                   <span className={`block text-brand-navy break-words ${item.got ? "line-through opacity-60" : ""} ${item.out ? "opacity-60" : ""}`}>
                     {item.qty && <span className="font-semibold">{item.qty} </span>}
@@ -383,6 +403,11 @@ function TripView({ list, manager, prices, photos, reader, onBack, onChange, onE
                     {item.out && <span className="ml-2 rounded-full border border-brand-error/60 px-1.5 text-[10px] uppercase tracking-wide text-brand-error">Out of stock</span>}
                   </span>
                   {item.note && <span className="block text-xs text-brand-navydeep/75">{item.note}</span>}
+                  {product && whereToFind(product) && (
+                    <span className="block text-xs text-brand-teal">
+                      <i className="fa-solid fa-location-dot" aria-hidden="true"></i> {whereToFind(product)}
+                    </span>
+                  )}
                   {prices && item.price && <span className="block text-xs text-brand-navydeep/70">About {dollars(toCents(item.price))}</span>}
                 </span>
               </label>
@@ -398,7 +423,8 @@ function TripView({ list, manager, prices, photos, reader, onBack, onChange, onE
                 </button>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
         {prices && expected > 0 && <p className="text-xs text-right text-brand-navydeep/70">Expected about {dollars(expected)}</p>}
 
@@ -509,7 +535,7 @@ function TripView({ list, manager, prices, photos, reader, onBack, onChange, onE
 
 const blankRow = () => ({ key: Math.random().toString(36).slice(2), name: "", qty: "", price: "" });
 
-function ListEditor({ list, people, onCancel, onSaved }) {
+function ListEditor({ list, people, products = [], onCancel, onSaved }) {
   const [title, setTitle] = useState(list?.title || "");
   const [assignedTo, setAssignedTo] = useState(list?.assignedTo || "");
   const [notes, setNotes] = useState(list?.notes || "");
@@ -568,6 +594,14 @@ function ListEditor({ list, people, onCancel, onSaved }) {
     }
   };
 
+  // Tapping a catalog product adds it, or one more of it.
+  const pick = (product) => {
+    const kept = rows.filter((r) => !isBlank(r));
+    update(addProduct(kept, product).map((r) => (r.key ? r : { ...r, key: Math.random().toString(36).slice(2) })));
+  };
+  const counts = {};
+  for (const r of rows) if (r.productId) counts[r.productId] = Number(r.qty) > 0 ? Number(r.qty) : 1;
+
   const filled = rows.filter((r) => r.name.trim()).length;
   const pickable = people.some((p) => p.phone === assignedTo) || !assignedTo ? people : [...people, { phone: assignedTo, name: list?.assignedName || assignedTo }];
 
@@ -601,7 +635,8 @@ function ListEditor({ list, people, onCancel, onSaved }) {
         <legend className="field-label">
           <i className="fa-solid fa-list-check" aria-hidden="true"></i> What to buy {filled ? `(${filled})` : ""}
         </legend>
-        <p className="text-xs text-brand-navydeep/70 -mt-1">Press Enter for the next line. You can paste a whole list too, one thing per line.</p>
+        <CatalogPicker products={products} counts={counts} onPick={pick} />
+        <p className="text-xs text-brand-navydeep/70">{products.length ? "Or type it: press" : "Press"} Enter for the next line. You can paste a whole list too, one thing per line.</p>
         <div className="grid grid-cols-[minmax(0,1fr)_4.25rem_3.5rem_1.75rem] sm:grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_2rem] gap-1.5 sm:gap-2 text-[11px] uppercase tracking-wide text-brand-navydeep/70 px-1">
           <span>Item</span>
           <span>How many</span>
