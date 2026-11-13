@@ -4,7 +4,7 @@ import Swal from "sweetalert2";
 import { deleteProduct, productSrc, saveProduct } from "../api/shopping.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { isDemo } from "../lib/demo.js";
-import { defaultStore, productPriceLine, shrinkPhoto } from "../lib/shopping.js";
+import { defaultStore, productPriceLine, regularStores, shrinkPhoto } from "../lib/shopping.js";
 
 // The product catalog: things bought again and again (from a wholesale
 // store such as Restaurant Depot), so a shopping list can be made by tapping instead of typing.
@@ -243,7 +243,7 @@ export function CatalogManager({ products, photos, onBack, onSaved, onDeleted })
         product={editing}
         photos={photos}
         categories={search.categories}
-        stores={search.stores}
+        stores={[...new Set([...regularStores(), ...search.stores])].sort()}
         onCancel={() => setEditing(null)}
         onSaved={(p) => {
           onSaved(p);

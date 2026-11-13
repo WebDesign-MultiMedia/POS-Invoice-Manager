@@ -6,7 +6,7 @@ import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip,
 import { useAuth } from "../lib/auth.jsx";
 import { friendlyMessage } from "../lib/errors.js";
 import { CatalogManager, CatalogPicker, ZoomThumb, whereToFind } from "../components/ProductCatalog.jsx";
-import { addProduct, defaultStore, dollars, groupItemsByStore, parseTextList, storesOf, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
+import { addProduct, defaultStore, dollars, groupItemsByStore, parseTextList, regularStores, storesOf, expectedCents, itemsFromText, monthKey, progress, shrinkPhoto, spendingByMonth, toCents } from "../lib/shopping.js";
 
 // Shopping lists. A manager (the owner, or an employee with Shopping lists
 // + "Can edit & delete") writes a list and gives it to someone, or to
@@ -621,7 +621,7 @@ function ListEditor({ list, people, products = [], manager = true, prices = true
   const removeRow = (key) => update(rows.filter((r) => r.key !== key));
 
   // Stores to pick from: the catalog's, plus any already on this list.
-  const knownStores = [...new Set([...products.map((p) => String(p.store || "").trim() || defaultStore()), ...stops])].sort();
+  const knownStores = [...new Set([...regularStores(), ...products.map((p) => String(p.store || "").trim() || defaultStore()), ...stops])].sort();
   const addStop = (store) => {
     const name = String(store || "").replace(/\s+/g, " ").trim();
     if (!name) return;

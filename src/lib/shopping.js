@@ -7,6 +7,12 @@ import { isDemo } from "./demo.js";
 export const DEMO_STORE = "Demo Wholesale Club";
 export const defaultStore = () => (isDemo() ? DEMO_STORE : "Restaurant Depot");
 
+// The stores the business buys from regularly: always offered as buttons
+// when making a list, even before they have catalog products.
+const REGULAR_STORES = ["Restaurant Depot", "Lucero Produce", "Reyes Produce"];
+const DEMO_REGULAR_STORES = [DEMO_STORE, "Corner Produce"];
+export const regularStores = () => (isDemo() ? DEMO_REGULAR_STORES : REGULAR_STORES);
+
 // Typed or pasted lines → items. "2 cases tomatoes", "Tomatoes - 2 cases",
 // "2x Tomatoes" and "Tomatoes x2" all become { name, qty }. A line that's
 // just a name has no qty. Bullets and numbering ("1.", "-", "•") are dropped.
@@ -204,9 +210,13 @@ function storeFromLine(line, knownStores) {
   s = s.replace(/^(?:at|from|en|para|@)\s+/i, "").trim();
   if (!s) return null;
   const key = plain(s);
-  const known = [...knownStores, ...COMMON_STORES].find((st) => plain(st) === key);
+  const all = [...knownStores, ...regularStores(), ...COMMON_STORES];
+  const known = all.find((st) => plain(st) === key);
   if (known) return known;
   if (STORE_ALIASES[key]) return knownStores.find((st) => plain(st) === plain(STORE_ALIASES[key])) || STORE_ALIASES[key];
+  // A store's first word alone ("Lucero", "Reyes") when only one store starts with it.
+  const byFirstWord = [...new Set(all)].filter((st) => plain(st.split(/\s+/)[0]) === key && st.split(/\s+/).length > 1);
+  if (byFirstWord.length === 1) return byFirstWord[0];
   // An unknown store is only trusted when written as a heading ("Jetro:"),
   // and never when it has a number in it ("2 cases tomatoes:").
   return heading && !/\d/.test(s) && s.length <= 40 && s.split(/\s+/).length <= 5 ? s : null;

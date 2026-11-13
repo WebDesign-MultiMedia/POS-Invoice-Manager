@@ -136,3 +136,11 @@ describe("pasting a list texted by the manager", () => {
     expect(sections).toEqual([{ store: "", items: [expect.objectContaining({ name: "ice" }), expect.objectContaining({ name: "tomatoes", qty: "2 cases" }), expect.objectContaining({ name: "onions" })] }]);
   });
 });
+
+describe("the business's regular stores", () => {
+  it("are recognized when pasting, by full name or first word", () => {
+    const read = (text) => parseTextList(text, { stores: [], products: [] }).map((s) => s.store);
+    expect(read("Lucero Produce:\ncilantro\nReyes\nlimes")).toEqual(["Lucero Produce", "Reyes Produce"]);
+    expect(read("lucero\nonions")).toEqual(["Lucero Produce"]);
+  });
+});
