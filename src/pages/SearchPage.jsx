@@ -5,10 +5,12 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { fetchAllOrders, fetchAllCardPayments } from "../api/sheetdb.js";
-import { formatDate, formatLongDate, formatMoney, parseStoredDate, escapeRegex } from "../lib/format.js";
+import { formatDate, formatLongDate, formatMoney, parseStoredDate, escapeRegex, toDateInput } from "../lib/format.js";
 import { parseCardPaymentOrder } from "../lib/menu.js";
 import { isDemo } from "../lib/demo.js";
 import { friendlyMessage } from "../lib/errors.js";
+import { ordersNewestFirst } from "../lib/recentOrder.js";
+import OrderTypeTotals from "../components/OrderTypeTotals.jsx";
 
 const SEARCH_FIELDS = {
   Contact: { label: "Phone number", icon: "fa-phone", type: "text", placeholder: "e.g. 555-0100" },
@@ -59,6 +61,18 @@ export default function SearchPage() {
   // Which sheet `results` came from, so the right card renders even if the
   // dropdown changes after a search.
   const [resultSource, setResultSource] = useState("orders");
+  // Set when a totals card listed its orders, e.g. "Catering · 2026".
+  const [resultsTitle, setResultsTitle] = useState("");
+
+  const showTypeOrders = (title, orders, { soonestFirst = false } = {}) => {
+    // Newest order date first; same-day orders by order number.
+    const byDate = ordersNewestFirst(orders).sort((x, y) => toDateInput(y.Date).localeCompare(toDateInput(x.Date)));
+    setResults(soonestFirst ? orders : byDate);
+    setResultSource("orders");
+    setResultsTitle(title);
+    setStatus("idle");
+    requestAnimationFrame(() => document.getElementById("searchResults")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
 
   const config = SEARCH_FIELDS[field];
 
@@ -83,6 +97,7 @@ export default function SearchPage() {
       const data = source === "cardPayments" ? await fetchAllCardPayments() : await fetchAllOrders();
       setResults(filterOrders(data, field, effectiveQuery));
       setResultSource(source);
+      setResultsTitle("");
       setStatus("idle");
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -135,7 +150,19 @@ export default function SearchPage() {
         </button>
       </TiltCard>
 
-      <div id="searchResults" className="w-full max-w-4xl mt-8 grid gap-4 sm:grid-cols-2" aria-live="polite">
+      <OrderTypeTotals onShowOrders={showTypeOrders} />
+
+      <div id="searchResults" className="w-full max-w-4xl mt-8 grid gap-4 sm:grid-cols-2 scroll-mt-4" aria-live="polite">
+        {status === "idle" && resultsTitle && results !== null && (
+          <div className="col-span-full flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-brand-navy">
+              {resultsTitle} ({results.length})
+            </h2>
+            <button type="button" className="underline font-semibold text-sm text-brand-navy" onClick={() => { setResults(null); setResultsTitle(""); }}>
+              Clear
+            </button>
+          </div>
+        )}
         {status === "loading" && (
           <div className="col-span-full flex flex-col items-center gap-3 py-10 text-brand-muted/90">
             <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-gold"></i>
@@ -285,6 +312,12 @@ export default function SearchPage() {
                 <p>
                   <i className="fa-solid fa-location-dot text-brand-coral w-5"></i> {order.Address ?? ""}
                 </p>
+                {order.PickupDelivery && (
+                  <p>
+                    <i className="fa-solid fa-truck-fast text-brand-teal w-5"></i> {order.PickupDelivery}
+                    {order.DueDate ? ` · due ${[formatLongDate(order.DueDate), order.DueTime].filter(Boolean).join(" at ")}` : ""}
+                  </p>
+                )}
                 <p>
                   <i className="fa-solid fa-clipboard-list text-brand-terracotta w-5"></i> {order.Items ?? ""}
                 </p>
@@ -293,7 +326,7 @@ export default function SearchPage() {
                 <span className="text-xs uppercase tracking-wide text-brand-muted/90">
                   <i className="fa-solid fa-wallet"></i> {order.Payment ?? ""}
                 </span>
-                <span className="text-lg font-bold text-brand-navy">${order.Cost ?? "0"}</span>
+                <span className="text-lg font-bold text-brand-navy">{formatMoney(order.Cost) || order.Cost || "$0"}</span>
               </div>
               <Link
                 to={`/invoice?id=${encodeURIComponent(order.Id ?? "")}`}
