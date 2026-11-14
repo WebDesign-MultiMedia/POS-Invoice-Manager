@@ -14,7 +14,7 @@ import { useAuth } from "../lib/auth.jsx";
 import ZelleQrCard from "../components/ZelleQrCard.jsx";
 import TextReceiptButton from "../components/TextReceipt.jsx";
 import { fetchZelleAlerts } from "../api/zelle.js";
-import { toNumber, formatMoney, formatCardLabel, getCurrentDateTime } from "../lib/format.js";
+import { toNumber, formatMoney, formatCardLabel, formatLongDate, getCurrentDateTime } from "../lib/format.js";
 import { formatCartLine, qtyStep } from "../lib/menu.js";
 import { getBrand, getMenu } from "../lib/brand.js";
 import { getStripe } from "../lib/stripeClient.js";
@@ -1188,7 +1188,7 @@ function UnpaidSales({ rows, payingId, editingId, onPay, onEdit, onDeleted, wide
         {unpaid.map((s) => (
           <li key={s.SaleId} className="py-2.5 first:pt-0 last:pb-0 flex flex-col gap-1">
             <SaleHeader name={s.Name || "No name"} total={s.Total || s.Amount} />
-            <SaleMeta parts={[s.Date !== getCurrentDateTime().date ? s.Date : "", s.Time, s.Note]} soldBy={s.SoldBy} />
+            <SaleMeta parts={[s.Date !== getCurrentDateTime().date ? formatLongDate(s.Date) : "", s.Time, s.Note]} soldBy={s.SoldBy} />
             <SaleItems items={s.Items} />
             <div className={`grid ${can("manage") ? "grid-cols-3" : "grid-cols-2"} gap-2 mt-1`}>
               <button type="button" className="btn-3d !py-2 !px-2 text-sm justify-center disabled:opacity-60" disabled={payingId === s.SaleId} onClick={() => onPay(s)}>

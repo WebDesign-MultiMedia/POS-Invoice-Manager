@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { isCatering } from "../lib/orderOptions.js";
-import { formatMoney } from "../lib/format.js";
+import { formatLongDate, formatMoney } from "../lib/format.js";
 import { isDemo } from "../lib/demo.js";
 import { deleteCardPayment, updateCardPayment } from "../api/sheetdb.js";
 import { saleToOrderForm } from "../lib/saleToOrder.js";
@@ -93,7 +93,7 @@ function PaymentRow({ payment: p, onUpdated, onDeleted }) {
           <OrderTypeTag type={invoiceId ? p.OrderType : "Walk-up"} />
         </div>
         <p className="text-sm text-brand-navydeep/80">
-          {[p.Date, p.Time].filter(Boolean).join(" · ")}
+          {[formatLongDate(p.Date), p.Time].filter(Boolean).join(" · ")}
           {p.InvoiceId ? ` · ${invoiceId ? `Invoice #${invoiceId}` : `Order ID ${p.InvoiceId}`}` : ""}
         </p>
         {card && <p className="text-xs text-brand-navydeep/70">{card}</p>}

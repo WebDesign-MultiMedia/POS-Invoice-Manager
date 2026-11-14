@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { time12Hour, toTimeInput } from "../src/lib/format.js";
+import { formatLongDate, time12Hour, toTimeInput } from "../src/lib/format.js";
 import { isCatering, isSetupCatering } from "../src/lib/orderOptions.js";
 
 describe("order form options", () => {
@@ -16,5 +16,12 @@ describe("order form options", () => {
     expect(isCatering("Delivery")).toBe(false);
     expect(isSetupCatering("Catering - Setup & pickup later")).toBe(true);
     expect(isSetupCatering("Catering - Drop-off")).toBe(false);
+  });
+
+  it("dates read with the month in words", () => {
+    expect(formatLongDate("11/13/2026")).toBe("November 13, 2026");
+    expect(formatLongDate("1/5/2027")).toBe("January 5, 2027");
+    expect(formatLongDate("13/01/2026")).toBe("13/01/2026");
+    expect(formatLongDate("")).toBe("");
   });
 });

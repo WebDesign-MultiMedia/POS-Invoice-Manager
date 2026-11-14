@@ -15,7 +15,7 @@ const FIELDS = [
   { key: "eventDate", label: "Event date", icon: "fa-calendar-days", type: "date" },
 ];
 
-const when = (iso) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const when = (iso) => new Date(iso).toLocaleString(undefined, { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 
 // Saved quotes under the calculator, newest first. Each one keeps the
 // dishes and total from "=", takes the client's details, and can open the

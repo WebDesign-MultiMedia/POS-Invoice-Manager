@@ -5,7 +5,7 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { deleteOrder, fetchAllOrders, submitOrder, updateOrder } from "../api/sheetdb.js";
-import { getCurrentDateTime, getTotalQuantity, formatDate, formatMoney, time12Hour, toDateInput, toNumber, toTimeInput } from "../lib/format.js";
+import { getCurrentDateTime, getTotalQuantity, formatDate, formatLongDate, formatMoney, time12Hour, toDateInput, toNumber, toTimeInput } from "../lib/format.js";
 import { ORDER_TYPES, PAYMENT_OPTIONS, isCatering, isSetupCatering } from "../lib/orderOptions.js";
 import { findSubmittedOrder, ordersNewestFirst } from "../lib/recentOrder.js";
 import { getBrand } from "../lib/brand.js";
@@ -304,7 +304,7 @@ export default function OrderFormPage() {
 
         {editing && (
           <p role="status" className="glass-panel p-3 mb-5 text-sm text-center">
-            <i className="fa-solid fa-pen" aria-hidden="true"></i> Editing the order saved {[editing.Date, editing.Time].filter(Boolean).join(" at ")}. Change what you need, then press Save changes.
+            <i className="fa-solid fa-pen" aria-hidden="true"></i> Editing the order saved {[formatLongDate(editing.Date), editing.Time].filter(Boolean).join(" at ")}. Change what you need, then press Save changes.
           </p>
         )}
 
@@ -430,7 +430,12 @@ export default function OrderFormPage() {
             <label htmlFor="DueDate" className="field-label">
               <i className="fa-solid fa-calendar-days"></i> Due Date <span className="normal-case text-brand-muted/90">(optional)</span>
             </label>
-            <input type="date" name="DueDate" id="DueDate" className="input-3d w-full" value={form.DueDate} onChange={setField("DueDate")} />
+            <input type="date" name="DueDate" id="DueDate" className="input-3d w-full" value={form.DueDate} onChange={setField("DueDate")} aria-describedby="DueDateLong" />
+            {form.DueDate && (
+              <p id="DueDateLong" className="mt-1 text-sm text-center font-semibold text-brand-navy">
+                {formatLongDate(formatDate(form.DueDate))}
+              </p>
+            )}
           </div>
           <div className="field-group">
             <label htmlFor="DueTime" className="field-label">
@@ -530,7 +535,7 @@ function RecentOrderRow({ order, editing, onEdit, onDelete }) {
           #{order.Id} · {order.Name || "No name"}
         </p>
         <p className="text-sm text-brand-navydeep/80">
-          {[order.Date, order.Time].filter(Boolean).join(" · ")}
+          {[formatLongDate(order.Date), order.Time].filter(Boolean).join(" · ")}
           {order.PickupDelivery ? ` · ${order.PickupDelivery}` : ""}
           {items ? ` · ${items} item${items === 1 ? "" : "s"}` : ""}
           {order.Cost !== undefined && order.Cost !== "" ? ` · ${formatMoney(toNumber(order.Cost))}` : ""}

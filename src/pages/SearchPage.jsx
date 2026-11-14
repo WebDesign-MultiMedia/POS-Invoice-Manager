@@ -5,7 +5,7 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { fetchAllOrders, fetchAllCardPayments } from "../api/sheetdb.js";
-import { formatDate, formatMoney, parseStoredDate, escapeRegex } from "../lib/format.js";
+import { formatDate, formatLongDate, formatMoney, parseStoredDate, escapeRegex } from "../lib/format.js";
 import { parseCardPaymentOrder } from "../lib/menu.js";
 import { isDemo } from "../lib/demo.js";
 import { friendlyMessage } from "../lib/errors.js";
@@ -170,7 +170,7 @@ export default function SearchPage() {
                   <i className="fa-solid fa-receipt"></i> {payment.InvoiceId || "No Order ID"}
                 </span>
                 <span className="text-sm text-brand-muted/90 whitespace-nowrap">
-                  <i className="fa-solid fa-calendar-days"></i> {payment.Date} {payment.Time}
+                  <i className="fa-solid fa-calendar-days"></i> {formatLongDate(payment.Date)} {payment.Time}
                 </span>
               </div>
               <div className="space-y-1.5 text-sm text-brand-navydeep">
@@ -272,7 +272,7 @@ export default function SearchPage() {
                   <i className="fa-solid fa-hashtag"></i> {order.Id ?? ""}
                 </span>
                 <span className="text-sm text-brand-muted/90">
-                  <i className="fa-solid fa-calendar-days"></i> {order.Date ?? ""}
+                  <i className="fa-solid fa-calendar-days"></i> {formatLongDate(order.Date)}
                 </span>
               </div>
               <div className="space-y-1.5 text-sm text-brand-navydeep">

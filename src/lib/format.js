@@ -110,3 +110,13 @@ export function toTimeInput(saved) {
   if (/p/i.test(m[3])) hour += 12;
   return `${String(hour).padStart(2, "0")}:${m[2]}`;
 }
+
+// A saved "MM/DD/YYYY" as "November 13, 2026". Anything else is returned
+// as it was.
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+export function formatLongDate(saved) {
+  const text = String(saved || "").trim();
+  const m = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const month = m && MONTHS[Number(m[1]) - 1];
+  return month ? `${month} ${Number(m[2])}, ${m[3]}` : text;
+}

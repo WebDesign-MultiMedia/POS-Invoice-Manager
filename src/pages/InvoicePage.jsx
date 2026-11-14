@@ -5,7 +5,7 @@ import html2canvas from "html2canvas";
 import Layout from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { getInvoiceById, getCardPaymentsForInvoice, getShareToken, getSharedInvoice } from "../api/sheetdb.js";
-import { toNumber, formatMoney, splitItems } from "../lib/format.js";
+import { toNumber, formatMoney, formatLongDate, splitItems } from "../lib/format.js";
 import { getBrand } from "../lib/brand.js";
 import { copyText } from "../lib/clipboard.js";
 import { friendlyMessage } from "../lib/errors.js";
@@ -279,16 +279,16 @@ export default function InvoicePage() {
             </p>
           </header>
 
-          {/* Receipt #, date, time, order type: label over the bold value */}
+          {/* Receipt #, date, order type, due/drop-off: label over the bold value.
+              The time the order was taken stays in the sheet, not here. */}
           <dl
-            className={`relative grid ${invoice?.DueDate || invoice?.DueTime ? "grid-cols-5" : "grid-cols-4"} gap-1 ml-6 mr-[30px] sm:ml-[49px] sm:mr-[60px] mt-[5px] sm:mt-2 text-[10px] sm:text-[15px] text-center uppercase print:gap-[0.569cqw] print:ml-[6.9701cqw] print:mr-[8.5349cqw] print:mt-[1.138cqw] print:text-[2.1337cqw]`}
+            className={`relative grid ${invoice?.DueDate || invoice?.DueTime ? "grid-cols-4" : "grid-cols-3"} gap-1 ml-6 mr-[30px] sm:ml-[49px] sm:mr-[60px] mt-[5px] sm:mt-2 text-[10px] sm:text-[15px] text-center uppercase print:gap-[0.569cqw] print:ml-[6.9701cqw] print:mr-[8.5349cqw] print:mt-[1.138cqw] print:text-[2.1337cqw]`}
           >
             {[
               ["Receipt #", invoice?.Id],
-              ["Date", invoice?.Date],
-              ["Time", invoice?.Time],
+              ["Date", invoice ? formatLongDate(invoice.Date) : ""],
               ["Order type", invoice?.PickupDelivery || (invoice ? "—" : "")],
-              ...(invoice?.DueDate || invoice?.DueTime ? [[isCatering(invoice.PickupDelivery) ? "Drop-off" : "Due date", [invoice.DueDate, invoice.DueTime].filter(Boolean).join(" ")]] : []),
+              ...(invoice?.DueDate || invoice?.DueTime ? [[isCatering(invoice.PickupDelivery) ? "Drop-off" : "Due date", [formatLongDate(invoice.DueDate), invoice.DueTime].filter(Boolean).join(" · ")]] : []),
             ].map(([label, value]) => (
               <div key={label} className="flex flex-col items-center">
                 <dt className="whitespace-nowrap">
@@ -434,7 +434,7 @@ export default function InvoicePage() {
                   <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-0.5 px-1.5 sm:px-3 print:py-[0.2845cqw] print:px-[1.707cqw]">
                     <div className="flex justify-between gap-2 print:gap-[1.138cqw]">
                       <span>
-                        {p.Funding === "debit" ? "Debit" : "Credit"} card payment{p.Card ? ` (${p.Card})` : ""} · {p.Date}
+                        {p.Funding === "debit" ? "Debit" : "Credit"} card payment{p.Card ? ` (${p.Card})` : ""} · {formatLongDate(p.Date)}
                       </span>
                       <span>-{formatMoney(p.Amount)}</span>
                     </div>
