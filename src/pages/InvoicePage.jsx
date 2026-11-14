@@ -10,7 +10,6 @@ import { getBrand } from "../lib/brand.js";
 import { copyText } from "../lib/clipboard.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { invoiceBalance } from "../lib/totals.js";
-import { isCatering } from "../lib/orderOptions.js";
 
 export default function InvoicePage() {
   const [searchParams] = useSearchParams();
@@ -282,16 +281,17 @@ export default function InvoicePage() {
             </p>
           </header>
 
-          {/* Receipt #, date, order type, due/drop-off: label over the bold value.
-              The time the order was taken stays in the sheet, not here. */}
+          {/* Receipt #, order type, due date and time (Figma 42:10): label
+              over the bold value. The day the order was taken stays in the
+              sheet, not here. */}
           <dl
-            className={`relative grid ${invoice?.DueDate || invoice?.DueTime ? "grid-cols-4" : "grid-cols-3"} gap-1 ml-6 mr-[30px] sm:ml-[49px] sm:mr-[60px] mt-[5px] sm:mt-2 text-[10px] sm:text-[15px] text-center uppercase print:gap-[0.569cqw] print:ml-[6.9701cqw] print:mr-[8.5349cqw] print:mt-[1.138cqw] print:text-[2.1337cqw]`}
+            className="relative grid grid-cols-4 gap-1 ml-6 mr-[30px] sm:ml-[30px] sm:mr-[20px] mt-[5px] sm:mt-2 text-[10px] sm:text-[15px] text-center uppercase print:gap-[0.569cqw] print:ml-[4.2674cqw] print:mr-[2.845cqw] print:mt-[1.138cqw] print:text-[2.1337cqw]"
           >
             {[
               [t.receipt, invoice?.Id, "receipt"],
-              [t.date, invoice ? formatLongDate(invoice.Date) : ""],
               [t.orderType, invoice?.PickupDelivery || (invoice ? "—" : "")],
-              ...(invoice?.DueDate || invoice?.DueTime ? [[isCatering(invoice.PickupDelivery) ? "Drop-off" : t.dueDate, [formatLongDate(invoice.DueDate), invoice.DueTime].filter(Boolean).join("\n")]] : []),
+              [t.dueDate, invoice?.DueDate ? formatLongDate(invoice.DueDate) : invoice ? "—" : ""],
+              [t.time, invoice?.DueTime || (invoice ? "—" : "")],
             ].map(([label, value, key]) => (
               <div key={label} className="flex flex-col items-center">
                 <dt className="leading-tight">
@@ -502,9 +502,9 @@ export default function InvoicePage() {
 const INVOICE_TEXT = {
   es: {
     receipt: "Recibo #",
-    date: "Fecha",
     orderType: "Tipo de pedido",
-    dueDate: "Fecha de entrega",
+    dueDate: "Fechas límite",
+    time: "Tiempo",
     qty: "Qty",
     description: "Descripción",
     amount: "Cantidad",
@@ -521,9 +521,9 @@ const INVOICE_TEXT = {
   },
   en: {
     receipt: "Receipt #",
-    date: "Date",
     orderType: "Order type",
     dueDate: "Due date",
+    time: "Time",
     qty: "Qty",
     description: "Description",
     amount: "Amount",
