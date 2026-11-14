@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isCatering } from "../lib/orderOptions.js";
 import { formatMoney } from "../lib/format.js";
 import { isDemo } from "../lib/demo.js";
 import { deleteCardPayment, updateCardPayment } from "../api/sheetdb.js";
@@ -129,7 +130,7 @@ function OrderTypeTag({ type }) {
   if (!type) return null;
   return (
     <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-brand-navydeep/25 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-navydeep/90">
-      <i className={`fa-solid ${TYPE_ICONS[type] || "fa-tag"}`} aria-hidden="true"></i> {type}
+      <i className={`fa-solid ${TYPE_ICONS[type] || (isCatering(type) ? "fa-utensils" : "fa-tag")}`} aria-hidden="true"></i> {type}
     </span>
   );
 }

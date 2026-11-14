@@ -5,7 +5,8 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { deleteOrder, fetchAllOrders, submitOrder, updateOrder } from "../api/sheetdb.js";
-import { getCurrentDateTime, getTotalQuantity, formatDate, formatMoney, toDateInput, toNumber } from "../lib/format.js";
+import { getCurrentDateTime, getTotalQuantity, formatDate, formatMoney, time12Hour, toDateInput, toNumber, toTimeInput } from "../lib/format.js";
+import { ORDER_TYPES, PAYMENT_OPTIONS, isCatering, isSetupCatering } from "../lib/orderOptions.js";
 import { findSubmittedOrder, ordersNewestFirst } from "../lib/recentOrder.js";
 import { getBrand } from "../lib/brand.js";
 import { useAuth } from "../lib/auth.jsx";
@@ -23,6 +24,7 @@ const INITIAL_FORM = {
   Deposit: "0",
   Items: "",
   DueDate: "",
+  DueTime: "",
   Notes: "",
 };
 
@@ -42,6 +44,7 @@ function orderToForm(order) {
   const form = {};
   for (const key of Object.keys(INITIAL_FORM)) form[key] = String(order[key] ?? "");
   form.DueDate = toDateInput(order.DueDate);
+  form.DueTime = toTimeInput(order.DueTime);
   return form;
 }
 
@@ -191,9 +194,11 @@ export default function OrderFormPage() {
       DueDate: form.DueDate ? formatDate(form.DueDate) : "",
       Notes: form.Notes,
     };
+    // Sent only when set, or when clearing it on an edit.
+    if (form.DueTime || editing?.DueTime) data.DueTime = form.DueTime ? time12Hour(form.DueTime) : "";
 
-    // DueDate and Notes are optional, so they're excluded from the required-fields check.
-    const { DueDate: _dueDate, Notes: _notes, ...requiredData } = data;
+    // DueDate, DueTime and Notes are optional, so they're excluded from the required-fields check.
+    const { DueDate: _dueDate, DueTime: _dueTime, Notes: _notes, ...requiredData } = data;
     const hasBlank = Object.values(requiredData).some((v) => !v);
 
     if (hasBlank) {
@@ -356,7 +361,7 @@ export default function OrderFormPage() {
             </label>
             <select name="PickupDelivery" id="PickupDelivery" className={fieldClass(form.PickupDelivery, validated)} value={form.PickupDelivery} onChange={setField("PickupDelivery")}>
               <option value="">Type</option>
-              {withCurrent(["Delivery", "Pick-up", "Catering"], form.PickupDelivery).map((v) => (
+              {withCurrent(ORDER_TYPES, form.PickupDelivery).map((v) => (
                 <option key={v} value={v}>
                   {v}
                 </option>
@@ -375,7 +380,7 @@ export default function OrderFormPage() {
             </label>
             <select id="Payment" name="Payment" className={fieldClass(form.Payment, validated)} value={form.Payment} onChange={setField("Payment")}>
               <option value="">Paid w/</option>
-              {withCurrent(["Cash", "Zelle", "Card"], form.Payment).map((v) => (
+              {withCurrent(PAYMENT_OPTIONS, form.Payment).map((v) => (
                 <option key={v} value={v}>
                   {v}
                 </option>
@@ -408,12 +413,31 @@ export default function OrderFormPage() {
             .
           </p>
         )}
+        {form.Payment === "Pending" && (
+          <p className="glass-panel p-3 mb-5 text-sm text-center">
+            <i className="fa-solid fa-hourglass-half" aria-hidden="true"></i> Not paid yet. Edit the order and pick how they paid once the money comes in.
+          </p>
+        )}
+        {isSetupCatering(form.PickupDelivery) && (
+          <p className="glass-panel p-3 mb-5 text-sm text-center">
+            <i className="fa-solid fa-fire-burner" aria-hidden="true"></i> We set up and come back later for the chafing racks, trays, utensils and chafing covers. Add the pickup time in Notes.
+          </p>
+        )}
 
-        <div className="field-group mb-5">
-          <label htmlFor="DueDate" className="field-label">
-            <i className="fa-solid fa-calendar-days"></i> Due Date <span className="normal-case text-brand-muted/90">(optional — catering/future orders)</span>
-          </label>
-          <input type="date" name="DueDate" id="DueDate" className="input-3d" value={form.DueDate} onChange={setField("DueDate")} />
+        {/* Stacked on phones: side-by-side date/time inputs overflow there. */}
+        <div className="grid sm:grid-cols-2 gap-4 mb-5">
+          <div className="field-group">
+            <label htmlFor="DueDate" className="field-label">
+              <i className="fa-solid fa-calendar-days"></i> Due Date <span className="normal-case text-brand-muted/90">(optional)</span>
+            </label>
+            <input type="date" name="DueDate" id="DueDate" className="input-3d w-full" value={form.DueDate} onChange={setField("DueDate")} />
+          </div>
+          <div className="field-group">
+            <label htmlFor="DueTime" className="field-label">
+              <i className="fa-solid fa-clock"></i> {isCatering(form.PickupDelivery) ? "Drop-off time" : "Ready by"} <span className="normal-case text-brand-muted/90">(optional)</span>
+            </label>
+            <input type="time" name="DueTime" id="DueTime" className="input-3d w-full" value={form.DueTime} onChange={setField("DueTime")} />
+          </div>
         </div>
 
         <div className="field-group mb-8">

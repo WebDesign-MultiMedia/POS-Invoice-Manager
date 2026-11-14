@@ -130,15 +130,15 @@ function cpId(n, time) {
 function seed() {
   const orders = [
     ["Alex Rivera", "555-0101", "12 Maple Ave", "Delivery", "2x Classic Burger, 2x Fries, 2x Lemonade", "37.00", "10", "Cash", 0, "11:42 AM", "No onions on one burger"],
-    ["Jordan Lee", "555-0102", "48 Oak St", "Pick-up", "1x Veggie Burger, 1x Garden Salad", "18.00", "0", "Zelle", 1, "12:15 PM", ""],
-    ["Sam Patel", "555-0103", "7 Birch Rd", "Catering", "20x Chicken Wrap, 10x Garden Salad, 2x Lemonade pitcher", "290.00", "100", "Zelle", 2, "9:30 AM", "Office lunch — deliver by noon"],
+    ["Jordan Lee", "555-0102", "48 Oak St", "Pick-up", "1x Veggie Burger, 1x Garden Salad", "18.00", "0", "Pending", 1, "12:15 PM", ""],
+    ["Sam Patel", "555-0103", "7 Birch Rd", "Catering - Drop-off", "20x Chicken Wrap, 10x Garden Salad, 2x Lemonade pitcher", "290.00", "100", "Zelle", 2, "9:30 AM", "Office lunch — deliver by noon"],
     ["Taylor Brooks", "555-0104", "301 Pine Ln", "Delivery", "3x Soup of the Day, 3x Coffee", "22.50", "0", "Cash", 3, "6:05 PM", ""],
     ["Morgan Diaz", "555-0105", "55 Cedar Ct", "Pick-up", "1x Classic Burger, 1x Fries, 1x Iced Tea", "18.00", "0", "Cash", 5, "1:20 PM", ""],
-    ["Casey Nguyen", "555-0106", "9 Elm St", "Catering", "15x Classic Burger, 15x Fries", "225.00", "75", "Zelle", 8, "10:00 AM", "Birthday party"],
+    ["Casey Nguyen", "555-0106", "9 Elm St", "Catering - Setup & pickup later", "15x Classic Burger, 15x Fries", "225.00", "75", "Zelle", 8, "10:00 AM", "Birthday party"],
     ["Riley Chen", "555-0107", "160 Willow Way", "Delivery", "2x Chicken Wrap, 2x Soup of the Day", "29.00", "0", "Cash", 12, "7:45 PM", ""],
     ["Jamie Owens", "555-0108", "22 Spruce Dr", "Pick-up", "4x Coffee, 2x Garden Salad", "26.00", "0", "Zelle", 18, "8:10 AM", ""],
     ["Avery Scott", "555-0109", "81 Aspen Blvd", "Delivery", "1x Veggie Burger, 1x Fries, 1x Lemonade", "17.50", "5", "Cash", 25, "5:30 PM", ""],
-    ["Drew Martin", "555-0110", "4 Poplar Pl", "Catering", "30x Chicken Wrap, 30x Iced Tea", "375.00", "150", "Zelle", 33, "11:00 AM", "School event"],
+    ["Drew Martin", "555-0110", "4 Poplar Pl", "Catering - Drop-off", "30x Chicken Wrap, 30x Iced Tea", "375.00", "150", "Zelle", 33, "11:00 AM", "School event"],
     ["Alex Rivera", "555-0101", "12 Maple Ave", "Pick-up", "1x Classic Burger, 1x Coffee", "13.50", "0", "Cash", 41, "12:50 PM", ""],
     ["Quinn Harper", "555-0111", "290 Chestnut St", "Delivery", "2x Garden Salad, 2x Soup of the Day", "26.00", "0", "Cash", 52, "6:40 PM", ""],
   ].map(([Name, Contact, Address, PickupDelivery, Items, Cost, Deposit, Payment, ago, Time, Notes], i) => ({
@@ -154,7 +154,8 @@ function seed() {
     Cost,
     Deposit,
     Payment,
-    DueDate: PickupDelivery === "Catering" ? daysAgo(ago - 3) : "",
+    DueDate: PickupDelivery.startsWith("Catering") ? daysAgo(ago - 3) : "",
+    DueTime: PickupDelivery.startsWith("Catering") ? "11:30 AM" : "",
     Notes,
   }));
 

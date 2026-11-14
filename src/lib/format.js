@@ -100,3 +100,13 @@ export function getTotalQuantity(itemsStr) {
   const total = items.reduce((sum, item) => sum + item.qty, 0);
   return total || 1;
 }
+
+// The reverse of time12Hour: a saved "2:30 PM" back to the "14:30" a time
+// input needs. "" for anything else.
+export function toTimeInput(saved) {
+  const m = String(saved || "").trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp])\.?[Mm]\.?$/);
+  if (!m) return "";
+  let hour = parseInt(m[1], 10) % 12;
+  if (/p/i.test(m[3])) hour += 12;
+  return `${String(hour).padStart(2, "0")}:${m[2]}`;
+}

@@ -10,6 +10,7 @@ import { getBrand } from "../lib/brand.js";
 import { copyText } from "../lib/clipboard.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { invoiceBalance } from "../lib/totals.js";
+import { isCatering } from "../lib/orderOptions.js";
 
 export default function InvoicePage() {
   const [searchParams] = useSearchParams();
@@ -280,14 +281,14 @@ export default function InvoicePage() {
 
           {/* Receipt #, date, time, order type: label over the bold value */}
           <dl
-            className={`relative grid ${invoice?.DueDate ? "grid-cols-5" : "grid-cols-4"} gap-1 ml-6 mr-[30px] sm:ml-[49px] sm:mr-[60px] mt-[5px] sm:mt-2 text-[10px] sm:text-[15px] text-center uppercase print:gap-[0.569cqw] print:ml-[6.9701cqw] print:mr-[8.5349cqw] print:mt-[1.138cqw] print:text-[2.1337cqw]`}
+            className={`relative grid ${invoice?.DueDate || invoice?.DueTime ? "grid-cols-5" : "grid-cols-4"} gap-1 ml-6 mr-[30px] sm:ml-[49px] sm:mr-[60px] mt-[5px] sm:mt-2 text-[10px] sm:text-[15px] text-center uppercase print:gap-[0.569cqw] print:ml-[6.9701cqw] print:mr-[8.5349cqw] print:mt-[1.138cqw] print:text-[2.1337cqw]`}
           >
             {[
               ["Receipt #", invoice?.Id],
               ["Date", invoice?.Date],
               ["Time", invoice?.Time],
               ["Order type", invoice?.PickupDelivery || (invoice ? "—" : "")],
-              ...(invoice?.DueDate ? [["Due date", invoice.DueDate]] : []),
+              ...(invoice?.DueDate || invoice?.DueTime ? [[isCatering(invoice.PickupDelivery) ? "Drop-off" : "Due date", [invoice.DueDate, invoice.DueTime].filter(Boolean).join(" ")]] : []),
             ].map(([label, value]) => (
               <div key={label} className="flex flex-col items-center">
                 <dt className="whitespace-nowrap">

@@ -250,7 +250,7 @@ const ROW_TARGETS = {
     key: "Id",
     sheet: "",
     id: /^\d{1,12}$/,
-    fields: ["Name", "Contact", "Address", "PickupDelivery", "Items", "Quantity", "Cost", "Deposit", "Payment", "DueDate", "Notes"],
+    fields: ["Name", "Contact", "Address", "PickupDelivery", "Items", "Quantity", "Cost", "Deposit", "Payment", "DueDate", "DueTime", "Notes"],
   },
   // The money was charged in Stripe: only who/what it was for can change.
   CardPayment: {

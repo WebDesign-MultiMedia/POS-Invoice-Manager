@@ -72,7 +72,7 @@ describe("catering quotes", () => {
       Name: "Ana López",
       Contact: "555-0101",
       Address: "1 Main St",
-      PickupDelivery: "Catering",
+      PickupDelivery: "Catering - Drop-off",
       Cost: "730.00",
       Payment: "",
       Deposit: "0",

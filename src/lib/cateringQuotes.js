@@ -94,7 +94,7 @@ export function quoteToOrderForm(quote) {
     Name: quote.name.trim(),
     Contact: quote.phone.trim(),
     Address: quote.address.trim(),
-    PickupDelivery: "Catering",
+    PickupDelivery: "Catering - Drop-off",
     Cost: quote.total.toFixed(2),
     Payment: "",
     Deposit: "0",
