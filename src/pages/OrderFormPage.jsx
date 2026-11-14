@@ -5,8 +5,8 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { deleteOrder, fetchAllOrders, submitOrder, updateOrder } from "../api/sheetdb.js";
-import { getCurrentDateTime, getTotalQuantity, formatDate, formatLongDate, formatMoney, time12Hour, toDateInput, toNumber, toTimeInput } from "../lib/format.js";
-import { ORDER_TYPES, PAYMENT_OPTIONS, isCatering, isSetupCatering } from "../lib/orderOptions.js";
+import { getTotalQuantity, formatDate, formatLongDate, formatMoney, time12Hour, toDateInput, toNumber, toTimeInput } from "../lib/format.js";
+import { ORDER_TYPES, PAYMENT_OPTIONS, isCatering, isSetupCatering, orderDay } from "../lib/orderOptions.js";
 import { findSubmittedOrder, ordersNewestFirst } from "../lib/recentOrder.js";
 import { getBrand } from "../lib/brand.js";
 import { useAuth } from "../lib/auth.jsx";
@@ -178,10 +178,9 @@ export default function OrderFormPage() {
     e.preventDefault();
     if (savingRef.current) return;
 
-    const { date, time } = getCurrentDateTime();
+    // The Orders sheet has no order date or time any more: the due date
+    // (and optional due time) is what matters.
     const data = {
-      Date: date,
-      Time: time,
       Name: form.Name,
       Contact: form.Contact,
       Address: form.Address,
@@ -197,8 +196,8 @@ export default function OrderFormPage() {
     // Sent only when set, or when clearing it on an edit.
     if (form.DueTime || editing?.DueTime) data.DueTime = form.DueTime ? time12Hour(form.DueTime) : "";
 
-    // DueDate, DueTime and Notes are optional, so they're excluded from the required-fields check.
-    const { DueDate: _dueDate, DueTime: _dueTime, Notes: _notes, ...requiredData } = data;
+    // DueTime and Notes are optional, so they're excluded from the required-fields check.
+    const { DueTime: _dueTime, Notes: _notes, ...requiredData } = data;
     const hasBlank = Object.values(requiredData).some((v) => !v);
 
     if (hasBlank) {
@@ -256,9 +255,8 @@ export default function OrderFormPage() {
     if (isConfirmed) navigate(`/invoice?id=${encodeURIComponent(saved.Id)}`);
   };
 
-  // Saves changes to the order being edited. Its Id, Date and Time stay.
-  async function saveEdit(data) {
-    const { Date: _date, Time: _time, ...fields } = data;
+  // Saves changes to the order being edited. Its Id stays.
+  async function saveEdit(fields) {
     savingRef.current = true;
     setSaving(true);
     try {
@@ -304,7 +302,7 @@ export default function OrderFormPage() {
 
         {editing && (
           <p role="status" className="glass-panel p-3 mb-5 text-sm text-center">
-            <i className="fa-solid fa-pen" aria-hidden="true"></i> Editing the order saved {[formatLongDate(editing.Date), editing.Time].filter(Boolean).join(" at ")}. Change what you need, then press Save changes.
+            <i className="fa-solid fa-pen" aria-hidden="true"></i> Editing order #{editing.Id}{orderDay(editing) ? `, due ${formatLongDate(orderDay(editing))}` : ""}. Change what you need, then press Save changes.
           </p>
         )}
 
@@ -428,9 +426,9 @@ export default function OrderFormPage() {
         <div className="grid sm:grid-cols-2 gap-4 mb-5">
           <div className="field-group">
             <label htmlFor="DueDate" className="field-label">
-              <i className="fa-solid fa-calendar-days"></i> Due Date <span className="normal-case text-brand-muted/90">(optional)</span>
+              <i className="fa-solid fa-calendar-days"></i> Due Date
             </label>
-            <input type="date" name="DueDate" id="DueDate" className="input-3d w-full" value={form.DueDate} onChange={setField("DueDate")} aria-describedby="DueDateLong" />
+            <input type="date" name="DueDate" id="DueDate" className="input-3d w-full" value={form.DueDate} onChange={setField("DueDate")} aria-describedby="DueDateLong" required />
             {form.DueDate && (
               <p id="DueDateLong" className="mt-1 text-sm text-center font-semibold text-brand-navy">
                 {formatLongDate(formatDate(form.DueDate))}
@@ -535,7 +533,7 @@ function RecentOrderRow({ order, editing, onEdit, onDelete }) {
           #{order.Id} · {order.Name || "No name"}
         </p>
         <p className="text-sm text-brand-navydeep/80">
-          {[formatLongDate(order.Date), order.Time].filter(Boolean).join(" · ")}
+          {orderDay(order) ? `Due ${formatLongDate(orderDay(order))}` : "No due date"}
           {order.PickupDelivery ? ` · ${order.PickupDelivery}` : ""}
           {items ? ` · ${items} item${items === 1 ? "" : "s"}` : ""}
           {order.Cost !== undefined && order.Cost !== "" ? ` · ${formatMoney(toNumber(order.Cost))}` : ""}

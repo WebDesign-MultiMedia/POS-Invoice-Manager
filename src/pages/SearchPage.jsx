@@ -6,6 +6,7 @@ import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { fetchAllOrders, fetchAllCardPayments } from "../api/sheetdb.js";
 import { formatDate, formatLongDate, formatMoney, parseStoredDate, escapeRegex, toDateInput } from "../lib/format.js";
+import { orderDay } from "../lib/orderOptions.js";
 import { parseCardPaymentOrder } from "../lib/menu.js";
 import { isDemo } from "../lib/demo.js";
 import { friendlyMessage } from "../lib/errors.js";
@@ -16,9 +17,9 @@ const SEARCH_FIELDS = {
   Contact: { label: "Phone number", icon: "fa-phone", type: "text", placeholder: "e.g. 555-0100" },
   Name: { label: "Customer name", icon: "fa-user", type: "text", placeholder: "e.g. Jane Doe" },
   Address: { label: "Address", icon: "fa-location-dot", type: "text", placeholder: "e.g. 123 Main St" },
-  Date: { label: "Order date", icon: "fa-calendar-days", type: "date", placeholder: "" },
-  Month: { label: "Order month", icon: "fa-calendar", type: "month", placeholder: "" },
-  Year: { label: "Order year", icon: "fa-calendar-week", type: "number", placeholder: "e.g. 2026" },
+  Date: { label: "Due date", icon: "fa-calendar-days", type: "date", placeholder: "" },
+  Month: { label: "Due month", icon: "fa-calendar", type: "month", placeholder: "" },
+  Year: { label: "Due year", icon: "fa-calendar-week", type: "number", placeholder: "e.g. 2026" },
   // Searches the CardPayments tab instead of orders: matches the InvoiceId
   // column, which holds CP-… ids for walk-up sales and the order number for
   // invoice payments. Partial matches work, e.g. "210354".
@@ -27,19 +28,19 @@ const SEARCH_FIELDS = {
 
 function filterOrders(data, field, query) {
   if (field === "Date") {
-    return data.filter((row) => row.Date === query);
+    return data.filter((row) => orderDay(row) === query);
   }
   if (field === "Month") {
     const [qYear, qMonth] = query.split("-").map(Number);
     return data.filter((row) => {
-      const parsed = parseStoredDate(row.Date);
+      const parsed = parseStoredDate(orderDay(row));
       return parsed && parsed.month === qMonth && parsed.year === qYear;
     });
   }
   if (field === "Year") {
     const qYear = Number(query);
     return data.filter((row) => {
-      const parsed = parseStoredDate(row.Date);
+      const parsed = parseStoredDate(orderDay(row));
       return parsed && parsed.year === qYear;
     });
   }
@@ -65,8 +66,8 @@ export default function SearchPage() {
   const [resultsTitle, setResultsTitle] = useState("");
 
   const showTypeOrders = (title, orders, { soonestFirst = false } = {}) => {
-    // Newest order date first; same-day orders by order number.
-    const byDate = ordersNewestFirst(orders).sort((x, y) => toDateInput(y.Date).localeCompare(toDateInput(x.Date)));
+    // Latest due date first; same-day orders by order number.
+    const byDate = ordersNewestFirst(orders).sort((x, y) => toDateInput(orderDay(y)).localeCompare(toDateInput(orderDay(x))));
     setResults(soonestFirst ? orders : byDate);
     setResultSource("orders");
     setResultsTitle(title);
@@ -299,7 +300,7 @@ export default function SearchPage() {
                   <i className="fa-solid fa-hashtag"></i> {order.Id ?? ""}
                 </span>
                 <span className="text-sm text-brand-muted/90">
-                  <i className="fa-solid fa-calendar-days"></i> {formatLongDate(order.Date)}
+                  <i className="fa-solid fa-calendar-days"></i> {orderDay(order) ? `Due ${formatLongDate(orderDay(order))}` : ""}
                 </span>
               </div>
               <div className="space-y-1.5 text-sm text-brand-navydeep">
@@ -315,7 +316,7 @@ export default function SearchPage() {
                 {order.PickupDelivery && (
                   <p>
                     <i className="fa-solid fa-truck-fast text-brand-teal w-5"></i> {order.PickupDelivery}
-                    {order.DueDate ? ` · due ${[formatLongDate(order.DueDate), order.DueTime].filter(Boolean).join(" at ")}` : ""}
+                    {order.DueTime ? ` · ${order.DueTime}` : ""}
                   </p>
                 )}
                 <p>

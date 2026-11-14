@@ -11,6 +11,12 @@ export function isCatering(type) {
   return /^catering/i.test(String(type || "").trim());
 }
 
+// The one day an order goes by: its due date. Orders saved before the form
+// dropped the order date only have Date, so fall back to that.
+export function orderDay(order) {
+  return String(order?.DueDate || "").trim() || String(order?.Date || "").trim();
+}
+
 // A setup order: the restaurant goes back later for its equipment.
 export function isSetupCatering(type) {
   return isCatering(type) && /setup/i.test(String(type));

@@ -214,9 +214,8 @@ export default function InvoicePage() {
   // fee was paid on top and never counts toward the order (lib/totals.js).
   const { cost, deposit, hasDeposit, balanceDue: totalDue } = invoiceBalance(invoice, cardPayments);
   const hasPayments = hasDeposit || cardPayments.length > 0;
-  // The restaurant's invoice is in Spanish (Figma Desktop frame 42:10); the
-  // demo's made-up café keeps English.
-  const t = brand.demo ? INVOICE_TEXT.en : INVOICE_TEXT.es;
+  // English for now; INVOICE_TEXT.es keeps the Spanish (Figma 42:10) for later.
+  const t = INVOICE_TEXT.en;
 
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -left-10 animate-float-slow no-print", "bg-brand-pink w-80 h-80 top-1/2 -right-16 animate-float no-print"]}>
@@ -369,10 +368,10 @@ export default function InvoicePage() {
               >
                 <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-9 h-9 sm:w-[63px] sm:h-[63px] shrink-0 print:w-[8.9616cqw] print:h-[8.9616cqw]" />
                 <span className="block w-[134px] sm:w-[256px] sm:text-center [overflow-wrap:anywhere] print:w-[36.4154cqw] print:text-center">
-                  <span className="block font-bold uppercase receipt-accent sm:text-[12px] print:text-[1.707cqw]">¡Recibe nuestras ofertas por texto!</span>
+                  <span className="block font-bold uppercase receipt-accent sm:text-[12px] print:text-[1.707cqw]">Get our specials by text!</span>
                   <span className="sm:text-[11px] print:text-[1.5647cqw]">Get our weekend specials by text. </span>
-                  <span className="sm:block sm:mt-1 sm:font-bold sm:text-[13px] sm:text-[#3358b5] print:block print:mt-[0.569cqw] print:font-bold print:text-[1.8492cqw] print:text-[#3358b5]">Escanea o visita </span>
-                  <span className="sm:block sm:text-[11px] print:block print:text-[1.5647cqw]">buffetluciasfiestamexicana.com/sms-consent (opcional).</span>
+                  <span className="sm:block sm:mt-1 sm:font-bold sm:text-[13px] sm:text-[#3358b5] print:block print:mt-[0.569cqw] print:font-bold print:text-[1.8492cqw] print:text-[#3358b5]">Scan or visit </span>
+                  <span className="sm:block sm:text-[11px] print:block print:text-[1.5647cqw]">buffetluciasfiestamexicana.com/sms-consent (optional).</span>
                 </span>
               </a>
             )}
@@ -472,11 +471,11 @@ export default function InvoicePage() {
             <div className="grid grid-cols-2 gap-x-2 justify-items-center items-start mt-5 text-[10px] text-center sm:grid-cols-[352px_minmax(0,1fr)] sm:gap-x-3 sm:-ml-2.5 sm:mt-4 sm:mb-4 sm:text-[15px] print:grid-cols-[50.0711cqw_minmax(0,1fr)] print:gap-x-[1.707cqw] print:ml-[-1.4225cqw] print:mt-[2.276cqw] print:mb-[2.276cqw] print:text-[2.1337cqw]">
               <div className="col-start-1 row-start-1 w-full max-w-[154px] sm:col-start-2 sm:max-w-[294px] print:col-start-2 print:max-w-[41.8208cqw]">
                 <p className="font-bold uppercase receipt-accent">{t.terms}</p>
-                <p>El saldo restante se paga al momento de la entrega o recogida. Gracias por su preferencia</p>
+                <p>Any remaining balance is due at delivery or pick-up. Thank you for your business!</p>
               </div>
               <div className="break-inside-avoid col-start-2 row-start-1 w-full max-w-[163px] flex flex-col items-center sm:row-start-2 sm:max-w-[311px] sm:mt-6 print:row-start-2 print:max-w-[44.239cqw] print:mt-[3.4139cqw]">
                 <p className="font-bold uppercase receipt-accent sm:text-[14px] print:text-[1.9915cqw]">
-                  "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
+                  "Small business, big thanks: your review means the world to us!"
                 </p>
                 <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="block mt-0.5 leading-[0] bg-[#fefdfd] sm:mt-4 sm:p-1 print:mt-[2.276cqw] print:p-[0.569cqw]">
                   <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-[51px] h-[51px] sm:w-[75px] sm:h-[74px] print:w-[10.6686cqw] print:h-[10.5263cqw]" />
@@ -497,8 +496,8 @@ export default function InvoicePage() {
   );
 }
 
-// The invoice's words: Spanish for the restaurant (Figma frame 42:10),
-// English for the demo's made-up café.
+// The invoice's words. English is in use for now; the Spanish set matches
+// the Figma Desktop frame (42:10) for when the invoice switches back.
 const INVOICE_TEXT = {
   es: {
     receipt: "Recibo #",
@@ -529,13 +528,13 @@ const INVOICE_TEXT = {
     amount: "Amount",
     notes: "Notes",
     subtotal: "Subtotal",
-    deposit: "Deposit Paid",
+    deposit: "Deposit",
     creditPayment: "Credit card payment",
     debitPayment: "Debit card payment",
     chargedWithFee: (total, fee) => `Charged ${total} (incl. ${fee} card processing fee)`,
     chargedNoFee: (total) => `Charged ${total} (no card fee)`,
     balanceDue: "Balance Due",
-    totalDue: "Total Due",
+    totalDue: "Balance Due",
     terms: "Terms & Conditions",
   },
 };

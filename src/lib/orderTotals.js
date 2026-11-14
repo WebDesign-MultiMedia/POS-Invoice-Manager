@@ -1,6 +1,6 @@
 // Totals for the Search page's Catering / Delivery / Pick-ups cards.
 import { parseStoredDate, toDateInput, toNumber } from "./format.js";
-import { isCatering, isSetupCatering } from "./orderOptions.js";
+import { isCatering, isSetupCatering, orderDay } from "./orderOptions.js";
 
 export const TYPE_GROUPS = [
   { key: "catering", label: "Catering", icon: "fa-utensils" },
@@ -18,11 +18,11 @@ export function orderTypeGroup(type) {
   return null;
 }
 
-// The years orders were taken in, newest first.
+// The years orders were due in (or taken in, for old orders), newest first.
 export function orderYears(orders) {
   const years = new Set();
   for (const o of orders) {
-    const d = parseStoredDate(o.Date);
+    const d = parseStoredDate(orderDay(o));
     if (d?.year) years.add(d.year);
   }
   return [...years].sort((a, b) => b - a);
@@ -49,7 +49,7 @@ export function typeTotals(orders, { year = null, today } = {}) {
   for (const order of orders) {
     const key = orderTypeGroup(order.PickupDelivery);
     if (!key) continue;
-    if (year && parseStoredDate(order.Date)?.year !== year) continue;
+    if (year && parseStoredDate(orderDay(order))?.year !== year) continue;
     const t = out[key];
     t.count += 1;
     t.orders.push(order);

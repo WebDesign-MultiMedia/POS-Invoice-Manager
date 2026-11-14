@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatLongDate, time12Hour, toTimeInput } from "../src/lib/format.js";
-import { isCatering, isSetupCatering } from "../src/lib/orderOptions.js";
+import { isCatering, isSetupCatering, orderDay } from "../src/lib/orderOptions.js";
 
 describe("order form options", () => {
   it("drop-off time round-trips between the time input and the sheet", () => {
@@ -23,5 +23,13 @@ describe("order form options", () => {
     expect(formatLongDate("1/5/2027")).toBe("January 5, 2027");
     expect(formatLongDate("13/01/2026")).toBe("13/01/2026");
     expect(formatLongDate("")).toBe("");
+  });
+});
+
+describe("orderDay", () => {
+  it("uses the due date, or the old order date for older orders", () => {
+    expect(orderDay({ DueDate: "11/20/2026", Date: "11/01/2026" })).toBe("11/20/2026");
+    expect(orderDay({ Date: "01/10/2025" })).toBe("01/10/2025");
+    expect(orderDay({})).toBe("");
   });
 });
