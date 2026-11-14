@@ -215,6 +215,9 @@ export default function InvoicePage() {
   // fee was paid on top and never counts toward the order (lib/totals.js).
   const { cost, deposit, hasDeposit, balanceDue: totalDue } = invoiceBalance(invoice, cardPayments);
   const hasPayments = hasDeposit || cardPayments.length > 0;
+  // The restaurant's invoice is in Spanish (Figma Desktop frame 42:10); the
+  // demo's made-up café keeps English.
+  const t = brand.demo ? INVOICE_TEXT.en : INVOICE_TEXT.es;
 
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -left-10 animate-float-slow no-print", "bg-brand-pink w-80 h-80 top-1/2 -right-16 animate-float no-print"]}>
@@ -285,15 +288,15 @@ export default function InvoicePage() {
             className={`relative grid ${invoice?.DueDate || invoice?.DueTime ? "grid-cols-4" : "grid-cols-3"} gap-1 ml-6 mr-[30px] sm:ml-[49px] sm:mr-[60px] mt-[5px] sm:mt-2 text-[10px] sm:text-[15px] text-center uppercase print:gap-[0.569cqw] print:ml-[6.9701cqw] print:mr-[8.5349cqw] print:mt-[1.138cqw] print:text-[2.1337cqw]`}
           >
             {[
-              ["Receipt #", invoice?.Id],
-              ["Date", invoice ? formatLongDate(invoice.Date) : ""],
-              ["Order type", invoice?.PickupDelivery || (invoice ? "—" : "")],
-              ...(invoice?.DueDate || invoice?.DueTime ? [[isCatering(invoice.PickupDelivery) ? "Drop-off" : "Due date", [formatLongDate(invoice.DueDate), invoice.DueTime].filter(Boolean).join(" · ")]] : []),
-            ].map(([label, value]) => (
+              [t.receipt, invoice?.Id, "receipt"],
+              [t.date, invoice ? formatLongDate(invoice.Date) : ""],
+              [t.orderType, invoice?.PickupDelivery || (invoice ? "—" : "")],
+              ...(invoice?.DueDate || invoice?.DueTime ? [[isCatering(invoice.PickupDelivery) ? "Drop-off" : t.dueDate, [formatLongDate(invoice.DueDate), invoice.DueTime].filter(Boolean).join("\n")]] : []),
+            ].map(([label, value, key]) => (
               <div key={label} className="flex flex-col items-center">
-                <dt className="whitespace-nowrap">
+                <dt className="leading-tight">
                   {label}
-                  {label === "Receipt #" && !isShareView && (
+                  {key === "receipt" && !isShareView && (
                     <button
                       type="button"
                       className="no-print ml-1 hover:text-[#3358b5] print:ml-[0.569cqw]"
@@ -306,7 +309,7 @@ export default function InvoicePage() {
                     </button>
                   )}
                 </dt>
-                <dd className="min-h-[1.4em] mt-0.5 px-1 font-bold normal-case print:mt-[0.2845cqw] print:px-[0.569cqw]">{value ?? ""}</dd>
+                <dd className="min-h-[1.4em] mt-0.5 px-1 font-bold normal-case whitespace-pre-line print:mt-[0.2845cqw] print:px-[0.569cqw]">{value ?? ""}</dd>
               </div>
             ))}
             {popupOpen && (
@@ -365,9 +368,11 @@ export default function InvoicePage() {
                 className="flex items-start gap-[5px] sm:gap-[9px] shrink-0 mr-2 sm:-mr-1 text-[7px] sm:text-[10px] print:gap-[1.2802cqw] print:mr-[-0.569cqw] print:text-[1.4225cqw]"
               >
                 <img src="/imgs/sms-signup-qrCode.png" alt="SMS specials sign-up QR code" className="w-9 h-9 sm:w-[63px] sm:h-[63px] shrink-0 print:w-[8.9616cqw] print:h-[8.9616cqw]" />
-                <span className="block w-[134px] sm:w-[256px] [overflow-wrap:anywhere] print:w-[36.4154cqw]">
-                  <span className="block font-bold uppercase receipt-accent">¡Recibe nuestras ofertas por texto!</span>
-                  Get our weekend specials by text. Escanea o visita buffetluciasfiestamexicana.com/sms-consent (opcional).
+                <span className="block w-[134px] sm:w-[256px] sm:text-center [overflow-wrap:anywhere] print:w-[36.4154cqw] print:text-center">
+                  <span className="block font-bold uppercase receipt-accent sm:text-[12px] print:text-[1.707cqw]">¡Recibe nuestras ofertas por texto!</span>
+                  <span className="sm:text-[11px] print:text-[1.5647cqw]">Get our weekend specials by text. </span>
+                  <span className="sm:block sm:mt-1 sm:font-bold sm:text-[13px] sm:text-[#3358b5] print:block print:mt-[0.569cqw] print:font-bold print:text-[1.8492cqw] print:text-[#3358b5]">Escanea o visita </span>
+                  <span className="sm:block sm:text-[11px] print:block print:text-[1.5647cqw]">buffetluciasfiestamexicana.com/sms-consent (opcional).</span>
                 </span>
               </a>
             )}
@@ -377,9 +382,9 @@ export default function InvoicePage() {
           <table className="w-[calc(100%-8px)] sm:w-[calc(100%-18px)] mt-5 sm:mt-8 text-[11px] sm:text-[15px] border-collapse print:w-[calc(100%-2.5605cqw)] print:mt-[4.5519cqw] print:text-[2.1337cqw]">
             <thead>
               <tr className="text-left receipt-rule sm:text-[20px] print:text-[2.845cqw]">
-                <th className="font-normal pb-0.5 pl-1.5 sm:pl-3 pr-1 w-[52px] sm:w-[68px] print:pb-[0.2845cqw] print:pl-[1.707cqw] print:pr-[0.569cqw] print:w-[9.6728cqw]">Qty</th>
-                <th className="font-normal pb-0.5 px-1 print:pb-[0.2845cqw] print:px-[0.569cqw]">Description</th>
-                <th className="font-normal pb-0.5 pl-1 sm:pr-1.5 text-right w-[52px] sm:w-[110px] print:pb-[0.2845cqw] print:pl-[0.569cqw] print:pr-[0.8535cqw] print:w-[15.6472cqw]">Amount</th>
+                <th className="font-normal pb-0.5 pl-1.5 sm:pl-3 pr-1 w-[52px] sm:w-[68px] print:pb-[0.2845cqw] print:pl-[1.707cqw] print:pr-[0.569cqw] print:w-[9.6728cqw]">{t.qty}</th>
+                <th className="font-normal pb-0.5 px-1 print:pb-[0.2845cqw] print:px-[0.569cqw]">{t.description}</th>
+                <th className="font-normal pb-0.5 pl-1 sm:pr-1.5 text-right w-[52px] sm:w-[110px] print:pb-[0.2845cqw] print:pl-[0.569cqw] print:pr-[0.8535cqw] print:w-[15.6472cqw]">{t.amount}</th>
               </tr>
             </thead>
             <tbody>
@@ -414,17 +419,17 @@ export default function InvoicePage() {
             <div className="mt-3 sm:mt-4 mr-2 sm:mr-[18px] text-[11px] sm:text-[15px] print:mt-[2.276cqw] print:mr-[2.5605cqw] print:text-[2.1337cqw]">
               {invoice.Notes && (
                 <div className="mb-2 px-1.5 sm:px-3 print:mb-[1.138cqw] print:px-[1.707cqw]">
-                  <p className="font-bold uppercase receipt-accent">Notes</p>
+                  <p className="font-bold sm:text-[17px] print:text-[2.4182cqw]">{t.notes}</p>
                   <p className="whitespace-pre-line">{invoice.Notes}</p>
                 </div>
               )}
               <div className="flex justify-between py-0.5 px-1.5 sm:px-3 print:py-[0.2845cqw] print:px-[1.707cqw]">
-                <span>Subtotal</span>
+                <span>{t.subtotal}</span>
                 <span>{formatMoney(cost)}</span>
               </div>
               {hasDeposit && (
                 <div className="flex justify-between py-0.5 px-1.5 sm:px-3 print:py-[0.2845cqw] print:px-[1.707cqw]">
-                  <span>Deposit Paid</span>
+                  <span>{t.deposit}</span>
                   <span>-{formatMoney(deposit)}</span>
                 </div>
               )}
@@ -434,63 +439,103 @@ export default function InvoicePage() {
                   <div key={p.PaymentIntentId || `${p.Date}-${p.Time}`} className="py-0.5 px-1.5 sm:px-3 print:py-[0.2845cqw] print:px-[1.707cqw]">
                     <div className="flex justify-between gap-2 print:gap-[1.138cqw]">
                       <span>
-                        {p.Funding === "debit" ? "Debit" : "Credit"} card payment{p.Card ? ` (${p.Card})` : ""} · {formatLongDate(p.Date)}
+                        {p.Funding === "debit" ? t.debitPayment : t.creditPayment}{p.Card ? ` (${p.Card})` : ""} · {formatLongDate(p.Date)}
                       </span>
                       <span>-{formatMoney(p.Amount)}</span>
                     </div>
                     <p className="text-[9px] sm:text-xs text-black/70 print:text-[1.707cqw] print:leading-[1.333]">
-                      {fee > 0
-                        ? `Charged ${formatMoney(p.Total)} (incl. ${formatMoney(fee)} card processing fee)`
-                        : `Charged ${formatMoney(p.Total)} (no card fee)`}
+                      {fee > 0 ? t.chargedWithFee(formatMoney(p.Total), formatMoney(fee)) : t.chargedNoFee(formatMoney(p.Total))}
                     </p>
                   </div>
                 );
               })}
               <div className="flex justify-between pt-1 sm:pt-2 mt-0.5 px-1.5 sm:px-3 border-t-[0.5px] border-black font-bold sm:text-[17px] print:pt-[1.138cqw] print:mt-[0.2845cqw] print:px-[1.707cqw] print:text-[2.4182cqw]">
-                <span>{hasPayments ? "Balance Due" : "Total Due"}</span>
+                <span>{hasPayments ? t.balanceDue : t.totalDue}</span>
                 <span>{formatMoney(totalDue)}</span>
               </div>
             </div>
           )}
 
-          {/* Terms (left) and the review quote + QR (right), both centred
-              in their half and starting on the same line */}
-          <div className="grid grid-cols-2 gap-x-2 justify-items-center items-start mt-5 sm:mt-7 text-[10px] sm:text-[15px] text-center print:gap-x-[1.138cqw] print:mt-[3.9829cqw] print:text-[2.1337cqw]">
-            <div className="w-full max-w-[154px] sm:max-w-[294px] print:w-full print:max-w-[41.8208cqw]">
-              <p className="font-bold uppercase receipt-accent">Terms &amp; Conditions</p>
-              <p>
-                {brand.demo
-                  ? "Any remaining balance is due at delivery or pick-up. Thank you for your order!"
-                  : "El saldo restante se paga al momento de la entrega o recogida. Gracias por su preferencia"}
-              </p>
-            </div>
-            {/* The review QR and the Welcome to the Bronx sign belong to the
-                real restaurant; the demo's sample café skips them. */}
-            {!brand.demo && (
-              <div className="break-inside-avoid w-full max-w-[163px] sm:max-w-[311px] flex flex-col items-center print:w-full print:max-w-[44.239cqw]">
-                <p className="font-bold uppercase receipt-accent">
+          {/* Footer. Phones (iPhone frame 41:3): terms beside the review
+              quote + QR, the Welcome to the Bronx sign below. sm: and print
+              (Desktop frame 42:10): the sign on the left; terms, quote and
+              QR stacked on the right. The demo's café has no sign or QR. */}
+          {brand.demo ? (
+            <>
+              <div className="mt-5 sm:mt-7 mx-auto max-w-[294px] text-[10px] sm:text-[15px] text-center print:mt-[3.9829cqw] print:max-w-[41.8208cqw] print:text-[2.1337cqw]">
+                <p className="font-bold uppercase receipt-accent">{t.terms}</p>
+                <p>Any remaining balance is due at delivery or pick-up. Thank you for your order!</p>
+              </div>
+              <p className="mt-8 mb-4 text-center text-[10px] sm:text-xs print:mt-[4.5519cqw] print:mb-[2.276cqw] print:text-[1.707cqw] print:leading-[1.333]">Thanks for trying the demo — this invoice belongs to a made-up business.</p>
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-2 justify-items-center items-start mt-5 text-[10px] text-center sm:grid-cols-[352px_minmax(0,1fr)] sm:gap-x-3 sm:-ml-2.5 sm:mt-4 sm:mb-4 sm:text-[15px] print:grid-cols-[50.0711cqw_minmax(0,1fr)] print:gap-x-[1.707cqw] print:ml-[-1.4225cqw] print:mt-[2.276cqw] print:mb-[2.276cqw] print:text-[2.1337cqw]">
+              <div className="col-start-1 row-start-1 w-full max-w-[154px] sm:col-start-2 sm:max-w-[294px] print:col-start-2 print:max-w-[41.8208cqw]">
+                <p className="font-bold uppercase receipt-accent">{t.terms}</p>
+                <p>El saldo restante se paga al momento de la entrega o recogida. Gracias por su preferencia</p>
+              </div>
+              <div className="break-inside-avoid col-start-2 row-start-1 w-full max-w-[163px] flex flex-col items-center sm:row-start-2 sm:max-w-[311px] sm:mt-6 print:row-start-2 print:max-w-[44.239cqw] print:mt-[3.4139cqw]">
+                <p className="font-bold uppercase receipt-accent sm:text-[14px] print:text-[1.9915cqw]">
                   "Pequeño negocio, grandes gracias: ¡tu reseña significa el mundo para nosotros!"
                 </p>
-                <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="block mt-0.5 sm:mt-1 leading-[0] print:mt-[0.569cqw]">
-                  <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-[51px] h-[51px] sm:w-[83px] sm:h-[83px] print:w-[11.8065cqw] print:h-[11.8065cqw]" />
+                <a href="https://g.page/r/CRSDyjL1S-KyEBM/review" className="block mt-0.5 leading-[0] bg-[#fefdfd] sm:mt-4 sm:p-1 print:mt-[2.276cqw] print:p-[0.569cqw]">
+                  <img src="/imgs/google-review-qrCode.png" alt="Google review QR code" className="w-[51px] h-[51px] sm:w-[75px] sm:h-[74px] print:w-[10.6686cqw] print:h-[10.5263cqw]" />
                 </a>
               </div>
-            )}
-          </div>
-
-          {brand.demo ? (
-            <p className="mt-8 mb-4 text-center text-[10px] sm:text-xs print:mt-[4.5519cqw] print:mb-[2.276cqw] print:text-[1.707cqw] print:leading-[1.333]">Thanks for trying the demo — this invoice belongs to a made-up business.</p>
-          ) : (
-            <span className="break-inside-avoid relative block mx-auto mt-1.5 sm:mt-0.5 w-[205px] h-[126px] sm:w-[352px] sm:h-[210px] overflow-hidden print:mt-[0.2845cqw] print:w-[50.0711cqw] print:h-[29.872cqw]">
-              <img
-                src="/imgs/invoice/welcome-bronx.png"
-                alt="Welcome to the Bronx: Buffet Lucia's Fiesta Mexicana"
-                className="absolute max-w-none left-0 w-full h-[162.77%] top-[-39.36%] sm:w-[102.27%] sm:h-[171.29%] sm:top-[-41.42%] print:left-[0cqw] print:w-[102.27%] print:h-[171.29%] print:top-[-41.42%]"
-              />
-            </span>
+              <span className="break-inside-avoid relative block col-span-2 row-start-2 mt-1.5 w-[205px] h-[126px] overflow-hidden sm:col-span-1 sm:col-start-1 sm:row-start-1 sm:row-span-2 sm:mt-0.5 sm:w-[352px] sm:h-[210px] print:col-span-1 print:col-start-1 print:row-start-1 print:row-span-2 print:mt-[0.2845cqw] print:w-[50.0711cqw] print:h-[29.872cqw]">
+                <img
+                  src="/imgs/invoice/welcome-bronx.png"
+                  alt="Welcome to the Bronx: Buffet Lucia's Fiesta Mexicana"
+                  className="absolute max-w-none left-0 w-full h-[162.77%] top-[-39.36%] sm:w-[102.27%] sm:h-[171.29%] sm:top-[-41.42%] print:left-[0cqw] print:w-[102.27%] print:h-[171.29%] print:top-[-41.42%]"
+                />
+              </span>
+            </div>
           )}
         </div>
       </div>
     </Layout>
   );
 }
+
+// The invoice's words: Spanish for the restaurant (Figma frame 42:10),
+// English for the demo's made-up café.
+const INVOICE_TEXT = {
+  es: {
+    receipt: "Recibo #",
+    date: "Fecha",
+    orderType: "Tipo de pedido",
+    dueDate: "Fecha de entrega",
+    qty: "Qty",
+    description: "Descripción",
+    amount: "Cantidad",
+    notes: "Notas",
+    subtotal: "Total Parcial",
+    deposit: "Depósito",
+    creditPayment: "Pago con tarjeta de crédito",
+    debitPayment: "Pago con tarjeta de débito",
+    chargedWithFee: (total, fee) => `Cobrado ${total} (incluye ${fee} de cargo por tarjeta)`,
+    chargedNoFee: (total) => `Cobrado ${total} (sin cargo por tarjeta)`,
+    balanceDue: "Saldo deudor",
+    totalDue: "Saldo deudor",
+    terms: "Términos y condiciones",
+  },
+  en: {
+    receipt: "Receipt #",
+    date: "Date",
+    orderType: "Order type",
+    dueDate: "Due date",
+    qty: "Qty",
+    description: "Description",
+    amount: "Amount",
+    notes: "Notes",
+    subtotal: "Subtotal",
+    deposit: "Deposit Paid",
+    creditPayment: "Credit card payment",
+    debitPayment: "Debit card payment",
+    chargedWithFee: (total, fee) => `Charged ${total} (incl. ${fee} card processing fee)`,
+    chargedNoFee: (total) => `Charged ${total} (no card fee)`,
+    balanceDue: "Balance Due",
+    totalDue: "Total Due",
+    terms: "Terms & Conditions",
+  },
+};
