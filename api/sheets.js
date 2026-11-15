@@ -32,7 +32,7 @@
 
 import { NO_ACCESS, isValidShareToken, readSessionInfo, sellerName, shareTokenFor } from "./_lib/auth.js";
 import { can, canAny } from "./_lib/permissions.js";
-import { sheetdbHeaders } from "./_lib/sheetdb.js";
+import { SHEETDB_LIMIT_MESSAGE, sheetdbFetch, sheetdbHeaders } from "./_lib/sheetdb.js";
 import { saleToInvoice } from "../src/lib/saleToOrder.js";
 
 const READ_ACTIONS = {
@@ -150,7 +150,7 @@ async function unpaidSaleFor(base, body, res, session, notMine) {
 }
 
 async function patchEventSale(base, id, fields, res) {
-  const response = await fetch(`${base}/SaleId/${encodeURIComponent(id)}?sheet=EventSales`, {
+  const response = await sheetdbFetch(`${base}/SaleId/${encodeURIComponent(id)}?sheet=EventSales`, {
     method: "PATCH",
     headers: sheetdbHeaders(),
     body: JSON.stringify({ data: fields }),
@@ -323,12 +323,13 @@ async function changeRow(base, body, res, session) {
   } else {
     init = { method: "DELETE", headers: sheetdbHeaders() };
   }
-  const response = await fetch(`${base}${path}`, init);
+  const response = await sheetdbFetch(`${base}${path}`, init);
   const payload = await response.json().catch(() => null);
   // SheetDB answers 404 when no row matches.
   if (response.status === 404) return res.status(404).json({ error: "Not found" });
   if (!response.ok) {
     console.error("sheets: SheetDB responded", response.status, payload);
+    if (response.status === 429) return res.status(429).json({ error: SHEETDB_LIMIT_MESSAGE });
     return res.status(502).json({ error: "Sheet request failed" });
   }
   res.setHeader("Cache-Control", "no-store");
@@ -338,7 +339,7 @@ async function changeRow(base, body, res, session) {
 }
 
 async function sheetGet(base, path) {
-  const response = await fetch(`${base}${path}`, { method: "GET", headers: sheetdbHeaders() });
+  const response = await sheetdbFetch(`${base}${path}`, { method: "GET", headers: sheetdbHeaders() });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     console.error("sheets: SheetDB responded", response.status, payload);
@@ -447,10 +448,11 @@ export default async function handler(req, res) {
       return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const response = await fetch(`${base}${path}`, init);
+    const response = await sheetdbFetch(`${base}${path}`, init);
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
       console.error("sheets: SheetDB responded", response.status, payload);
+      if (response.status === 429) return res.status(429).json({ error: SHEETDB_LIMIT_MESSAGE });
       return res.status(502).json({ error: "Sheet request failed" });
     }
     res.setHeader("Cache-Control", "no-store");

@@ -40,5 +40,10 @@
     "tailwindcss": "^3.4.17",
     "vite": "^6.0.5",
     "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "4.6.7"
+    }
   }
 }

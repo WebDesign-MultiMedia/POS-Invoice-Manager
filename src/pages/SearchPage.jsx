@@ -35,7 +35,9 @@ function filterOrders(data, field, query) {
     return data.filter((row) => String(row.Id ?? "").trim() === id);
   }
   if (field === "Date") {
-    return data.filter((row) => orderDay(row) === query);
+    // Compared as YYYY-MM-DD, so "1/5/2025" and "01/05/2025" both match.
+    const day = toDateInput(query);
+    return data.filter((row) => toDateInput(orderDay(row)) === day);
   }
   if (field === "Month") {
     const [qYear, qMonth] = query.split("-").map(Number);

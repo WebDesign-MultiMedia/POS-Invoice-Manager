@@ -48,6 +48,12 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "no-store");
     return res.end();
   } catch (err) {
+    // Expected for payments Stripe doesn't have under this key, e.g. ones
+    // taken in test mode before going live: not a server fault.
+    if (err?.code === "resource_missing") {
+      console.warn("receipt-url: no such payment in this Stripe account:", pi);
+      return fail(404, /test mode/i.test(err.message || "") ? "This payment was a test-mode payment, so it has no real receipt." : "Payment not found.");
+    }
     console.error("receipt-url error:", err);
     return fail(404, "Payment not found.");
   }

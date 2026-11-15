@@ -43,7 +43,8 @@ const ALERT_BASE = {
 function orderToForm(order) {
   const form = {};
   for (const key of Object.keys(INITIAL_FORM)) form[key] = String(order[key] ?? "");
-  form.DueDate = toDateInput(order.DueDate);
+  // Older orders only have the day they were taken; start from that.
+  form.DueDate = toDateInput(orderDay(order));
   form.DueTime = toTimeInput(order.DueTime);
   return form;
 }

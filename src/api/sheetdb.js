@@ -24,11 +24,40 @@ async function readSheet(action, params = {}) {
   return res.json();
 }
 
+// Pages that open together (e.g. Search's totals and its lookup) ask for
+// the same full list. Each SheetDB call counts toward the plan's monthly
+// limit, so a list is fetched once and shared for a few seconds; any save
+// drops every copy so the next read is fresh.
+const SHARE_MS = 15000;
+const shared = {};
+function sharedRead(key, load) {
+  const hit = shared[key];
+  if (!hit || Date.now() - hit.at > SHARE_MS) {
+    const promise = load().catch((err) => {
+      if (shared[key]?.promise === promise) delete shared[key];
+      throw err;
+    });
+    shared[key] = { at: Date.now(), promise };
+  }
+  // A new array each time, so one page sorting it can't reorder another's.
+  return shared[key].promise.then((rows) => (Array.isArray(rows) ? [...rows] : rows));
+}
+const forgetShared = () => Object.keys(shared).forEach((k) => delete shared[k]);
+
 function writeSheet(action, data) {
   return postSheet({ action, data });
 }
 
 async function postSheet(body) {
+  forgetShared();
+  try {
+    return await sendPost(body);
+  } finally {
+    forgetShared();
+  }
+}
+
+async function sendPost(body) {
   const res = await fetch(SHEETS_API, {
     method: "POST",
     body: JSON.stringify(body),
@@ -60,7 +89,7 @@ export function deleteOrder(id) {
 
 export function fetchAllOrders() {
   if (isDemo()) return demoApi.orders();
-  return readSheet("orders");
+  return sharedRead("orders", () => readSheet("orders"));
 }
 
 export async function getInvoiceById(invoiceId) {
@@ -85,7 +114,7 @@ export async function getCardPaymentsForInvoice(invoiceId) {
 
 export function fetchAllCardPayments() {
   if (isDemo()) return demoApi.cardPayments();
-  return readSheet("cardPayments");
+  return sharedRead("cardPayments", () => readSheet("cardPayments"));
 }
 
 // A logged card payment, found by its PaymentIntentId. Only who and what it
