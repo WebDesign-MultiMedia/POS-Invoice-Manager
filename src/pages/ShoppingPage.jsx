@@ -4,6 +4,7 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { addExtraItem, addReceipt, createList, deleteList, editList, finishTrip, loadShopping, readReceipt, receiptSrc, removeReceipt, reopenList, saveBarcode, setItem, DEMO_BARCODE_HINT } from "../api/shopping.js";
 import BarcodeScanner from "../components/BarcodeScanner.jsx";
+import ReceiptCamera from "../components/ReceiptCamera.jsx";
 import { isDemo } from "../lib/demo.js";
 import { useAuth } from "../lib/auth.jsx";
 import { friendlyMessage } from "../lib/errors.js";
@@ -18,6 +19,8 @@ import { addProduct, barcodeMatches, defaultStore, dollars, groupItemsByStore, p
 // private storage (api/shopping.js).
 
 const ALERT = { theme: "dark" };
+// Receipt photos per trip; the server allows the same (LIMITS.receipts).
+const RECEIPT_LIMIT = 10;
 const OUTLINE = "btn-3d !py-2 !px-3 text-sm justify-center !bg-none !bg-transparent border border-brand-navy/40 text-brand-navy disabled:opacity-60";
 const DANGER = "btn-3d !py-2 !px-3 text-sm justify-center !bg-none !bg-transparent border border-brand-error/60 text-brand-error disabled:opacity-60";
 
@@ -299,6 +302,9 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
   // Once someone types the total themselves, the app stops filling it in.
   const [spentTyped, setSpentTyped] = useState(false);
   const fileRef = useRef(null);
+  const pickRef = useRef(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [photoStep, setPhotoStep] = useState(""); // "2 of 4" while saving
   const done = list.status === "Done";
   const locked = done && !manager;
   const p = progress(list);
@@ -435,23 +441,44 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
     if (res) setExtra((x) => ({ name: "", qty: "", store: x.store }));
   };
 
-  const takePhoto = async (e) => {
-    const files = [...(e.target.files || [])];
-    e.target.value = "";
-    for (const file of files) {
+  // Saves the photos of one receipt, in order. Two or more are one long
+  // receipt: they share a group id and the AI reads them together.
+  const savePhotos = async (files) => {
+    if (!files.length) return;
+    const room = RECEIPT_LIMIT - list.receipts.length;
+    if (files.length > room) {
+      Swal.fire({ ...ALERT, title: "Too many photos", text: room > 0 ? `This trip has room for ${room} more receipt photo${room === 1 ? "" : "s"}.` : "This trip already has the most receipt photos. Remove one first.", icon: "warning" });
+      if (room <= 0) return;
+      files = files.slice(0, room);
+    }
+    const group = files.length > 1 ? Math.random().toString(36).slice(2, 12).padEnd(8, "0") : "";
+    let first = null;
+    for (let i = 0; i < files.length; i++) {
+      setPhotoStep(files.length > 1 ? `${i + 1} of ${files.length}` : "");
       let image;
       try {
-        image = await shrinkPhoto(file);
+        image = await shrinkPhoto(files[i]);
       } catch (err) {
         console.error("shrinkPhoto failed:", err);
+        setPhotoStep("");
         Swal.fire({ ...ALERT, title: "Photo not added", text: "That picture couldn't be opened. Try taking it again.", icon: "error" });
         return;
       }
-      const res = await run("photo", () => addReceipt(list.id, image, photoStore), "Photo not saved", "Couldn't save the receipt photo.");
-      if (!res) return;
-      const added = res.list?.receipts?.[res.list.receipts.length - 1];
-      if (reader && added) await read(added.path);
+      const res = await run("photo", () => addReceipt(list.id, image, photoStore, group), "Photo not saved", "Couldn't save the receipt photo.");
+      if (!res) {
+        setPhotoStep("");
+        return;
+      }
+      first ||= res.list?.receipts?.[res.list.receipts.length - 1];
     }
+    setPhotoStep("");
+    if (reader && first) await read(first.path);
+  };
+
+  const takePhoto = (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = "";
+    savePhotos(files);
   };
 
   // Reads a photo with AI. The receipt's total goes in Receipt total if
@@ -597,6 +624,7 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
           <ul className="grid grid-cols-3 gap-2">
             {list.receipts.map((r) => (
               <li key={r.path} className="relative">
+                {partLabel(list.receipts, r) && <span className="absolute top-1 left-1 z-10 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white">{partLabel(list.receipts, r)}</span>}
                 <a href={receiptSrc(list.id, r.path)} target="_blank" rel="noopener noreferrer" className="block">
                   <img src={receiptSrc(list.id, r.path)} alt={`Receipt photo${r.store ? ` from ${r.store}` : ""} by ${r.by || "someone"}`} loading="lazy" className="w-full aspect-[3/4] object-cover object-top rounded-lg border border-brand-navydeep/20 bg-white" />
                 </a>
@@ -612,30 +640,53 @@ function TripView({ list, products = [], manager, prices, photos, reader, onBack
         ) : (
           <p className="text-center text-sm text-brand-navydeep/80">No receipt photos yet.</p>
         )}
-        {list.receipts.map((r, i) =>
-          r.details ? (
-            <ReceiptDetails key={`d-${r.path}`} details={r.details} label={r.store ? `${r.store} receipt` : list.receipts.length > 1 ? `Receipt ${i + 1}` : "What the receipt says"} />
+        {/* One entry per receipt: the photos of a long receipt count once. */}
+        {receiptsOnce(list.receipts).map(({ r, photos: n }, i, all) => {
+          const name = all.length > 1 ? `receipt ${i + 1}` : "the receipt";
+          return r.details ? (
+            <ReceiptDetails key={`d-${r.path}`} details={r.details} label={r.store ? `${r.store} receipt` : all.length > 1 ? `Receipt ${i + 1}` : "What the receipt says"} />
           ) : busy === `read:${r.path}` ? (
             <p key={`d-${r.path}`} className="glass-panel px-3 py-2 text-sm text-center text-brand-navydeep/85" role="status">
-              <i className="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Reading {list.receipts.length > 1 ? `receipt ${i + 1}` : "the receipt"}…
+              <i className="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Reading {name}{n > 1 ? ` (${n} photos)` : ""}…
             </p>
           ) : (
             reader && (
-              <button key={`d-${r.path}`} type="button" className={OUTLINE} disabled={!!busy} onClick={() => read(r.path)}>
-                <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Read {list.receipts.length > 1 ? `receipt ${i + 1}` : "receipt"}
+              <button key={`d-${r.path}`} type="button" className={OUTLINE} disabled={!!busy || !!photoStep} onClick={() => read(r.path)}>
+                <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Read {all.length > 1 ? `receipt ${i + 1}` : "receipt"}
+                {n > 1 ? ` (${n} photos)` : ""}
               </button>
             )
-          )
-        )}
+          );
+        })}
         {!locked &&
           (photos ? (
             <>
+              {/* The phone's own camera: used when the in-app one can't open. */}
               <input ref={fileRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={takePhoto} tabIndex={-1} aria-hidden="true" />
+              <input ref={pickRef} type="file" accept="image/*" multiple className="sr-only" onChange={takePhoto} tabIndex={-1} aria-hidden="true" />
               {tripStores.length > 1 && <StoreSelect id="receipt-store" label="Receipt from" stores={tripStores} value={photoStore} onChange={setReceiptStore} />}
-              <button type="button" className="btn-3d justify-center disabled:opacity-60" disabled={busy === "photo"} onClick={() => fileRef.current?.click()}>
-                <i className={`fa-solid ${busy === "photo" ? "fa-spinner fa-spin" : "fa-camera"}`} aria-hidden="true"></i> {busy === "photo" ? "Saving photo…" : tripStores.length > 1 ? `Scan ${photoStore} receipt` : "Scan receipt"}
+              <button type="button" className="btn-3d justify-center disabled:opacity-60" disabled={busy === "photo" || !!photoStep} onClick={() => setCameraOpen(true)}>
+                <i className={`fa-solid ${busy === "photo" || photoStep ? "fa-spinner fa-spin" : "fa-camera"}`} aria-hidden="true"></i>{" "}
+                {busy === "photo" || photoStep ? `Saving photo${photoStep ? ` ${photoStep}` : ""}…` : tripStores.length > 1 ? `Scan ${photoStore} receipt` : "Scan receipt"}
               </button>
-              <p className="text-xs text-center text-brand-navydeep/70">Lay the receipt flat, in good light. Long receipt? Take more than one photo.</p>
+              <button type="button" className={OUTLINE} disabled={busy === "photo" || !!photoStep} onClick={() => pickRef.current?.click()}>
+                <i className="fa-solid fa-images" aria-hidden="true"></i> Choose photos
+              </button>
+              <p className="text-xs text-center text-brand-navydeep/70">Lay the receipt flat, in good light. Long receipt? Snap it top to bottom in several photos, then press Done: they&apos;re read together as one receipt.</p>
+              {cameraOpen && (
+                <ReceiptCamera
+                  maxShots={Math.max(1, RECEIPT_LIMIT - list.receipts.length)}
+                  onCancel={() => setCameraOpen(false)}
+                  onDone={(files) => {
+                    setCameraOpen(false);
+                    savePhotos(files);
+                  }}
+                  onUnavailable={() => {
+                    setCameraOpen(false);
+                    fileRef.current?.click();
+                  }}
+                />
+              )}
             </>
           ) : (
             <p className="text-xs text-center text-brand-navydeep/70">Receipt photos aren&apos;t set up yet. Keep the paper receipt for now.</p>
@@ -1049,6 +1100,30 @@ function StoreSelect({ id, label, stores, value, onChange, className = "" }) {
       </select>
     </div>
   );
+}
+
+// Each receipt once: a long receipt's photos share a group, and only the
+// group's first photo carries what was read. → [{ r, photos }]
+function receiptsOnce(receipts) {
+  const out = [];
+  const seen = new Map();
+  for (const r of receipts) {
+    if (r.group && seen.has(r.group)) {
+      seen.get(r.group).photos += 1;
+      continue;
+    }
+    const entry = { r, photos: 1 };
+    if (r.group) seen.set(r.group, entry);
+    out.push(entry);
+  }
+  return out;
+}
+
+// "2/3" on the second of three photos of one receipt; "" for a lone photo.
+function partLabel(receipts, r) {
+  if (!r.group) return "";
+  const parts = receipts.filter((x) => x.group === r.group);
+  return parts.length > 1 ? `${parts.indexOf(r) + 1}/${parts.length}` : "";
 }
 
 // What the AI read off one receipt photo, shown under the photos.

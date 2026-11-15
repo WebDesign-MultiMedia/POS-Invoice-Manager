@@ -112,7 +112,7 @@ export function publicList(row, session) {
     items,
     notes: row.Notes || "",
     spent: prices || mine ? row.Spent || "" : "",
-    receipts: receiptsOf(row).map(({ path, at, by, store, details }) => ({ path, at, by, store: store || "", details: details || null })),
+    receipts: receiptsOf(row).map(({ path, at, by, store, group, details }) => ({ path, at, by, store: store || "", group: group || "", details: details || null })),
     createdBy: row.CreatedBy || "",
     createdAt: row.CreatedAt || "",
     updatedAt: row.UpdatedAt || "",

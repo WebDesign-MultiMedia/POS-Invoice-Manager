@@ -44,7 +44,8 @@ import {
 //   POST { action: "reopen", id }        manager
 //   POST { action: "item", id, itemId, got, out }
 //   POST { action: "addItem", id, name, qty, store? }
-//   POST { action: "receipt", id, image, store? }   image: data:image/jpeg;base64,…
+//   POST { action: "receipt", id, image, store?, group? }   image: data:image/jpeg;base64,…
+//        group: the same short id on every photo of one long receipt
 //   POST { action: "readReceipt", id, path }  → reads the photo with Claude
 //   POST { action: "removeReceipt", id, path }
 //   POST { action: "finish", id, spent }
@@ -317,17 +318,25 @@ export default async function handler(req, res) {
       const image = decodeImage(body.image);
       const blob = await put(`receipts/${id}/receipt.${image.ext}`, image.buffer, { access: "private", contentType: image.contentType, addRandomSuffix: true });
       const store = String(body.store ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
-      return await reply({ Receipts: JSON.stringify([...receipts, { path: blob.pathname, at: now, by: who, ...(store ? { store } : {}) }]) });
+      const group = /^[a-z0-9]{6,24}$/i.test(String(body.group || "")) ? String(body.group) : "";
+      return await reply({ Receipts: JSON.stringify([...receipts, { path: blob.pathname, at: now, by: who, ...(store ? { store } : {}), ...(group ? { group } : {}) }]) });
     }
 
     if (body.action === "readReceipt") {
       if (!readerReady()) throw new BadRequest("Receipt reading isn't set up yet.");
       const receipts = receiptsOf(row);
-      const photo = receipts.find((r) => r.path === body.path);
-      if (!photo) throw new NotFound();
-      const blob = await get(photo.path, { access: "private" });
-      if (!blob || blob.statusCode !== 200) throw new NotFound();
-      const buffer = Buffer.from(await new Response(blob.stream).arrayBuffer());
+      const asked = receipts.find((r) => r.path === body.path);
+      if (!asked) throw new NotFound();
+      // A long receipt in several photos is read as one, and its details
+      // are kept on the group's first photo.
+      const parts = asked.group ? receipts.filter((r) => r.group === asked.group) : [asked];
+      const photo = parts[0];
+      const images = [];
+      for (const part of parts) {
+        const blob = await get(part.path, { access: "private" });
+        if (!blob || blob.statusCode !== 200) throw new NotFound();
+        images.push({ buffer: Buffer.from(await new Response(blob.stream).arrayBuffer()), contentType: blob.blob.contentType || "image/jpeg" });
+      }
       // The catalog products this receipt could have: the photo's store's
       // (or the trip's only store's), else the ones on the list.
       const listStores = [...new Set(itemsOf(row).map((i) => String(i.store || "").trim()).filter(Boolean))];
@@ -336,7 +345,7 @@ export default async function handler(req, res) {
       const candidates = ((await productRows()) || []).filter((p) => (store ? (String(p.Store || "").trim() || DEFAULT_STORE) === store : onList.has(p.ProductId)));
       let details;
       try {
-        details = await readReceipt({ buffer, contentType: blob.blob.contentType || "image/jpeg" }, { products: candidates.map((p) => ({ id: p.ProductId, name: p.Name, size: p.Size })) });
+        details = await readReceipt(images.length > 1 ? images : images[0], { products: candidates.map((p) => ({ id: p.ProductId, name: p.Name, size: p.Size })) });
       } catch (err) {
         if (err instanceof UnreadableReceipt) throw new BadRequest("Couldn't read that receipt. Try a clearer photo, flat and in good light.");
         console.error("shopping: receipt reader failed", err);
@@ -355,7 +364,13 @@ export default async function handler(req, res) {
       if (applied.length) details.catalog = applied;
       // Read the row again: someone may have checked items off meanwhile.
       const fresh = (await findRow(id)) || row;
-      const updated = receiptsOf(fresh).map((r) => (r.path === photo.path ? { ...r, details } : r));
+      const partPaths = new Set(parts.map((r) => r.path));
+      const updated = receiptsOf(fresh).map((r) => {
+        if (r.path === photo.path) return { ...r, details };
+        if (!partPaths.has(r.path)) return r;
+        const { details: _old, ...rest } = r;
+        return rest;
+      });
       await patchRow(id, { Receipts: JSON.stringify(updated) });
       return res.status(200).json({ ok: true, details, list: publicList({ ...fresh, Receipts: JSON.stringify(updated) }, session) });
     }
@@ -366,7 +381,16 @@ export default async function handler(req, res) {
       if (!photo) throw new NotFound();
       if (!manager && photo.by !== who) throw new Forbidden("Only the person who took this photo, or a manager, can remove it.");
       if (photosReady()) await del(photo.path).catch((err) => console.error("shopping: couldn't delete photo", err));
-      return await reply({ Receipts: JSON.stringify(receipts.filter((r) => r.path !== photo.path)) });
+      // What was read from a long receipt no longer matches once one of its
+      // photos is gone, so it's cleared to be read again.
+      const left = receipts
+        .filter((r) => r.path !== photo.path)
+        .map((r) => {
+          if (!photo.group || r.group !== photo.group) return r;
+          const { details: _old, ...rest } = r;
+          return rest;
+        });
+      return await reply({ Receipts: JSON.stringify(left) });
     }
 
     if (body.action === "finish") {

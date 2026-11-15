@@ -306,6 +306,27 @@ describe("reading a receipt photo", () => {
     expect(JSON.parse(shopping[0].Receipts)[0].details.catalog).toHaveLength(1);
   });
 
+  it("reads a long receipt's photos together and keeps the result on the first", async () => {
+    const part = (n) => ({ path: `receipts/${LIST_ID}/receipt-p${n}.jpg`, at: "2026-11-12T10:00:00Z", by: "Carlos", group: "grp12345" });
+    shopping[0].Receipts = JSON.stringify([{ path: PATH, at: "2026-11-12T09:00:00Z", by: "Carlos" }, part(1), part(2), part(3)]);
+    claude.create.mockResolvedValue(reply({ is_receipt: true, store: "Jetro", date: "2026-11-12", items: [{ name: "Rice", qty: "1", price: 20 }], subtotal: 20, tax: 0, total: 20, note: "" }));
+    // Asking from the last photo reads the whole group.
+    const res = await post({ action: "readReceipt", id: LIST_ID, path: part(3).path }, carlos());
+    expect(res.statusCode).toBe(200);
+    const content = claude.create.mock.calls[0][0].messages[0].content;
+    expect(content.filter((c) => c.type === "image")).toHaveLength(3);
+    expect(content.at(-1).text).toContain("These 3 photos are ONE long store receipt");
+    const saved = JSON.parse(shopping[0].Receipts);
+    expect(saved.map((r) => r.details?.total ?? null)).toEqual([null, 20, null, null]);
+    expect(res.body.list.receipts[1]).toMatchObject({ group: "grp12345" });
+
+    // Removing one of its photos clears what was read, to read it again.
+    expect((await post({ action: "removeReceipt", id: LIST_ID, path: part(2).path }, carlos())).statusCode).toBe(200);
+    const left = JSON.parse(shopping[0].Receipts);
+    expect(left.map((r) => r.path)).toEqual([PATH, part(1).path, part(3).path]);
+    expect(left.some((r) => r.details)).toBe(false);
+  });
+
   it("saves what the receipt says next to the photo", async () => {
     claude.create.mockResolvedValue(
       reply({ is_receipt: true, store: "Restaurant Depot", date: "2026-11-12", items: [{ name: "Tomatoes", qty: "2", price: 36.5 }, { name: "", qty: "", price: 1 }], subtotal: 36.5, tax: null, total: 36.5, note: "" })

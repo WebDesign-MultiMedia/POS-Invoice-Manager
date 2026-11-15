@@ -33,7 +33,8 @@ export const deleteList = (id) => post({ action: "delete", id });
 export const reopenList = (id) => post({ action: "reopen", id });
 export const setItem = (id, itemId, { got, out }) => post({ action: "item", id, itemId, got, out });
 export const addExtraItem = (id, name, qty, store = "") => post({ action: "addItem", id, name, qty, store });
-export const addReceipt = (id, image, store = "") => post({ action: "receipt", id, image, store });
+// group: the same short id on every photo of one long receipt, so they're read together.
+export const addReceipt = (id, image, store = "", group = "") => post({ action: "receipt", id, image, store, ...(group ? { group } : {}) });
 export const removeReceipt = (id, path) => post({ action: "removeReceipt", id, path });
 // Product catalog (managers). image: an optional new picture as a data URL.
 export const saveProduct = (product, image) => post({ action: "saveProduct", product, image });
@@ -176,7 +177,7 @@ function demo(body) {
   if (body.action === "receipt") {
     const path = `receipts/${list.id}/demo-${hex(8)}.jpg`;
     demoPhotos.set(path, body.image);
-    list.receipts.push({ path, at: now, by: "Demo", store: body.store || "" });
+    list.receipts.push({ path, at: now, by: "Demo", store: body.store || "", group: body.group || "" });
   }
   if (body.action === "readReceipt") {
     // The demo can't really read photos, so it shows a made-up receipt.
@@ -193,10 +194,15 @@ function demo(body) {
       total: 75.97,
       note: "Sample receipt: the demo doesn't read real photos.",
     };
-    list.receipts = list.receipts.map((r) => (r.path === body.path ? { ...r, details } : r));
+    const asked = list.receipts.find((r) => r.path === body.path);
+    const first = asked?.group ? list.receipts.find((r) => r.group === asked.group) : asked;
+    list.receipts = list.receipts.map((r) => (r.path === first?.path ? { ...r, details } : asked?.group && r.group === asked.group ? { ...r, details: null } : r));
     return new Promise((resolve) => setTimeout(() => resolve(clone({ ok: true, details, list })), 1200));
   }
-  if (body.action === "removeReceipt") list.receipts = list.receipts.filter((r) => r.path !== body.path);
+  if (body.action === "removeReceipt") {
+    const gone = list.receipts.find((r) => r.path === body.path);
+    list.receipts = list.receipts.filter((r) => r.path !== body.path).map((r) => (gone?.group && r.group === gone.group ? { ...r, details: null } : r));
+  }
   if (body.action === "finish") {
     const spent = Number(String(body.spent || "").replace(/[$,\s]/g, ""));
     if (!String(body.spent || "").trim() || !Number.isFinite(spent) || spent < 0) return Promise.reject(new ApiError(400, "Type the total from the receipt."));
