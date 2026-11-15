@@ -14,6 +14,8 @@ import { ordersNewestFirst } from "../lib/recentOrder.js";
 import OrderTypeTotals from "../components/OrderTypeTotals.jsx";
 
 const SEARCH_FIELDS = {
+  // The order's Id column: the number printed as Receipt # on the invoice.
+  Id: { label: "Invoice #", icon: "fa-hashtag", type: "text", inputMode: "numeric", placeholder: "e.g. 1003" },
   Contact: { label: "Phone number", icon: "fa-phone", type: "text", placeholder: "e.g. 555-0100" },
   Name: { label: "Customer name", icon: "fa-user", type: "text", placeholder: "e.g. Jane Doe" },
   Address: { label: "Address", icon: "fa-location-dot", type: "text", placeholder: "e.g. 123 Main St" },
@@ -27,6 +29,11 @@ const SEARCH_FIELDS = {
 };
 
 function filterOrders(data, field, query) {
+  if (field === "Id") {
+    // Exact match, so "100" doesn't also list 1001–1009. "#1003" works too.
+    const id = query.replace(/^#/, "").trim();
+    return data.filter((row) => String(row.Id ?? "").trim() === id);
+  }
   if (field === "Date") {
     return data.filter((row) => orderDay(row) === query);
   }
@@ -113,7 +120,7 @@ export default function SearchPage() {
 
   return (
     <Layout blobs={["bg-brand-teal w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-terracotta w-64 h-64 top-1/2 -left-16 animate-float"]}>
-      <PageHeader title="Search Orders" subtitle="By phone, name, address, date, month, year, or order ID" />
+      <PageHeader title="Search Orders" subtitle="By invoice #, phone, name, address, date, month, year, or order ID" />
 
       <SiteNav className="mb-8" />
 
@@ -123,6 +130,7 @@ export default function SearchPage() {
             <i className="fa-solid fa-filter"></i> Search by
           </label>
           <select id="searchField" className="input-3d text-center" value={field} onChange={handleFieldChange}>
+            <option value="Id">Invoice #</option>
             <option value="Contact">Phone</option>
             <option value="Name">Name</option>
             <option value="Address">Address</option>
@@ -138,6 +146,7 @@ export default function SearchPage() {
           </label>
           <input
             type={config.type}
+            inputMode={config.inputMode}
             id="searchQuery"
             placeholder={config.placeholder}
             className="input-3d text-center"
