@@ -5,7 +5,7 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { fetchAllOrders, fetchAllCardPayments } from "../api/sheetdb.js";
-import { formatDate, formatLongDate, formatMoney, parseStoredDate, escapeRegex, toDateInput } from "../lib/format.js";
+import { formatDate, formatLongDate, formatMoney, parseStoredDate, escapeRegex, splitItems, toDateInput } from "../lib/format.js";
 import { orderDay } from "../lib/orderOptions.js";
 import { parseCardPaymentOrder } from "../lib/menu.js";
 import { isDemo } from "../lib/demo.js";
@@ -328,9 +328,22 @@ export default function SearchPage() {
                     {order.DueTime ? ` · ${order.DueTime}` : ""}
                   </p>
                 )}
-                <p>
-                  <i className="fa-solid fa-clipboard-list text-brand-terracotta w-5"></i> {order.Items ?? ""}
-                </p>
+                {/* One line per item, quantity first, like the invoice */}
+                {splitItems(order.Items).length > 0 && (
+                  <div className="pt-1">
+                    <p className="text-xs uppercase tracking-widest text-brand-terracotta font-semibold mb-1">
+                      <i className="fa-solid fa-clipboard-list"></i> Items
+                    </p>
+                    <ul className="divide-y divide-brand-navydeep/10">
+                      {splitItems(order.Items).map((item, idx) => (
+                        <li key={idx} className="flex gap-3 py-1">
+                          <span className="w-8 shrink-0 text-right font-semibold tabular-nums">{item.qty}×</span>
+                          <span className="min-w-0 [overflow-wrap:anywhere]">{item.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between mt-4 pt-3 border-t border-brand-navydeep/10">
                 <span className="text-xs uppercase tracking-wide text-brand-muted/90">
