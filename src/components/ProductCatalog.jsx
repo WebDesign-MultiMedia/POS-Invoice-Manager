@@ -38,11 +38,11 @@ export function ImageViewer({ product, onClose }) {
   const details = [product.size, whereToFind(product), productPriceLine(product)].filter(Boolean);
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label={product.name} className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="relative w-full max-w-md flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full max-w-md sm:max-w-2xl flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
         <button ref={closeRef} type="button" onClick={onClose} aria-label="Close picture" className="absolute -top-2 right-0 h-10 w-10 rounded-full bg-white/15 text-white text-lg">
           <i className="fa-solid fa-xmark" aria-hidden="true"></i>
         </button>
-        <img src={productSrc(product)} alt={product.name} className="w-full max-h-[65vh] object-contain mt-8" />
+        <img src={productSrc(product)} alt={product.name} className="w-full max-h-[65vh] sm:max-h-[75vh] object-contain mt-12" />
         <div className="text-center text-white">
           <p className="font-semibold text-lg leading-tight">{product.name}</p>
           {details.map((d) => (
@@ -323,7 +323,7 @@ function ProductForm({ product, photos, categories, stores, onCancel, onSaved, o
     e.target.value = "";
     if (!file) return;
     try {
-      setImage(await shrinkPhoto(file, { maxSide: 600, transparent: true }));
+      setImage(await shrinkPhoto(file, { maxSide: 1600, quality: 0.85, transparent: true }));
     } catch {
       Swal.fire({ ...ALERT, title: "Picture not added", text: "That file couldn't be opened. Use a PNG, JPG or WebP picture.", icon: "error" });
     }

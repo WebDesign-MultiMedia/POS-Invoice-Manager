@@ -85,25 +85,48 @@ export function spendingByMonth(lists) {
 
 // A phone photo shrunk to a sharp-enough JPEG (longest side ≤ 1800px), as a
 // data URL. Keeps uploads small on mobile data and under the server limit.
-// transparent: keep see-through backgrounds (product pictures) by saving as
-// WebP, or PNG on browsers that can't make WebP.
+// transparent: keep see-through backgrounds (product pictures). A picture
+// with no see-through pixels (a phone photo) is still saved as a JPEG; one
+// with them as WebP, or PNG on browsers that can't make WebP (iPhones),
+// made smaller until it fits under the server's 3 MB limit.
 export async function shrinkPhoto(file, { maxSide = 1800, quality = 0.72, transparent = false } = {}) {
   if (!file || !/^image\//.test(file.type || "image/")) throw new Error("not an image");
   const bitmap = await loadImage(file);
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  const ctx = canvas.getContext("2d");
-  if (!transparent) {
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const draw = (side, fill) => {
+    const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (fill) {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return { canvas, ctx };
+  };
+  try {
+    if (!transparent) return draw(maxSide, true).canvas.toDataURL("image/jpeg", quality);
+    const { canvas, ctx } = draw(maxSide, false);
+    if (!hasSeeThrough(ctx, canvas)) return canvas.toDataURL("image/jpeg", quality);
+    // ~3 MB of file is ~4 MB of base64 text; stay safely under.
+    const fits = (url) => url.length < 3.6 * 1024 * 1024;
+    for (const side of [maxSide, 1200, 900, 600]) {
+      const c = side === maxSide ? canvas : draw(side, false).canvas;
+      const webp = c.toDataURL("image/webp", 0.85);
+      const url = webp.startsWith("data:image/webp") ? webp : c.toDataURL("image/png");
+      if (fits(url) || side === 600) return url;
+    }
+  } finally {
+    bitmap.close?.();
   }
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close?.();
-  if (!transparent) return canvas.toDataURL("image/jpeg", quality);
-  const webp = canvas.toDataURL("image/webp", 0.8);
-  return webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/png");
+}
+
+// True if any pixel is even partly see-through.
+function hasSeeThrough(ctx, canvas) {
+  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  for (let i = 3; i < data.length; i += 4) if (data[i] < 250) return true;
+  return false;
 }
 
 async function loadImage(file) {
