@@ -5,6 +5,7 @@ import { mockReq, mockRes, cookieFrom } from "./helpers.js";
 const stripeMock = vi.hoisted(() => ({
   paymentMethods: { retrieve: vi.fn() },
   paymentIntents: { create: vi.fn() },
+  checkout: { sessions: { create: vi.fn(), retrieve: vi.fn(), expire: vi.fn() } },
 }));
 vi.mock("stripe", () => ({
   default: vi.fn(function Stripe() {
@@ -121,5 +122,90 @@ describe("POST /api/create-payment-intent", () => {
     expect(res.statusCode).toBe(500);
     expect(res.body.error).not.toMatch(/sk_|API Key/i);
     expect(res.body.error).toMatch(/No charge was made/);
+  });
+});
+
+describe("Pay by QR (Event Sales)", () => {
+  const SESSION_ID = "cs_test_a1B2c3D4e5F6g7H8";
+  const paidSession = {
+    id: SESSION_ID,
+    status: "complete",
+    payment_status: "paid",
+    amount_total: 1250,
+    metadata: { source: "event_qr", invoice_no: "EV-261116-120000", base_amount_cents: "1250" },
+    payment_intent: {
+      id: "pi_qr_1",
+      latest_charge: {
+        receipt_url: "https://pay.stripe.com/receipts/qr",
+        payment_method_details: { card: { brand: "visa", last4: "4242", funding: "credit", wallet: { type: "apple_pay" } } },
+      },
+    },
+  };
+
+  beforeEach(() => {
+    stripeMock.checkout.sessions.create.mockReset().mockResolvedValue({ id: SESSION_ID, url: "https://checkout.stripe.com/c/pay/x", expires_at: 1_900_000_000 });
+    stripeMock.checkout.sessions.retrieve.mockReset();
+    stripeMock.checkout.sessions.expire.mockReset().mockResolvedValue({});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("makes a checkout page for an event sale, with no card fee", async () => {
+    const res = await post({ action: "qr-create", baseAmountCents: 1250, invoiceId: "EV-261116-120000", description: "Order ID: EV-261116-120000" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ id: SESSION_ID, url: "https://checkout.stripe.com/c/pay/x", expiresAt: 1_900_000_000_000 });
+    const params = stripeMock.checkout.sessions.create.mock.calls[0][0];
+    expect(params.line_items[0].price_data.unit_amount).toBe(1250);
+    expect(params.metadata).toMatchObject({ source: "event_qr", surcharge_cents: "0" });
+    expect(params.expires_at - Date.now() / 1000).toBeGreaterThanOrEqual(30 * 60);
+    expect(stripeMock.paymentIntents.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ baseAmountCents: 1250, invoiceId: "INV-1" }],
+    [{ baseAmountCents: 49, invoiceId: "EV-261116-120000" }],
+    [{ baseAmountCents: "1250", invoiceId: "EV-261116-120000" }],
+    [{ baseAmountCents: MAX_CHARGE_CENTS + 1, invoiceId: "EV-261116-120000" }],
+  ])("won't make a QR for %j", async (body) => {
+    const res = await post({ action: "qr-create", ...body });
+    expect(res.statusCode).toBe(400);
+    expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("needs a login", async () => {
+    const res = await post({ action: "qr-create", baseAmountCents: 1250, invoiceId: "EV-261116-120000" }, { cookie: null });
+    expect(res.statusCode).toBe(401);
+    expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("reports open, then paid with the card and wallet", async () => {
+    stripeMock.checkout.sessions.retrieve.mockResolvedValueOnce({ ...paidSession, status: "open", payment_status: "unpaid", payment_intent: null });
+    let res = await post({ action: "qr-status", id: SESSION_ID });
+    expect(res.body).toEqual({ status: "open" });
+
+    stripeMock.checkout.sessions.retrieve.mockResolvedValueOnce(paidSession);
+    res = await post({ action: "qr-status", id: SESSION_ID });
+    expect(res.body).toMatchObject({ status: "paid", id: "pi_qr_1", cardBrand: "visa", cardLast4: "4242", wallet: "apple_pay", totalCents: 1250, surchargeCents: 0 });
+  });
+
+  it("won't read checkout pages it didn't make", async () => {
+    stripeMock.checkout.sessions.retrieve.mockResolvedValueOnce({ ...paidSession, metadata: {} });
+    const res = await post({ action: "qr-status", id: SESSION_ID });
+    expect(res.statusCode).toBe(404);
+    const bad = await post({ action: "qr-status", id: "../../v1/charges" });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it("cancel closes an open page", async () => {
+    stripeMock.checkout.sessions.retrieve.mockResolvedValueOnce({ ...paidSession, status: "open", payment_status: "unpaid" });
+    const res = await post({ action: "qr-cancel", id: SESSION_ID });
+    expect(stripeMock.checkout.sessions.expire).toHaveBeenCalledWith(SESSION_ID);
+    expect(res.body).toEqual({ status: "expired" });
+  });
+
+  it("cancel keeps the sale when the customer paid in that same moment", async () => {
+    stripeMock.checkout.sessions.retrieve.mockResolvedValueOnce({ ...paidSession, status: "open", payment_status: "unpaid" }).mockResolvedValueOnce(paidSession);
+    stripeMock.checkout.sessions.expire.mockRejectedValueOnce(Object.assign(new Error("already complete"), { code: "checkout_session_not_open" }));
+    const res = await post({ action: "qr-cancel", id: SESSION_ID });
+    expect(res.body).toMatchObject({ status: "paid", id: "pi_qr_1" });
   });
 });

@@ -12,6 +12,8 @@ import { ROW_OUTLINE_BUTTON, RowButtons, RowEditor, confirmAndDelete, useMakeInv
 import { saleToOrderForm } from "../lib/saleToOrder.js";
 import { useAuth } from "../lib/auth.jsx";
 import ZelleQrCard from "../components/ZelleQrCard.jsx";
+import QrPayPanel from "../components/QrPayPanel.jsx";
+import { cancelQrPayment, readPendingQr, savePendingQr } from "../api/qrPay.js";
 import TextReceiptButton from "../components/TextReceipt.jsx";
 import { fetchZelleAlerts } from "../api/zelle.js";
 import { toNumber, formatMoney, formatCardLabel, formatLongDate, getCurrentDateTime } from "../lib/format.js";
@@ -27,13 +29,16 @@ import { cartFromItems, cashChange, isUnpaid, newEventSaleId, quickCashOptions, 
 
 // Event Sales: checkout for a vendor event booth.
 //   1. Build the order: tap menu items or type an amount, optional name.
-//   2. Pay now → Card, Cash or Zelle; or Save order → Unpaid, paid later.
+//   2. Pay now → Card, QR pay (on their phone), Cash or Zelle; or Save order → Unpaid, paid later.
 //   3. Sale recorded in the "EventSales" sheet tab → next customer.
 // Phones get one column; tablets and computers get a full-screen register.
 // Card sales are also logged to CardPayments like every other card charge,
 // so they show in Recent card payments and the Order ID search.
 
-const METHOD_ICONS = { Card: "fa-credit-card", Cash: "fa-money-bill-wave", Zelle: "fa-building-columns" };
+// "QR pay" is a card sale too (Method "Card"), paid on the customer's phone.
+const METHOD_ICONS = { Card: "fa-credit-card", "QR pay": "fa-qrcode", Cash: "fa-money-bill-wave", Zelle: "fa-building-columns" };
+const PAY_METHODS = Object.keys(METHOD_ICONS);
+const WALLET_NAMES = { apple_pay: "Apple Pay", google_pay: "Google Pay", samsung_pay: "Samsung Pay", link: "Link" };
 
 const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -284,19 +289,26 @@ export default function EventSalesPage() {
     }
   };
 
-  // Card: the charge already went through, so a failed save only warns.
-  const handleCardPaid = async (result) => {
+  // The sale as it is on screen now; QR pay keeps a copy (see qrPay.js).
+  const saleContext = () => ({ paying, base: baseRow(), email });
+
+  // Card and QR pay: the charge already went through, so a failed save
+  // only warns. ctx: saleContext() from when the payment was started.
+  const saveCardSale = async (result, ctx, { qr = false } = {}) => {
+    const wallet = WALLET_NAMES[result.wallet] || "";
+    const label = formatCardLabel(result.cardBrand, result.cardLast4);
     const payment = {
       Method: "Card",
       Fee: (result.surchargeCents / 100).toFixed(2),
       Total: (result.totalCents / 100).toFixed(2),
-      Card: formatCardLabel(result.cardBrand, result.cardLast4),
+      Card: wallet ? [label, `(${wallet})`].filter(Boolean).join(" ") : label,
       Funding: result.funding,
       PaymentIntentId: result.id || "",
     };
+    const { paying, email } = ctx;
     const row = paying
       ? { ...paying, ...payment, Status: "Paid", PaidBy: sellerName || "" }
-      : { ...baseRow(), ...payment, Status: "Paid", Amount: (result.baseAmountCents / 100).toFixed(2) };
+      : { ...ctx.base, ...payment, Status: "Paid", Amount: (result.baseAmountCents / 100).toFixed(2) };
     const cardRow = {
       Date: row.Date,
       Time: row.Time,
@@ -311,12 +323,13 @@ export default function EventSalesPage() {
       Phone: "",
       InvoiceId: row.SaleId,
       Items: row.Items,
-      Note: ["Event sale", row.Note].filter(Boolean).join(" — "),
+      Note: ["Event sale", qr ? "paid by QR" : "", row.Note].filter(Boolean).join(" — "),
       SoldBy: row.SoldBy,
     };
     const save = paying ? payEventSale(paying.SaleId, payment) : recordEventSale(row);
     const results = await Promise.allSettled([save, recordCardPayment(cardRow)]);
-    if (results.some((r) => r.status === "rejected")) {
+    const ok = !results.some((r) => r.status === "rejected");
+    if (!ok) {
       console.error("Event card sale logging failed:", results);
       Swal.fire({
         title: "Paid, but not added to the sheet",
@@ -325,8 +338,79 @@ export default function EventSalesPage() {
         theme: "dark",
       });
     }
+    return { row, ok };
+  };
+
+  const handleCardPaid = async (result) => {
+    const { row } = await saveCardSale(result, saleContext());
     finish(row, { receiptUrl: result.receiptUrl });
   };
+
+  // ── QR pay ──
+  // The QR's sale is kept on this device until it's settled, so a paid QR
+  // is still recorded after a reload, a closed tab or a dead battery.
+  // settled: checkout ids already recorded or closed, so none is saved twice.
+  const settledQr = useRef(new Set());
+  const takeQr = (id) => {
+    if (settledQr.current.has(id)) return null;
+    settledQr.current.add(id);
+    const pending = readPendingQr();
+    if (pending?.id === id) savePendingQr(null);
+    return pending?.id === id ? pending : null;
+  };
+
+  // A QR paid while it wasn't on screen any more (switched away, reload…):
+  // saved without leaving the current customer.
+  const saveQrInBackground = async (result, ctx) => {
+    const { row, ok } = await saveCardSale(result, ctx, { qr: true });
+    setSales((s) => ({
+      ...s,
+      rows: s.rows.some((r) => r.SaleId === row.SaleId) ? s.rows.map((r) => (r.SaleId === row.SaleId ? row : r)) : [row, ...s.rows],
+    }));
+    if (ok) {
+      Swal.fire({
+        title: "QR payment received",
+        text: `${formatMoney(toNumber(row.Total))} for Order ID ${row.SaleId}${row.Name ? ` (${row.Name})` : ""} was paid by QR and saved.`,
+        icon: "info",
+        theme: "dark",
+      });
+    }
+  };
+
+  const onQrStart = (session) => savePendingQr({ id: session.id, ctx: saleContext() });
+
+  const onQrPaid = async (result, id) => {
+    if (settledQr.current.has(id)) return;
+    // null in private mode (nothing kept): the screen still has the sale.
+    const pending = takeQr(id);
+    const { row } = await saveCardSale(result, pending?.ctx || saleContext(), { qr: true });
+    finish(row, { receiptUrl: result.receiptUrl });
+  };
+
+  // Closes a QR page that's no longer on screen, so it can't be paid for a
+  // sale that moved on; if it was paid in the meantime, saves that sale.
+  // If Stripe can't be reached, the kept copy is checked on the next visit.
+  const closeQr = async (id) => {
+    try {
+      const r = await cancelQrPayment(id);
+      if (r.status === "paid") {
+        const pending = takeQr(id);
+        if (pending) await saveQrInBackground(r, pending.ctx);
+      } else {
+        takeQr(id);
+      }
+    } catch (err) {
+      console.warn("Couldn't close the QR payment yet:", err);
+    }
+  };
+
+  // A QR left from last time on this device: close it, or save it if paid.
+  useEffect(() => {
+    const pending = readPendingQr();
+    if (pending) closeQr(pending.id);
+    // Once, when the page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const nextCustomer = () => {
     setStep("order");
@@ -462,13 +546,13 @@ export default function EventSalesPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Payment method">
-              {["Card", "Cash", "Zelle"].map((m) => (
+            <div className="grid grid-cols-4 gap-2" role="group" aria-label="Payment method">
+              {PAY_METHODS.map((m) => (
                 <button
                   key={m}
                   type="button"
                   aria-pressed={method === m}
-                  className={`glass-panel py-3 flex flex-col items-center gap-1 font-semibold border-2 transition-colors ${method === m ? "border-brand-gold" : "border-transparent"}`}
+                  className={`glass-panel py-3 px-1 flex flex-col items-center gap-1 font-semibold text-sm sm:text-base whitespace-nowrap border-2 transition-colors ${method === m ? "border-brand-gold" : "border-transparent"}`}
                   onClick={() => setMethod(m)}
                 >
                   <i className={`fa-solid ${METHOD_ICONS[m]} text-xl`} aria-hidden="true"></i>
@@ -523,6 +607,22 @@ export default function EventSalesPage() {
                 </button>
               </div>
             )}
+
+            {method === "QR pay" &&
+              (totalCents < 50 ? (
+                <p className="glass-panel p-3 text-sm text-center">QR pay needs a total of at least $0.50.</p>
+              ) : (
+                <QrPayPanel
+                  baseAmountCents={totalCents}
+                  invoiceId={activeSaleId}
+                  description={receiptDescription}
+                  note={note.trim() || undefined}
+                  onStart={onQrStart}
+                  onPaid={onQrPaid}
+                  onCancel={() => setMethod(null)}
+                  onLeave={closeQr}
+                />
+              ))}
 
             {method === "Card" && (
               <div className="flex flex-col gap-4">
