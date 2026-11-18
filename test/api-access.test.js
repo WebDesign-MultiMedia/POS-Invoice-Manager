@@ -171,7 +171,7 @@ describe("editing and deleting an order (staff)", () => {
   });
 });
 
-describe("new orders get their Id, Date and Time from the server", () => {
+describe("new orders get their Date and Time from the server", () => {
   function staffCookie() {
     const res = mockRes();
     setSessionCookie(res, "staff@example.com");
@@ -181,21 +181,20 @@ describe("new orders get their Id, Date and Time from the server", () => {
   const okWith = (payload) => ({ ok: true, status: 200, json: async () => payload });
   const sent = () => JSON.parse(fetchMock.mock.calls.find(([, init]) => init?.method === "POST")[1].body);
 
-  it("numbers the order after the highest Id and keeps the form's date and time", async () => {
-    fetchMock.mockImplementation(async (_url, init = {}) =>
-      init.method === "POST" ? okWith({ created: 1 }) : okWith([{ Id: "1012" }, { Id: "" }, { Id: "998" }, { Id: "abc" }])
-    );
+  it("keeps the form's date and time and never writes the Id (the sheet's formula numbers it)", async () => {
+    fetchMock.mockResolvedValue(okWith({ created: 1 }));
     const res = await post({ action: "createOrder", data: { Name: "Pat", Id: "5", Date: "11/18/2026", Time: "4:26 PM" } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ created: 1, id: "1013" });
-    expect(sent()).toMatchObject({ Name: "Pat", Id: "1013", Date: "11/18/2026", Time: "4:26 PM" });
+    expect(res.body).toEqual({ created: 1 });
+    const row = sent();
+    expect(row).toMatchObject({ Name: "Pat", Date: "11/18/2026", Time: "4:26 PM" });
+    expect(row).not.toHaveProperty("Id");
   });
 
   it("stamps the date and time when the form didn't send them", async () => {
-    fetchMock.mockImplementation(async (_url, init = {}) => (init.method === "POST" ? okWith({ created: 1 }) : okWith([])));
+    fetchMock.mockResolvedValue(okWith({ created: 1 }));
     await post({ action: "createOrder", data: { Name: "Pat" } });
     const row = sent();
-    expect(row.Id).toBe("1");
     expect(row.Date).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
     expect(row.Time).toMatch(/^\d{1,2}:\d{2} [AP]M$/);
   });

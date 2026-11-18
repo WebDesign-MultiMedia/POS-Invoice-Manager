@@ -103,7 +103,7 @@ npm run hash-password        # make a STAFF_ACCOUNTS entry
 Environment variable **names** (see [`.env.example`](.env.example) for a one-line description of each):
 `VITE_STRIPE_PUBLISHABLE_KEY`, `STAFF_ACCOUNTS`, `SESSION_SECRET`, `CALCULATOR_LINK_VERSION`, `SHEETDB_ID`, `SHEETDB_USER`, `SHEETDB_PASS`, `GOOGLE_SHEET_URL`, `STRIPE_SECRET_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID`, `TWILIO_PHONE_NUMBER`, `SIGNUP_SIGNING_KEY`, `RESEND_API_KEY`, `ZELLE_INBOUND_ADDRESS`, `BLOB_STORE_ID` (or `BLOB_READ_WRITE_TOKEN` locally), `ANTHROPIC_API_KEY`, `ORDER_TIME_ZONE` (optional, default `America/New_York`).
 
-The sheet needs these tabs: the orders tab, `CardPayments`, `EventSales`, `SMSSignups`, `Employees`, `Quotes`, `Shopping` and `Products`. The orders tab's `Id`, `Date` and `Time` columns are filled in by the app when an order is saved.
+The sheet needs these tabs: the orders tab, `CardPayments`, `EventSales`, `SMSSignups`, `Employees`, `Quotes`, `Shopping` and `Products`. The app fills in the orders tab's `Date` and `Time` when an order is saved; the `Id` column is numbered by an `ARRAYFORMULA` in `A2` (every row with a Date), so the app never writes it.
 
 Demo mode needs none of these. Run `npm run dev` and press **Try the demo**.
 

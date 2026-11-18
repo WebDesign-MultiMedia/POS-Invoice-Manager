@@ -348,23 +348,14 @@ async function sheetGet(base, path) {
   return payload;
 }
 
-// A new order's number and when it was made. Ids count up from the
-// highest one in the sheet, so they don't depend on a formula in the
-// sheet. Date and Time come from the order form (the device's own clock);
-// an older copy of the app that doesn't send them gets the server's time
-// in the restaurant's time zone.
+// When a new order was made. Date and Time come from the order form (the
+// device's own clock); an older copy of the app that doesn't send them
+// gets the server's time in the restaurant's time zone. The Id is never
+// written: an ARRAYFORMULA in the sheet's Id column numbers every row that
+// has a Date, and a value typed into that column would block it (#REF!).
 const ORDER_TIME_ZONE = process.env.ORDER_TIME_ZONE || "America/New_York";
 const ORDER_DATE = /^\d{2}\/\d{2}\/\d{4}$/;
 const ORDER_TIME = /^\d{1,2}:\d{2} [AP]M$/;
-
-export function nextOrderId(rows) {
-  let max = 0;
-  for (const row of Array.isArray(rows) ? rows : []) {
-    const n = Number(String(row?.Id ?? "").trim());
-    if (Number.isInteger(n) && n > max) max = n;
-  }
-  return String(max + 1);
-}
 
 export function orderStamp(now = new Date(), timeZone = ORDER_TIME_ZONE) {
   const parts = Object.fromEntries(
@@ -375,8 +366,8 @@ export function orderStamp(now = new Date(), timeZone = ORDER_TIME_ZONE) {
   return { Date: `${parts.month}/${parts.day}/${parts.year}`, Time: `${parts.hour}:${parts.minute} ${parts.dayPeriod.toUpperCase()}` };
 }
 
-async function stampNewOrder(base, row) {
-  row.Id = nextOrderId(await sheetGet(base, ""));
+function stampNewOrder(row) {
+  delete row.Id;
   const stamp = orderStamp();
   if (!ORDER_DATE.test(String(row.Date ?? ""))) row.Date = stamp.Date;
   if (!ORDER_TIME.test(String(row.Time ?? ""))) row.Time = stamp.Time;
@@ -476,7 +467,7 @@ export default async function handler(req, res) {
         if (row.ZelleRef && (unpaid || row.Method !== "Zelle")) delete row.ZelleRef;
         if (row.ZelleRef && (await checkZelleRef(base, row.ZelleRef))) return res.status(409).json({ error: ZELLE_USED });
       }
-      if (action === "createOrder") await stampNewOrder(base, row);
+      if (action === "createOrder") stampNewOrder(row);
       init = { method: "POST", headers: sheetdbHeaders(), body: JSON.stringify(row) };
     } else {
       res.setHeader("Allow", "GET, POST");
@@ -491,8 +482,6 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: "Sheet request failed" });
     }
     res.setHeader("Cache-Control", "no-store");
-    // The new order's number, so the form can link straight to its invoice.
-    if (req.body?.action === "createOrder" && init.body) return res.status(200).json({ ...payload, id: JSON.parse(init.body).Id });
     if (req.method === "GET" && !isStaff(session)) {
       return res.status(200).json(await filterForEmployee(base, params.get("action"), params, payload, session));
     }
