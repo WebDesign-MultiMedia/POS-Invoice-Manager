@@ -10,6 +10,7 @@ import { getBrand } from "../lib/brand.js";
 import { copyText } from "../lib/clipboard.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { invoiceBalance } from "../lib/totals.js";
+import { orderHoliday } from "../lib/orderOptions.js";
 
 export default function InvoicePage() {
   const [searchParams] = useSearchParams();
@@ -329,6 +330,14 @@ export default function InvoicePage() {
             )}
           </dl>
 
+          {/* Holiday orders say so under the header row; regular orders
+              show nothing extra. */}
+          {orderHoliday(invoice) && (
+            <p className="mt-2 mx-6 sm:mx-[30px] text-center text-[11px] sm:text-[16px] font-bold uppercase receipt-accent print:mt-[1.138cqw] print:mx-[4.2674cqw] print:text-[2.276cqw]">
+              <i className="fa-solid fa-gift" aria-hidden="true"></i> {t.holidayOrder}: {orderHoliday(invoice)}
+            </p>
+          )}
+
           {/* Bill to (indented, left) and, for the real restaurant, the SMS
               sign-up QR with its text beside it (right) */}
           <div className="flex items-start gap-3 sm:gap-6 mt-2 sm:mt-3 print:gap-[3.4139cqw] print:mt-[1.707cqw]">
@@ -502,6 +511,7 @@ const INVOICE_TEXT = {
   es: {
     receipt: "Recibo #",
     orderType: "Tipo de pedido",
+    holidayOrder: "Pedido de día festivo",
     dueDate: "Fechas límite",
     time: "Tiempo",
     qty: "Qty",
@@ -521,6 +531,7 @@ const INVOICE_TEXT = {
   en: {
     receipt: "Receipt #",
     orderType: "Order type",
+    holidayOrder: "Holiday order",
     dueDate: "Due date",
     time: "Time",
     qty: "Qty",
