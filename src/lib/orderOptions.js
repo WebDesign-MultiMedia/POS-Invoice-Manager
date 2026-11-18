@@ -6,6 +6,40 @@ export const ORDER_TYPES = ["Delivery", "Pick-up", "Catering - Drop-off", "Cater
 // "Pending": nothing paid yet; staff change it once the customer pays.
 export const PAYMENT_OPTIONS = ["Cash", "Zelle", "Card", "Pending"];
 
+// Whether an order is for a holiday. "Regular" is an everyday order; the
+// rest are in calendar order. Orders saved before this choice existed have
+// no Holiday and count as Regular.
+export const REGULAR_ORDER = "Regular";
+export const HOLIDAY_OPTIONS = [
+  REGULAR_ORDER,
+  "New Year's Day",
+  "Día de Reyes",
+  "Valentine's Day",
+  "Super Bowl",
+  "Easter",
+  "Cinco de Mayo",
+  "Mother's Day",
+  "Memorial Day",
+  "Father's Day",
+  "4th of July",
+  "Labor Day",
+  "Mexican Independence Day",
+  "Halloween",
+  "Día de los Muertos",
+  "Thanksgiving",
+  "Virgen de Guadalupe",
+  "Christmas Eve",
+  "Christmas",
+  "New Year's Eve",
+  "Other holiday",
+];
+
+// The order's holiday, or "" for a regular (or older) order.
+export function orderHoliday(order) {
+  const h = String(order?.Holiday ?? "").trim();
+  return h && h !== REGULAR_ORDER ? h : "";
+}
+
 // Any catering type, old or new.
 export function isCatering(type) {
   return /^catering/i.test(String(type || "").trim());

@@ -6,7 +6,7 @@ import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { fetchAllOrders, fetchAllCardPayments } from "../api/sheetdb.js";
 import { formatDate, formatLongDate, formatMoney, parseStoredDate, escapeRegex, splitItems, toDateInput } from "../lib/format.js";
-import { orderDay } from "../lib/orderOptions.js";
+import { orderDay, orderHoliday } from "../lib/orderOptions.js";
 import { parseCardPaymentOrder } from "../lib/menu.js";
 import { isDemo } from "../lib/demo.js";
 import { friendlyMessage } from "../lib/errors.js";
@@ -323,6 +323,9 @@ export default function SearchPage() {
                 </p>
                 <p>
                   <i className="fa-solid fa-location-dot text-brand-coral w-5"></i> {order.Address ?? ""}
+                </p>
+                <p>
+                  <i className="fa-solid fa-gift text-brand-gold w-5"></i> {orderHoliday(order) ? <strong>{orderHoliday(order)}</strong> : "Regular order"}
                 </p>
                 {order.PickupDelivery && (
                   <p>
