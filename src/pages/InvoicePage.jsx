@@ -342,8 +342,9 @@ export default function InvoicePage() {
               sign-up QR with its text beside it (right) */}
           <div className="flex items-start gap-3 sm:gap-6 mt-2 sm:mt-3 print:gap-[3.4139cqw] print:mt-[1.707cqw]">
             <div className="flex-1 min-w-0 ml-10 sm:ml-[79px] text-[10px] sm:text-[15px] print:ml-[11.2376cqw] print:text-[2.1337cqw]">
-              <p>
-                BILL TO {invoice?.Name && <span className="ml-1 font-bold print:ml-[0.569cqw]">{invoice.Name}</span>}
+              <p className="flex items-baseline">
+                <span className="shrink-0">BILL TO</span>
+                {invoice?.Name && <FitText className="ml-1 font-bold print:ml-[0.569cqw]">{invoice.Name}</FitText>}
               </p>
               <p className="flex items-center gap-1.5 mt-0.5 sm:mt-1 print:gap-[0.8535cqw] print:mt-[0.569cqw]">
                 <span className="relative w-[10px] h-[10px] sm:w-[19px] sm:h-4 shrink-0 flex justify-center print:w-[2.7027cqw] print:h-[2.276cqw]">
@@ -355,7 +356,7 @@ export default function InvoicePage() {
                     />
                   </span>
                 </span>
-                <span>{invoice?.Address ?? ""}</span>
+                <FitText>{invoice?.Address ?? ""}</FitText>
               </p>
               <p className="flex items-center gap-1.5 mt-0.5 sm:mt-1 print:gap-[0.8535cqw] print:mt-[0.569cqw]">
                 <span className="relative w-[10px] h-[10px] sm:w-[19px] sm:h-4 shrink-0 overflow-hidden print:w-[2.7027cqw] print:h-[2.276cqw]">
@@ -365,7 +366,7 @@ export default function InvoicePage() {
                     className="absolute max-w-none w-full h-full left-0 top-0 sm:h-[118.75%] sm:top-[-9.375%] print:w-full print:h-[118.75%] print:left-[0cqw] print:top-[-9.375%]"
                   />
                 </span>
-                <span>{invoice?.Contact ?? ""}</span>
+                <FitText>{invoice?.Contact ?? ""}</FitText>
               </p>
             </div>
             {/* Promo texts only go to customers who opt in on the website's
@@ -502,6 +503,48 @@ export default function InvoicePage() {
         </div>
       </div>
     </Layout>
+  );
+}
+
+// One line of text that never wraps: a long name, address or phone shrinks
+// its font just enough to fit the space it has (down to half size, then
+// "…"). Re-fits when the space changes, e.g. rotating the phone or printing.
+const FIT_MIN = 0.5;
+function FitText({ children, className = "" }) {
+  const outerRef = useRef(null);
+  const innerRef = useRef(null);
+  useEffect(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return undefined;
+    const fit = () => {
+      // Fractional widths (not the rounded clientWidth/scrollWidth), less a
+      // hair, so a line that only just fits doesn't end in "…".
+      inner.style.fontSize = "1em";
+      const room = outer.getBoundingClientRect().width - 1;
+      const needed = inner.getBoundingClientRect().width;
+      if (room > 0 && needed > room) inner.style.fontSize = `${Math.max(FIT_MIN, Math.floor((room / needed) * 1000) / 1000)}em`;
+    };
+    fit();
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : null;
+    observer?.observe(outer);
+    // Printing changes the font size, not the width: watch the text too.
+    observer?.observe(inner);
+    const print = window.matchMedia?.("print");
+    print?.addEventListener?.("change", fit);
+    window.addEventListener("beforeprint", fit);
+    window.addEventListener("afterprint", fit);
+    return () => {
+      observer?.disconnect();
+      print?.removeEventListener?.("change", fit);
+      window.removeEventListener("beforeprint", fit);
+      window.removeEventListener("afterprint", fit);
+    };
+  }, [children]);
+  return (
+    <span ref={outerRef} className={`block flex-1 min-w-0 overflow-hidden whitespace-nowrap text-ellipsis ${className}`}>
+      <span ref={innerRef}>{children}</span>
+    </span>
   );
 }
 
