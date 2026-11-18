@@ -171,6 +171,42 @@ describe("editing and deleting an order (staff)", () => {
   });
 });
 
+describe("new orders get their Id, Date and Time from the server", () => {
+  function staffCookie() {
+    const res = mockRes();
+    setSessionCookie(res, "staff@example.com");
+    return cookieFrom(res);
+  }
+  const post = (body) => call(sheets, { method: "POST", url: "/api/sheets", body, cookie: staffCookie() });
+  const okWith = (payload) => ({ ok: true, status: 200, json: async () => payload });
+  const sent = () => JSON.parse(fetchMock.mock.calls.find(([, init]) => init?.method === "POST")[1].body);
+
+  it("numbers the order after the highest Id and keeps the form's date and time", async () => {
+    fetchMock.mockImplementation(async (_url, init = {}) =>
+      init.method === "POST" ? okWith({ created: 1 }) : okWith([{ Id: "1012" }, { Id: "" }, { Id: "998" }, { Id: "abc" }])
+    );
+    const res = await post({ action: "createOrder", data: { Name: "Pat", Id: "5", Date: "11/18/2026", Time: "4:26 PM" } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ created: 1, id: "1013" });
+    expect(sent()).toMatchObject({ Name: "Pat", Id: "1013", Date: "11/18/2026", Time: "4:26 PM" });
+  });
+
+  it("stamps the date and time when the form didn't send them", async () => {
+    fetchMock.mockImplementation(async (_url, init = {}) => (init.method === "POST" ? okWith({ created: 1 }) : okWith([])));
+    await post({ action: "createOrder", data: { Name: "Pat" } });
+    const row = sent();
+    expect(row.Id).toBe("1");
+    expect(row.Date).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+    expect(row.Time).toMatch(/^\d{1,2}:\d{2} [AP]M$/);
+  });
+
+  it("formats the stamp in the restaurant's time zone", async () => {
+    const { orderStamp } = await import("../api/sheets.js");
+    expect(orderStamp(new Date("2026-11-18T21:26:00Z"), "America/New_York")).toEqual({ Date: "11/18/2026", Time: "4:26 PM" });
+    expect(orderStamp(new Date("2026-11-19T04:05:00Z"), "America/New_York")).toEqual({ Date: "11/18/2026", Time: "11:05 PM" });
+  });
+});
+
 describe("editing and deleting card payments and event sales (staff)", () => {
   function staffCookie() {
     const res = mockRes();

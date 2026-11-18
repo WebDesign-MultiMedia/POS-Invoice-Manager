@@ -5,7 +5,7 @@ import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { deleteOrder, fetchAllOrders, submitOrder, updateOrder } from "../api/sheetdb.js";
-import { getTotalQuantity, formatDate, formatLongDate, formatMoney, time12Hour, toDateInput, toNumber, toTimeInput } from "../lib/format.js";
+import { getCurrentDateTime, getTotalQuantity, formatDate, formatLongDate, formatMoney, time12Hour, toDateInput, toNumber, toTimeInput } from "../lib/format.js";
 import { ORDER_TYPES, PAYMENT_OPTIONS, isCatering, isSetupCatering, orderDay } from "../lib/orderOptions.js";
 import { findSubmittedOrder, ordersNewestFirst } from "../lib/recentOrder.js";
 import { getBrand } from "../lib/brand.js";
@@ -179,8 +179,8 @@ export default function OrderFormPage() {
     e.preventDefault();
     if (savingRef.current) return;
 
-    // The Orders sheet has no order date or time any more: the due date
-    // (and optional due time) is what matters.
+    // Date and Time are stamped automatically: when the order (and its
+    // invoice) was made. An edit keeps the original ones.
     const data = {
       Name: form.Name,
       Contact: form.Contact,
@@ -211,6 +211,10 @@ export default function OrderFormPage() {
       await saveEdit(data);
       return;
     }
+
+    const { date, time } = getCurrentDateTime();
+    data.Date = date;
+    data.Time = time;
 
     savingRef.current = true;
     setSaving(true);
@@ -286,7 +290,9 @@ export default function OrderFormPage() {
   }
 
   const brand = getBrand();
-
+  // The sheet numbers orders counting up, so the next one is shown ahead
+  // of time when the saved orders have loaded.
+  const nextId = recent.loading || recent.error ? null : recent.orders.length ? Number(recent.orders[0].Id) + 1 : null;
 
   return (
     <Layout blobs={["bg-brand-gold w-72 h-72 -top-10 -left-10 animate-float-slow", "bg-brand-cactus w-80 h-80 top-1/3 -right-16 animate-float", "bg-brand-pink w-64 h-64 bottom-0 left-1/4 animate-float-slow"]}>
@@ -306,6 +312,8 @@ export default function OrderFormPage() {
             <i className="fa-solid fa-pen" aria-hidden="true"></i> Editing order #{editing.Id}{orderDay(editing) ? `, due ${formatLongDate(orderDay(editing))}` : ""}. Change what you need, then press Save changes.
           </p>
         )}
+
+        <OrderStamp editing={editing} nextId={nextId} />
 
         {restored && !editing && (
           <p role="status" className="glass-panel p-3 mb-5 text-sm text-center">
@@ -525,6 +533,44 @@ function RecentOrders({ orders, loading, error, editingId, onEdit, onDelete }) {
   );
 }
 
+// The order's Id, Date and Time, filled in automatically: a new order shows
+// its next number and the current date and time (stamped again when it's
+// submitted); an order being edited shows the ones it was saved with.
+function OrderStamp({ editing, nextId }) {
+  const [now, setNow] = useState(getCurrentDateTime);
+  useEffect(() => {
+    if (editing) return undefined;
+    const timer = setInterval(() => setNow(getCurrentDateTime()), 15000);
+    return () => clearInterval(timer);
+  }, [editing]);
+
+  const id = editing ? `#${editing.Id}` : nextId ? `#${nextId}` : "Assigned on submit";
+  const date = editing ? editing.Date : now.date;
+  const time = editing ? editing.Time : now.time;
+  const cells = [
+    { icon: "fa-hashtag", label: "Order ID", value: id },
+    { icon: "fa-calendar-day", label: "Date", value: date ? formatLongDate(date) : "Not recorded" },
+    { icon: "fa-clock", label: "Time", value: time || "Not recorded" },
+  ];
+  return (
+    <div className="mb-5">
+      <dl className="grid grid-cols-3 gap-2 sm:gap-4">
+        {cells.map((c) => (
+          <div key={c.label} className="glass-panel p-2 sm:p-3 text-center min-w-0">
+            <dt className="field-label !mb-1 justify-center">
+              <i className={`fa-solid ${c.icon}`} aria-hidden="true"></i> {c.label}
+            </dt>
+            <dd className="font-semibold text-brand-navy text-sm sm:text-base [overflow-wrap:anywhere]">{c.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-1 text-xs text-center text-brand-muted/90">
+        {editing ? "Saved with the order; editing doesn't change them." : "Filled in automatically when you press Submit Order."}
+      </p>
+    </div>
+  );
+}
+
 function RecentOrderRow({ order, editing, onEdit, onDelete }) {
   const items = getTotalQuantity(order.Items || "");
   return (
@@ -534,6 +580,7 @@ function RecentOrderRow({ order, editing, onEdit, onDelete }) {
           #{order.Id} · {order.Name || "No name"}
         </p>
         <p className="text-sm text-brand-navydeep/80">
+          {order.Date ? `Made ${[formatLongDate(order.Date), order.Time].filter(Boolean).join(" at ")} · ` : ""}
           {orderDay(order) ? `Due ${formatLongDate(orderDay(order))}` : "No due date"}
           {order.PickupDelivery ? ` · ${order.PickupDelivery}` : ""}
           {items ? ` · ${items} item${items === 1 ? "" : "s"}` : ""}

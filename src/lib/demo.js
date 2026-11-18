@@ -141,8 +141,10 @@ function seed() {
     ["Drew Martin", "555-0110", "4 Poplar Pl", "Catering - Drop-off", "30x Chicken Wrap, 30x Iced Tea", "375.00", "150", "Zelle", 33, "11:00 AM", "School event"],
     ["Alex Rivera", "555-0101", "12 Maple Ave", "Pick-up", "1x Classic Burger, 1x Coffee", "13.50", "0", "Cash", 41, "12:50 PM", ""],
     ["Quinn Harper", "555-0111", "290 Chestnut St", "Delivery", "2x Garden Salad, 2x Soup of the Day", "26.00", "0", "Cash", 52, "6:40 PM", ""],
-  ].map(([Name, Contact, Address, PickupDelivery, Items, Cost, Deposit, Payment, ago, _time, Notes], i) => ({
+  ].map(([Name, Contact, Address, PickupDelivery, Items, Cost, Deposit, Payment, ago, Time, Notes], i) => ({
     Id: String(1001 + i),
+    Date: daysAgo(PickupDelivery.startsWith("Catering") ? ago + 4 : ago),
+    Time,
     Name,
     Contact,
     Address,
