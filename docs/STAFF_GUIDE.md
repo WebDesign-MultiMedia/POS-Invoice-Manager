@@ -22,6 +22,8 @@ Type your **email or phone number** and your **password**, then press **Log in**
 
 The home page is the order form.
 
+The **Order ID, Date and Time** at the top fill in by themselves: the date and time are saved when you press Submit Order, so you never type them.
+
 1. Fill in **Name, Phone, Address, Type** (Delivery / Pick-up / Catering), **Cost, Payment** (Cash / Zelle) and **Deposit** (type `0` if none).
 2. Write the **Items**, one per line or separated by commas. Write `2x` in front for quantities, e.g. `2x Taco de Chivo`.
 3. **Due Date** and **Notes** are optional (use Due Date for catering).
