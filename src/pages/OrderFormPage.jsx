@@ -6,7 +6,7 @@ import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import { deleteOrder, fetchAllOrders, submitOrder, updateOrder } from "../api/sheetdb.js";
 import { getCurrentDateTime, getTotalQuantity, formatDate, formatLongDate, formatMoney, time12Hour, toDateInput, toNumber, toTimeInput } from "../lib/format.js";
-import { ORDER_TYPES, PAYMENT_OPTIONS, isCatering, isSetupCatering, orderDay } from "../lib/orderOptions.js";
+import { HOLIDAY_OPTIONS, ORDER_TYPES, PAYMENT_OPTIONS, REGULAR_ORDER, isCatering, isSetupCatering, orderDay, orderHoliday } from "../lib/orderOptions.js";
 import { findSubmittedOrder, ordersNewestFirst } from "../lib/recentOrder.js";
 import { getBrand } from "../lib/brand.js";
 import { useAuth } from "../lib/auth.jsx";
@@ -19,6 +19,7 @@ const INITIAL_FORM = {
   Contact: "",
   Address: "",
   PickupDelivery: "",
+  Holiday: REGULAR_ORDER,
   Cost: "",
   Payment: "",
   Deposit: "0",
@@ -46,6 +47,7 @@ function orderToForm(order) {
   // Older orders only have the day they were taken; start from that.
   form.DueDate = toDateInput(orderDay(order));
   form.DueTime = toTimeInput(order.DueTime);
+  form.Holiday = orderHoliday(order) || REGULAR_ORDER;
   return form;
 }
 
@@ -186,6 +188,7 @@ export default function OrderFormPage() {
       Contact: form.Contact,
       Address: form.Address,
       PickupDelivery: form.PickupDelivery,
+      Holiday: form.Holiday || REGULAR_ORDER,
       Items: form.Items,
       Quantity: getTotalQuantity(form.Items),
       Cost: form.Cost,
@@ -402,6 +405,26 @@ export default function OrderFormPage() {
           </div>
         </div>
 
+        <div className="field-group mb-5">
+          <label htmlFor="Holiday" className="field-label">
+            <i className="fa-solid fa-gift"></i> Holiday
+          </label>
+          <select
+            name="Holiday"
+            id="Holiday"
+            className={`input-3d text-center w-full ${form.Holiday && form.Holiday !== REGULAR_ORDER ? "ring-2 ring-brand-gold" : ""}`}
+            value={form.Holiday || REGULAR_ORDER}
+            onChange={setField("Holiday")}
+          >
+            {withCurrent(HOLIDAY_OPTIONS, form.Holiday).map((v) => (
+              <option key={v} value={v}>
+                {v === REGULAR_ORDER ? "Regular order (not a holiday)" : v}
+              </option>
+            ))}
+          </select>
+          {form.Holiday === "Other holiday" && <p className="mt-1 text-sm text-center text-brand-muted/90">Write which holiday in Notes.</p>}
+        </div>
+
         {/* Paying by Zelle: the QR for the customer to scan, with what's
             left to pay (cost minus deposit), or the cost when no deposit. */}
         {form.Payment === "Zelle" && (
@@ -571,6 +594,14 @@ function OrderStamp({ editing, nextId }) {
   );
 }
 
+function HolidayTag({ holiday, className = "" }) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full bg-brand-gold/90 px-2 py-0.5 text-xs font-semibold text-brand-navydeep align-middle ${className}`}>
+      <i className="fa-solid fa-gift" aria-hidden="true"></i> {holiday}
+    </span>
+  );
+}
+
 function RecentOrderRow({ order, editing, onEdit, onDelete }) {
   const items = getTotalQuantity(order.Items || "");
   return (
@@ -578,6 +609,7 @@ function RecentOrderRow({ order, editing, onEdit, onDelete }) {
       <div className="text-center sm:text-left min-w-0">
         <p className="font-semibold text-brand-navy truncate">
           #{order.Id} · {order.Name || "No name"}
+          {orderHoliday(order) && <HolidayTag holiday={orderHoliday(order)} className="ml-2" />}
         </p>
         <p className="text-sm text-brand-navydeep/80">
           {order.Date ? `Made ${[formatLongDate(order.Date), order.Time].filter(Boolean).join(" at ")} · ` : ""}

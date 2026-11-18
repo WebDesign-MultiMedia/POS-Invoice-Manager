@@ -157,6 +157,7 @@ function seed() {
     DueDate: PickupDelivery.startsWith("Catering") ? daysAgo(ago - 3) : daysAgo(ago),
     DueTime: PickupDelivery.startsWith("Catering") ? "11:30 AM" : "",
     Notes,
+    Holiday: i === 9 ? "Thanksgiving" : i === 2 ? "Christmas Eve" : "Regular",
   }));
 
   const cardPayments = [

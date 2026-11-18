@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatLongDate, time12Hour, toTimeInput } from "../src/lib/format.js";
-import { isCatering, isSetupCatering, orderDay } from "../src/lib/orderOptions.js";
+import { isCatering, isSetupCatering, orderDay, orderHoliday } from "../src/lib/orderOptions.js";
 
 describe("order form options", () => {
   it("drop-off time round-trips between the time input and the sheet", () => {
@@ -31,5 +31,14 @@ describe("orderDay", () => {
     expect(orderDay({ DueDate: "11/20/2026", Date: "11/01/2026" })).toBe("11/20/2026");
     expect(orderDay({ Date: "01/10/2025" })).toBe("01/10/2025");
     expect(orderDay({})).toBe("");
+  });
+});
+
+describe("orderHoliday", () => {
+  it("names the holiday; regular and older orders have none", () => {
+    expect(orderHoliday({ Holiday: "Christmas Eve" })).toBe("Christmas Eve");
+    expect(orderHoliday({ Holiday: "Regular" })).toBe("");
+    expect(orderHoliday({ Holiday: " " })).toBe("");
+    expect(orderHoliday({})).toBe("");
   });
 });

@@ -26,8 +26,9 @@ The **Order ID, Date and Time** at the top fill in by themselves: the date and t
 
 1. Fill in **Name, Phone, Address, Type** (Delivery / Pick-up / Catering), **Cost, Payment** (Cash / Zelle) and **Deposit** (type `0` if none).
 2. Write the **Items**, one per line or separated by commas. Write `2x` in front for quantities, e.g. `2x Taco de Chivo`.
-3. **Due Date** and **Notes** are optional (use Due Date for catering).
-4. Press **Submit Order** once. The button says **Saving…** while it works, and you'll see **Successfully Stored** when it's saved.
+3. Pick the **Holiday** if the order is for one (Christmas Eve, Thanksgiving…). Leave it on **Regular order** for everyday orders. Holiday orders show a gold tag in the order list and on Search.
+4. **Due Date** and **Notes** are optional (use Due Date for catering).
+5. Press **Submit Order** once. The button says **Saving…** while it works, and you'll see **Successfully Stored** when it's saved.
 
 If the order **didn't save**, you'll see **"Order not saved"** and the form stays filled in. Check the internet and press Submit Order again.
 
