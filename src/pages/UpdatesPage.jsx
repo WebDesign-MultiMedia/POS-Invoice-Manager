@@ -4,6 +4,18 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-gift",
+    title: "Holiday orders",
+    date: "2026-11-18",
+    body: "The order form has a Holiday choice: leave it on Regular order, or pick the holiday (Christmas Eve, Thanksgiving, Día de los Muertos…). Holiday orders get a tag in the order list and on Search, and the invoice says \"Holiday order\".",
+  },
+  {
+    icon: "fa-clock",
+    title: "Order date and time fill in by themselves",
+    date: "2026-11-18",
+    body: "The top of the order form shows the order number, date and time. The date and time are saved automatically when you press Submit Order, so you never type them. On the invoice, the customer's name sits under BILL TO and long names or phones stay on one line.",
+  },
+  {
     icon: "fa-barcode",
     title: "Scan to pick the right product",
     date: "2026-11-14",

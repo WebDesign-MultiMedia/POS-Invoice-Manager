@@ -342,11 +342,13 @@ export default function InvoicePage() {
               sign-up QR with its text beside it (right) */}
           <div className="flex items-start gap-3 sm:gap-6 mt-2 sm:mt-3 print:gap-[3.4139cqw] print:mt-[1.707cqw]">
             <div className="flex-1 min-w-0 ml-10 sm:ml-[79px] text-[10px] sm:text-[15px] print:ml-[11.2376cqw] print:text-[2.1337cqw]">
-              <p className="flex items-baseline">
-                <span className="shrink-0">BILL TO</span>
-                {invoice?.Name && <FitText className="ml-1 font-bold print:ml-[0.569cqw]">{invoice.Name}</FitText>}
-              </p>
-              <p className="flex items-center gap-1.5 mt-0.5 sm:mt-1 print:gap-[0.8535cqw] print:mt-[0.569cqw]">
+              <p>BILL TO</p>
+              {invoice?.Name && (
+                <p className="flex">
+                  <FitText className="font-bold">{invoice.Name}</FitText>
+                </p>
+              )}
+              <p className="flex items-start gap-1.5 mt-0.5 sm:mt-1 print:gap-[0.8535cqw] print:mt-[0.569cqw]">
                 <span className="relative w-[10px] h-[10px] sm:w-[19px] sm:h-4 shrink-0 flex justify-center print:w-[2.7027cqw] print:h-[2.276cqw]">
                   <span className="relative h-full w-[60%] sm:w-[11px] overflow-hidden print:h-full print:w-[1.5647cqw]">
                     <img
@@ -356,7 +358,8 @@ export default function InvoicePage() {
                     />
                   </span>
                 </span>
-                <FitText>{invoice?.Address ?? ""}</FitText>
+                {/* The address may take two lines, always beside the pin. */}
+                <span className="min-w-0 flex-1 line-clamp-2 [overflow-wrap:anywhere]">{invoice?.Address ?? ""}</span>
               </p>
               <p className="flex items-center gap-1.5 mt-0.5 sm:mt-1 print:gap-[0.8535cqw] print:mt-[0.569cqw]">
                 <span className="relative w-[10px] h-[10px] sm:w-[19px] sm:h-4 shrink-0 overflow-hidden print:w-[2.7027cqw] print:h-[2.276cqw]">
@@ -506,7 +509,7 @@ export default function InvoicePage() {
   );
 }
 
-// One line of text that never wraps: a long name, address or phone shrinks
+// One line of text that never wraps: a long name or phone shrinks
 // its font just enough to fit the space it has (down to half size, then
 // "…"). Re-fits when the space changes, e.g. rotating the phone or printing.
 const FIT_MIN = 0.5;
