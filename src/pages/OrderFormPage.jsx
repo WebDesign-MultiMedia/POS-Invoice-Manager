@@ -216,8 +216,6 @@ export default function OrderFormPage() {
       confirmButtonText: '<i class="fa-solid fa-rotate-left"></i> Undo',
       showCancelButton: true,
       cancelButtonText: "OK",
-      timer: 8000,
-      timerProgressBar: true,
     });
     if (undo) await handleRestore(gone);
   };
