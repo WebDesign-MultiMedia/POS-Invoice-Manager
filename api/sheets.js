@@ -19,6 +19,8 @@
 //   POST { action: "recordEventSale", data }
 //   POST { action: "updateOrder" | "updateCardPayment" | "updateEventSale", id, data }
 //   POST { action: "deleteOrder" | "deleteCardPayment" | "deleteEventSale", id }
+//   POST { action: "restoreOrder", id }          bring back a deleted order
+//   GET  ?action=orders&deleted=1                 the deleted orders only
 //   POST { action: "payEventSale", id, data }   take payment on an Unpaid event sale
 //   POST { action: "editUnpaidSale", id, data } change an Unpaid event sale's order
 //
@@ -74,6 +76,8 @@ function allowed(session, req, params) {
   if (req.method === "GET") {
     // Invoice links for event sales come from Event Sales' Text receipt.
     if (params.get("action") === "shareToken" && isEventSaleId(params.get("id"))) return canAny(session, ["event", "search"]);
+    // The deleted-orders list is for whoever can delete and restore.
+    if (params.get("action") === "orders" && params.get("deleted") === "1") return canAny(session, ROW_ACCESS.Order) && can(session, "manage");
     const keys = READ_ACCESS[params.get("action")];
     return !keys || canAny(session, keys);
   }
@@ -82,6 +86,7 @@ function allowed(session, req, params) {
   const row = rowAction(action);
   if (row) return canAny(session, ROW_ACCESS[row[2]]) && can(session, "manage");
   if (action === "payEventSale" || action === "editUnpaidSale") return can(session, "event");
+  if (action === "restoreOrder") return canAny(session, ROW_ACCESS.Order) && can(session, "manage");
   // Event Sales also logs the card payment of an event card sale.
   if (action === "recordCardPayment" && can(session, "event") && isEventSaleId(data?.InvoiceId)) return true;
   const keys = WRITE_ACCESS[action];
@@ -299,8 +304,44 @@ async function checkEventSaleEdit(base, id, fields) {
 }
 
 // Update or delete one row. 404 when no row has that key.
+// Deleting an order only marks it: its "Deleted" column gets when and by
+// whom, and the app stops showing it. The row stays in the sheet, so the
+// order keeps its number (the Id formula counts rows) and can be restored
+// exactly as it was. Orders with anything in Deleted are left out of every
+// read, unless the deleted list is asked for.
+export const isDeletedOrder = (row) => String(row?.Deleted ?? "").trim() !== "";
+const NO_DELETED_COLUMN = 'Add a column named "Deleted" to the orders tab of the sheet, then try again. It lets deleted orders be restored.';
+
+async function markOrder(base, body, res, session, restoring) {
+  const id = String(body.id ?? "").trim();
+  if (!ROW_TARGETS.Order.id.test(id)) throw new BadRequest("Missing or invalid id");
+  const rows = await sheetGet(base, `/search?Id=${encodeURIComponent(id)}`);
+  const row = Array.isArray(rows) ? rows.find((r) => String(r.Id) === id) : null;
+  if (!row || isDeletedOrder(row) !== restoring) return res.status(404).json({ error: "Not found" });
+  if (!isStaff(session) && !isMine(session, row.TakenBy)) return res.status(403).json({ error: "You can only change orders and sales you took." });
+  if (!Object.hasOwn(row, "Deleted")) return res.status(409).json({ error: NO_DELETED_COLUMN });
+  const { Date: day, Time: time } = orderStamp();
+  const value = restoring ? "" : `${day} ${time} by ${await sellerName(session)}`;
+  const response = await sheetdbFetch(`${base}/Id/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: sheetdbHeaders(),
+    body: JSON.stringify({ data: { Deleted: value } }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (response.status === 404) return res.status(404).json({ error: "Not found" });
+  if (!response.ok) {
+    console.error("sheets: SheetDB responded", response.status, payload);
+    if (response.status === 429) return res.status(429).json({ error: SHEETDB_LIMIT_MESSAGE });
+    return res.status(502).json({ error: "Sheet request failed" });
+  }
+  if (!Number(payload?.updated)) return res.status(404).json({ error: "Not found" });
+  res.setHeader("Cache-Control", "no-store");
+  return res.status(200).json(restoring ? { restored: 1 } : { deleted: 1, Deleted: value });
+}
+
 async function changeRow(base, body, res, session) {
   const [verb, target, kind] = rowAction(body.action);
+  if (kind === "Order" && verb === "delete") return markOrder(base, body, res, session, false);
   const id = String(body.id ?? "").trim();
   if (!target.id.test(id)) throw new BadRequest("Missing or invalid id");
   // Employees may change only their own orders and sales.
@@ -392,7 +433,7 @@ async function sharedInvoice(base, params, res) {
   }
   const rows = await sheetGet(base, `/search?Id=${encodeURIComponent(id)}`);
   const invoice = Array.isArray(rows) ? rows.find((row) => String(row.Id) === id) : null;
-  if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+  if (!invoice || isDeletedOrder(invoice)) return res.status(404).json({ error: "Invoice not found" });
   const payments = await sheetGet(base, `/search?InvoiceId=${encodeURIComponent(id)}&sheet=CardPayments`).catch(() => []);
   // The customer sees what's on their invoice; card rows are trimmed to
   // the fields the invoice shows.
@@ -447,6 +488,8 @@ export default async function handler(req, res) {
       return await payEventSale(base, req.body, res, session);
     } else if (req.method === "POST" && req.body?.action === "editUnpaidSale") {
       return await editUnpaidSale(base, req.body, res, session);
+    } else if (req.method === "POST" && req.body?.action === "restoreOrder") {
+      return await markOrder(base, req.body, res, session, true);
     } else if (req.method === "POST" && rowAction(req.body?.action)) {
       return await changeRow(base, req.body, res, session);
     } else if (req.method === "POST") {
@@ -482,10 +525,16 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: "Sheet request failed" });
     }
     res.setHeader("Cache-Control", "no-store");
-    if (req.method === "GET" && !isStaff(session)) {
-      return res.status(200).json(await filterForEmployee(base, params.get("action"), params, payload, session));
+    let rows = payload;
+    const readAction = req.method === "GET" ? params.get("action") : null;
+    if ((readAction === "orders" || readAction === "order") && Array.isArray(rows)) {
+      const wantDeleted = readAction === "orders" && params.get("deleted") === "1";
+      rows = rows.filter((row) => isDeletedOrder(row) === wantDeleted);
     }
-    return res.status(200).json(payload);
+    if (req.method === "GET" && !isStaff(session)) {
+      return res.status(200).json(await filterForEmployee(base, readAction, params, rows, session));
+    }
+    return res.status(200).json(rows);
   } catch (err) {
     if (err instanceof BadRequest) return res.status(400).json({ error: err.message });
     console.error("sheets error:", err);

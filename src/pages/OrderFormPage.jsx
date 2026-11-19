@@ -4,7 +4,7 @@ import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
-import { deleteOrder, fetchAllOrders, submitOrder, updateOrder } from "../api/sheetdb.js";
+import { deleteOrder, fetchAllOrders, fetchDeletedOrders, restoreOrder, submitOrder, updateOrder } from "../api/sheetdb.js";
 import { getCurrentDateTime, getTotalQuantity, formatDate, formatLongDate, formatMoney, time12Hour, toDateInput, toNumber, toTimeInput } from "../lib/format.js";
 import { HOLIDAY_OPTIONS, ORDER_TYPES, PAYMENT_OPTIONS, REGULAR_ORDER, isCatering, isSetupCatering, orderDay, orderHoliday } from "../lib/orderOptions.js";
 import { findSubmittedOrder, ordersNewestFirst } from "../lib/recentOrder.js";
@@ -146,11 +146,43 @@ export default function OrderFormPage() {
   const removeFromRecent = (id) =>
     setRecent((r) => ({ ...r, orders: r.orders.filter((o) => String(o.Id) !== String(id)) }));
 
+  // Deleted orders (only hidden in the sheet), read when the list is opened.
+  const [deleted, setDeleted] = useState({ open: false, orders: [], loading: false, error: false, loaded: false });
+  const loadDeleted = () => {
+    setDeleted((d) => ({ ...d, loading: true, error: false }));
+    fetchDeletedOrders()
+      .then((rows) => setDeleted((d) => ({ ...d, orders: ordersNewestFirst(rows), loading: false, loaded: true })))
+      .catch((err) => {
+        console.error("Couldn't load deleted orders:", err);
+        setDeleted((d) => ({ ...d, loading: false, error: true }));
+      });
+  };
+  const toggleDeleted = () => {
+    if (!deleted.open && !deleted.loaded && !deleted.loading) loadDeleted();
+    setDeleted((d) => ({ ...d, open: !d.open }));
+  };
+
+  // Puts a deleted order back: same number, same everything.
+  const handleRestore = async (order) => {
+    try {
+      await restoreOrder(order.Id);
+    } catch (err) {
+      console.error("restoreOrder failed:", err);
+      Swal.fire({ ...ALERT_BASE, showConfirmButton: true, title: "Order not restored", text: friendlyMessage(err, "Couldn't restore the order."), icon: "error" });
+      if (err?.status === 404) loadDeleted();
+      return;
+    }
+    const back = { ...order, Deleted: "" };
+    setDeleted((d) => ({ ...d, orders: d.orders.filter((o) => String(o.Id) !== String(order.Id)) }));
+    setRecent((r) => ({ ...r, orders: ordersNewestFirst([back, ...r.orders.filter((o) => String(o.Id) !== String(order.Id))]) }));
+    Swal.fire({ ...ALERT_BASE, title: `Order #${order.Id} restored`, icon: "success", timer: 1500 });
+  };
+
   const handleDelete = async (order) => {
     const { isConfirmed } = await Swal.fire({
       ...ALERT_BASE,
       title: `Delete order #${order.Id}?`,
-      text: `${order.Name || "This order"} will be removed from the sheet. This can't be undone. Card payments already logged for it stay in Card Payments.`,
+      text: `${order.Name || "This order"} will be hidden from the app. You can bring it back with Undo or from Recently deleted. Card payments already logged for it stay in Card Payments.`,
       icon: "warning",
       showConfirmButton: true,
       confirmButtonText: '<i class="fa-solid fa-trash"></i> Delete',
@@ -160,19 +192,34 @@ export default function OrderFormPage() {
       focusCancel: true,
     });
     if (!isConfirmed) return;
+    let result = null;
     try {
-      await deleteOrder(order.Id);
+      result = await deleteOrder(order.Id);
     } catch (err) {
       if (err?.status !== 404) {
         console.error("deleteOrder failed:", err);
         Swal.fire({ ...ALERT_BASE, showConfirmButton: true, title: "Order not deleted", text: friendlyMessage(err, "Couldn't delete the order."), icon: "error" });
         return;
       }
-      // Already gone from the sheet: just drop it from the list.
+      // Already deleted (or gone from the sheet): just drop it from the list.
     }
     removeFromRecent(order.Id);
     if (editing && String(editing.Id) === String(order.Id)) stopEdit();
-    Swal.fire({ ...ALERT_BASE, title: `Order #${order.Id} deleted`, icon: "success", timer: 1500 });
+    if (!result) return;
+    const gone = { ...order, Deleted: result.Deleted || "Just now" };
+    setDeleted((d) => ({ ...d, orders: ordersNewestFirst([gone, ...d.orders]) }));
+    const { isConfirmed: undo } = await Swal.fire({
+      ...ALERT_BASE,
+      title: `Order #${order.Id} deleted`,
+      icon: "success",
+      showConfirmButton: true,
+      confirmButtonText: '<i class="fa-solid fa-rotate-left"></i> Undo',
+      showCancelButton: true,
+      cancelButtonText: "OK",
+      timer: 8000,
+      timerProgressBar: true,
+    });
+    if (undo) await handleRestore(gone);
   };
 
   const setField = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
@@ -520,6 +567,7 @@ export default function OrderFormPage() {
       </div>
 
       <RecentOrders {...recent} editingId={editing?.Id} onEdit={canManage ? startEdit : null} onDelete={canManage ? handleDelete : null} />
+      {canManage && <RecentlyDeleted {...deleted} onToggle={toggleDeleted} onRetry={loadDeleted} onRestore={handleRestore} />}
     </Layout>
   );
 }
@@ -550,6 +598,69 @@ function RecentOrders({ orders, loading, error, editingId, onEdit, onDelete }) {
           <button type="button" className="underline font-semibold text-sm text-brand-navy" onClick={() => setShown((n) => n + RECENT_PAGE * 2)}>
             Show more ({orders.length - shown} older)
           </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// Orders deleted from the app, newest first, each with a Restore button.
+// Closed until tapped, so the sheet is only read when someone looks.
+function RecentlyDeleted({ open, orders, loading, error, onToggle, onRetry, onRestore }) {
+  const [busyId, setBusyId] = useState(null);
+  const restore = async (order) => {
+    setBusyId(order.Id);
+    try {
+      await onRestore(order);
+    } finally {
+      setBusyId(null);
+    }
+  };
+  return (
+    <section className="glass-card w-full max-w-3xl mt-6 p-5 sm:p-6" aria-label="Recently deleted orders">
+      <button type="button" className="field-label w-full justify-center" onClick={onToggle} aria-expanded={open}>
+        <i className="fa-solid fa-trash-can-arrow-up" aria-hidden="true"></i> Recently deleted
+        <i className={`fa-solid ${open ? "fa-chevron-up" : "fa-chevron-down"}`} aria-hidden="true"></i>
+      </button>
+      {open && (
+        <div className="mt-3">
+          {loading && <p className="text-center text-sm text-brand-navydeep/80">Loading…</p>}
+          {!loading && error && (
+            <p className="text-center text-sm text-brand-navydeep/80">
+              Couldn&apos;t load deleted orders.{" "}
+              <button type="button" className="underline font-semibold" onClick={onRetry}>
+                Try again
+              </button>
+            </p>
+          )}
+          {!loading && !error && !orders.length && <p className="text-center text-sm text-brand-navydeep/80">No deleted orders.</p>}
+          {!loading && !error && orders.length > 0 && (
+            <ul className="flex flex-col divide-y divide-brand-navydeep/15">
+              {orders.map((order) => (
+                <li key={order.Id} className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between py-3 first:pt-0 last:pb-0">
+                  <div className="text-center sm:text-left min-w-0">
+                    <p className="font-semibold text-brand-navy truncate">
+                      #{order.Id} · {order.Name || "No name"}
+                    </p>
+                    <p className="text-sm text-brand-navydeep/80">
+                      Deleted {String(order.Deleted).replace(/^(\d{2}\/\d{2}\/\d{4}) /, (_, day) => `${formatLongDate(day)} at `)}
+                      {orderDay(order) ? ` · was due ${formatLongDate(orderDay(order))}` : ""}
+                      {order.Cost !== undefined && order.Cost !== "" ? ` · ${formatMoney(toNumber(order.Cost))}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-3d !py-2 !px-4 text-sm justify-center shrink-0 disabled:opacity-60"
+                    onClick={() => restore(order)}
+                    disabled={busyId !== null}
+                    aria-label={`Restore order #${order.Id}`}
+                  >
+                    <i className="fa-solid fa-rotate-left" aria-hidden="true"></i> {busyId === order.Id ? "Restoring…" : "Restore"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </section>

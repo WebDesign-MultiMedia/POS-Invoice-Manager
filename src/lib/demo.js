@@ -10,6 +10,7 @@
 // Security: demo mode only swaps the browser's data layer. It grants no
 // server access — every /api endpoint still requires a real staff session.
 import { ApiError } from "./errors.js";
+import { getCurrentDateTime } from "./format.js";
 
 const FLAG_KEY = "pim-demo";
 const DATA_KEY = "pim-demo-data";
@@ -158,6 +159,8 @@ function seed() {
     DueTime: PickupDelivery.startsWith("Catering") ? "11:30 AM" : "",
     Notes,
     Holiday: i === 9 ? "Thanksgiving" : i === 2 ? "Christmas Eve" : "Regular",
+    // One sample order sits in "Recently deleted" to try Restore on.
+    Deleted: i === 7 ? `${daysAgo(1)} 4:15 PM by Demo` : "",
   }));
 
   const cardPayments = [
@@ -272,8 +275,10 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 const later = (v) => new Promise((resolve) => setTimeout(() => resolve(clone(v)), 250));
 
 export const demoApi = {
-  orders: () => later(load().orders.slice().reverse()),
-  order: (id) => later(load().orders.filter((o) => o.Id === String(id).trim())),
+  // Deleted orders stay, marked in Deleted, like the real sheet.
+  orders: () => later(load().orders.filter((o) => !o.Deleted).reverse()),
+  order: (id) => later(load().orders.filter((o) => o.Id === String(id).trim() && !o.Deleted)),
+  deletedOrders: () => later(load().orders.filter((o) => o.Deleted).reverse()),
   createOrder(data) {
     const db = load();
     const row = { ...data, Id: String(db.nextId++) };
@@ -282,7 +287,23 @@ export const demoApi = {
     return later({ created: 1, id: row.Id });
   },
   updateOrder: (id, data) => updateRow("orders", "Id", id, data, ["Id", "Date", "Time"]),
-  deleteOrder: (id) => deleteRow("orders", "Id", id),
+  deleteOrder(id) {
+    const db = load();
+    const row = db.orders.find((o) => o.Id === String(id) && !o.Deleted);
+    if (!row) return notFound();
+    const { date, time } = getCurrentDateTime();
+    row.Deleted = `${date} ${time} by Demo`;
+    save();
+    return later({ deleted: 1, Deleted: row.Deleted });
+  },
+  restoreOrder(id) {
+    const db = load();
+    const row = db.orders.find((o) => o.Id === String(id) && o.Deleted);
+    if (!row) return notFound();
+    row.Deleted = "";
+    save();
+    return later({ restored: 1 });
+  },
   updateCardPayment: (id, data) =>
     updateRow("cardPayments", "PaymentIntentId", id, data, ["PaymentIntentId", "Date", "Time", "Amount", "Fee", "Total", "Card", "Funding"]),
   deleteCardPayment: (id) => deleteRow("cardPayments", "PaymentIntentId", id),

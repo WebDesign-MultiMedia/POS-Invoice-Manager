@@ -82,9 +82,23 @@ export function updateOrder(id, data) {
   return postSheet({ action: "updateOrder", id: String(id), data });
 }
 
+// Deleting an order only hides it (the sheet's "Deleted" column says when
+// and by whom), so it can be restored with its same number.
 export function deleteOrder(id) {
   if (isDemo()) return demoApi.deleteOrder(id);
   return postSheet({ action: "deleteOrder", id: String(id) });
+}
+
+export function restoreOrder(id) {
+  if (isDemo()) return demoApi.restoreOrder(id);
+  return postSheet({ action: "restoreOrder", id: String(id) });
+}
+
+// Deleted orders, for the form's "Recently deleted" list. Read only when
+// that list is opened.
+export function fetchDeletedOrders() {
+  if (isDemo()) return demoApi.deletedOrders();
+  return readSheet("orders", { deleted: "1" });
 }
 
 export function fetchAllOrders() {

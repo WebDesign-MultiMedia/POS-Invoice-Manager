@@ -30,6 +30,8 @@ The **Order ID, Date and Time** at the top fill in by themselves: the date and t
 4. **Due Date** and **Notes** are optional (use Due Date for catering).
 5. Press **Submit Order** once. The button says **Saving…** while it works, and you'll see **Successfully Stored** when it's saved.
 
+Deleted an order by mistake? Tap **Undo** right after deleting, or open **Recently deleted** under the order list and tap **Restore**. It comes back with the same order number.
+
 If the order **didn't save**, you'll see **"Order not saved"** and the form stays filled in. Check the internet and press Submit Order again.
 
 <img src="screenshots/order-form-mobile.webp" alt="Order form on a phone" width="260">

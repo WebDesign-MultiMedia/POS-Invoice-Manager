@@ -31,7 +31,9 @@ async function findInvoice(id) {
   const response = await fetch(`${base}/search?Id=${encodeURIComponent(id)}`, { method: "GET", headers: sheetdbHeaders() });
   if (!response.ok) throw new Error(`SheetDB responded ${response.status}`);
   const rows = await response.json();
-  return Array.isArray(rows) ? rows.find((row) => String(row.Id) === id) || null : null;
+  const row = Array.isArray(rows) ? rows.find((r) => String(r.Id) === id) : null;
+  // A deleted order (anything in its Deleted column) has no preview.
+  return row && !String(row.Deleted ?? "").trim() ? row : null;
 }
 
 // What the preview says for this link.

@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-rotate-left",
+    title: "Undo a deleted order",
+    date: "2026-11-19",
+    body: "Deleted an order by mistake? Tap Undo right after, or open Recently deleted under the order list and tap Restore. The order comes back with the same number and everything it had.",
+  },
+  {
     icon: "fa-gift",
     title: "Holiday orders",
     date: "2026-11-18",

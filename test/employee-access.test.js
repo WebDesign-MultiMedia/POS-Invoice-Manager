@@ -61,7 +61,7 @@ function sheetFetch(url, init = {}) {
   }
   // Any one order looked up by Id was taken by Carlos.
   const id = u.match(/\/search\?Id=([^&]+)/)?.[1];
-  if (id && (init.method || "GET") === "GET") return json([{ Id: decodeURIComponent(id), TakenBy: "Carlos" }]);
+  if (id && (init.method || "GET") === "GET") return json([{ Id: decodeURIComponent(id), TakenBy: "Carlos", Deleted: "" }]);
   return json([]);
 }
 
@@ -418,10 +418,11 @@ describe("section permissions (Team page)", () => {
 
 describe("employees see only their own orders and sales", () => {
   const ORDERS = [
-    { Id: "1", Name: "A", TakenBy: "Carlos" },
-    { Id: "2", Name: "B", TakenBy: "Ana" },
-    { Id: "3", Name: "C", TakenBy: "staff@example.com" },
-    { Id: "4", Name: "D" },
+    { Id: "1", Name: "A", TakenBy: "Carlos", Deleted: "" },
+    { Id: "2", Name: "B", TakenBy: "Ana", Deleted: "" },
+    { Id: "3", Name: "C", TakenBy: "staff@example.com", Deleted: "" },
+    { Id: "4", Name: "D", Deleted: "" },
+    { Id: "5", Name: "E", TakenBy: "Carlos", Deleted: "11/18/2026 9:00 AM by Carlos" },
   ];
   const CARD = [
     { PaymentIntentId: "pi_a", InvoiceId: "1", SoldBy: "staff@example.com" },
@@ -479,6 +480,18 @@ describe("employees see only their own orders and sales", () => {
   it("share links only for their own orders", async () => {
     expect((await get("/api/sheets?action=shareToken&id=1")).statusCode).toBe(200);
     expect((await get("/api/sheets?action=shareToken&id=2")).statusCode).toBe(404);
+  });
+
+  it("deleted orders are hidden; with Can edit & delete they can see and restore their own", async () => {
+    expect((await get("/api/sheets?action=orders")).body.map((o) => o.Id)).toEqual(["1"]);
+    expect((await get("/api/sheets?action=order&id=5")).body).toEqual([]);
+    expect((await get("/api/sheets?action=orders&deleted=1")).body.map((o) => o.Id)).toEqual(["5"]);
+    expect((await post({ action: "restoreOrder", id: "5" })).statusCode).toBe(200);
+    expect((await post({ action: "restoreOrder", id: "1" })).statusCode).toBe(404);
+    employeeRows[0].Access = "event,orders,search,pay";
+    clearEmployeeCache();
+    expect((await get("/api/sheets?action=orders&deleted=1")).statusCode).toBe(403);
+    expect((await post({ action: "restoreOrder", id: "5" })).statusCode).toBe(403);
   });
 
   it("can edit or delete only what they took, even with Can edit & delete", async () => {
