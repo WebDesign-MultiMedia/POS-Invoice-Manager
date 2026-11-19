@@ -143,18 +143,61 @@ describe("editing and deleting an order (staff)", () => {
     expect(JSON.parse(init.body)).toEqual({ data: { Name: "New", Cost: "20" } });
   });
 
-  it("deletes the row with that Id", async () => {
-    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ deleted: 1 }) });
+  // The order's row in the sheet, for the delete/restore lookups.
+  const withRow = (row, writeResult = { updated: 1 }) =>
+    fetchMock.mockImplementation(async (_url, init = {}) => ({
+      ok: true,
+      status: 200,
+      json: async () => ((init.method || "GET") === "GET" ? (row ? [row] : []) : writeResult),
+    }));
+  const patches = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "PATCH");
+
+  it("deleting only marks the order (Deleted: when and by whom); the row stays", async () => {
+    withRow({ Id: "714", Name: "Pat", Deleted: "" });
     const res = await post({ action: "deleteOrder", id: "714" });
     expect(res.statusCode).toBe(200);
-    const [url, init] = fetchMock.mock.calls[0];
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+    const [[url, init]] = patches();
     expect(url).toBe("https://sheetdb.io/api/v1/test-sheet/Id/714");
-    expect(init.method).toBe("DELETE");
+    expect(JSON.parse(init.body).data.Deleted).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{1,2}:\d{2} [AP]M by staff@example\.com$/);
+  });
+
+  it("restore clears Deleted; only a deleted order can be restored", async () => {
+    withRow({ Id: "714", Deleted: "11/18/2026 9:00 AM by Ana" });
+    expect((await post({ action: "restoreOrder", id: "714" })).statusCode).toBe(200);
+    expect(JSON.parse(patches()[0][1].body)).toEqual({ data: { Deleted: "" } });
+    fetchMock.mockReset();
+    withRow({ Id: "714", Deleted: "" });
+    expect((await post({ action: "restoreOrder", id: "714" })).statusCode).toBe(404);
+    expect((await post({ action: "restoreOrder", id: "*" })).statusCode).toBe(400);
+  });
+
+  it("asks for the Deleted column when the sheet doesn't have it", async () => {
+    withRow({ Id: "714", Name: "Pat" });
+    const res = await post({ action: "deleteOrder", id: "714" });
+    expect(res.statusCode).toBe(409);
+    expect(res.body.error).toMatch(/Deleted/);
+    expect(patches()).toHaveLength(0);
+  });
+
+  it("deleted orders are left out of the lists, the invoice and its share link", async () => {
+    const rows = [{ Id: "1", Deleted: "" }, { Id: "2", Deleted: "11/18/2026 9:00 AM by Ana" }];
+    fetchMock.mockImplementation(async (url) => {
+      const id = String(url).match(/search\?Id=(\d+)/)?.[1];
+      return { ok: true, status: 200, json: async () => (id ? rows.filter((r) => r.Id === id) : rows) };
+    });
+    const get = (url) => call(sheets, { url, cookie: staffCookie() });
+    expect((await get("/api/sheets?action=orders")).body.map((o) => o.Id)).toEqual(["1"]);
+    expect((await get("/api/sheets?action=orders&deleted=1")).body.map((o) => o.Id)).toEqual(["2"]);
+    expect((await get("/api/sheets?action=order&id=2")).body).toEqual([]);
+    const shared = await call(sheets, { url: `/api/sheets?action=sharedInvoice&id=2&token=${shareTokenFor("2")}` });
+    expect(shared.statusCode).toBe(404);
   });
 
   it("404s when no order has that Id", async () => {
-    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ deleted: 0 }) });
+    withRow(null);
     expect((await post({ action: "deleteOrder", id: "714" })).statusCode).toBe(404);
+    fetchMock.mockReset();
     fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ updated: 0 }) });
     expect((await post({ action: "updateOrder", id: "714", data: { Name: "x" } })).statusCode).toBe(404);
   });

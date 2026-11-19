@@ -56,6 +56,10 @@ Products. If a save fails because a tab or column is missing, tell the owner wha
 - A leading `Nx` means quantity: "2x Ensalada de frutas" = 2 of that item. Event Sales saves
   dish notes like `2x Taco de Chivo (no onion) ($10.00)`.
 - Old Orders rows only have Date (no DueDate).
+- Orders `Id` is an ARRAYFORMULA in A2 (row number for every row with a Date): never write
+  column A. Deleting an order is a soft delete: the `Deleted` column gets "MM/DD/YYYY h:mm AM
+  by Name" and every read hides it; `restoreOrder` clears it. Never DELETE order rows (later
+  Ids would shift).
 
 ## UI / mobile rules learned on real phones
 - Avoid `position: fixed` on mobile views; it caused iOS scroll snap-back twice.

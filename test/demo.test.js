@@ -115,7 +115,13 @@ describe("demo mode", () => {
 
     await sheetdb.deleteOrder(id);
     expect(await sheetdb.getInvoiceById(id)).toBeNull();
+    expect((await sheetdb.fetchDeletedOrders()).map((o) => o.Id)).toContain(id);
     await expect(sheetdb.deleteOrder(id)).rejects.toMatchObject({ status: 404 });
+    await sheetdb.restoreOrder(id);
+    expect(await sheetdb.getInvoiceById(id)).toMatchObject({ Id: id, Name: "Renamed" });
+    await expect(sheetdb.restoreOrder(id)).rejects.toMatchObject({ status: 404 });
+    await sheetdb.deleteOrder(id);
+    expect(await sheetdb.getInvoiceById(id)).toBeNull();
 
     expect(fetchSpy).not.toHaveBeenCalled();
     // Every demo call waits 250ms like a real request, and this test makes many.
