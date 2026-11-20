@@ -170,6 +170,14 @@ describe("Web Design leads in the demo", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("the Projects tab shows made-up projects without the server", async () => {
+    const { fetchProjects } = await import("../src/api/projects.js");
+    const { projects } = await fetchProjects();
+    expect(projects.length).toBeGreaterThan(0);
+    expect(JSON.stringify(projects)).not.toMatch(/WebDesign-MultiMedia|vercel\.app|Buffet|Lucia|BLFM|Daycare/i);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("can be deleted and restored without the server", async () => {
     const { fetchLeads, deleteLead, restoreLead } = await import("../src/api/leads.js");
     const before = await fetchLeads();

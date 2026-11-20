@@ -25,6 +25,7 @@
 //   POST { action: "editUnpaidSale", id, data } change an Unpaid event sale's order
 //   leads / createLead / updateLead: Web Design & MultiMedia's own sheet,
 //   handled by api/_lib/leads.js
+//   GET ?action=projects: Web Design's GitHub projects (api/_lib/projects.js)
 //
 // Every action needs a login. Staff may use them all; an employee only the
 // ones their ticked sections allow (ACTION_ACCESS below, sections in
@@ -37,6 +38,7 @@
 import { NO_ACCESS, isValidShareToken, readSessionInfo, sellerName, shareTokenFor } from "./_lib/auth.js";
 import { can, canAny } from "./_lib/permissions.js";
 import { LEAD_ACTIONS, handleLeads } from "./_lib/leads.js";
+import { handleProjects } from "./_lib/projects.js";
 import { SHEETDB_LIMIT_MESSAGE, sheetdbFetch, sheetdbHeaders } from "./_lib/sheetdb.js";
 import { saleToInvoice } from "../src/lib/saleToOrder.js";
 
@@ -452,6 +454,8 @@ export default async function handler(req, res) {
   // its own login check (api/_lib/leads.js).
   const requested = req.method === "GET" ? new URL(req.url, "http://localhost").searchParams.get("action") : req.body?.action;
   if (LEAD_ACTIONS.includes(requested)) return handleLeads(req, res);
+  // ...and its GitHub projects (api/_lib/projects.js).
+  if (requested === "projects") return handleProjects(req, res);
 
   const sheetId = process.env.SHEETDB_ID;
   if (!sheetId) {

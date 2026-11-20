@@ -92,3 +92,43 @@ export function businessTypes(leads) {
   }
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
+
+// ---------- GitHub projects (Projects tab) ----------
+
+// "littleLeadersGroupFamily-Daycare" → "Little Leaders Group Family Daycare"
+export function projectTitle(name) {
+  return String(name ?? "")
+    .replace(/[-_.]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
+export const PROJECT_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "live", label: "Live sites" },
+  { key: "recent", label: "Last 30 days" },
+];
+
+export function matchesProject(project, { filter = "all", query = "", showOld = false, now = Date.now() } = {}) {
+  if (!showOld && (project.archived || project.fork)) return false;
+  if (filter === "live" && !project.homepage) return false;
+  if (filter === "recent" && !(now - Date.parse(project.pushedAt) <= 30 * 86400000)) return false;
+  const q = String(query).trim().toLowerCase();
+  if (!q) return true;
+  return [project.name, projectTitle(project.name), project.description, project.language, project.homepage, ...(project.topics || [])].some((v) => String(v ?? "").toLowerCase().includes(q));
+}
+
+// "today", "yesterday", "5 days ago", "3 months ago", "2 years ago"
+export function updatedAgo(iso, now = Date.now()) {
+  const days = Math.floor((now - Date.parse(iso)) / 86400000);
+  if (!Number.isFinite(days)) return "";
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return months === 1 ? "1 month ago" : `${months} months ago`;
+  const years = Math.floor(days / 365);
+  return years <= 1 ? "1 year ago" : `${years} years ago`;
+}

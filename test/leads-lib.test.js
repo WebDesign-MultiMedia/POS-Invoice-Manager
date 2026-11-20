@@ -34,3 +34,33 @@ describe("Web Design lead helpers", () => {
     expect(businessTypes([{ BusinessType: "Bakery" }, { BusinessType: "bakery " }, { BusinessType: "Barber" }])).toEqual(["Bakery", "Barber"]);
   });
 });
+
+import { matchesProject, projectTitle, updatedAgo } from "../src/lib/leads.js";
+
+describe("GitHub project helpers", () => {
+  it("makes repo names readable", () => {
+    expect(projectTitle("littleLeadersGroupFamily-Daycare")).toBe("Little Leaders Group Family Daycare");
+    expect(projectTitle("POS-Invoice-Manager")).toBe("POS Invoice Manager");
+    expect(projectTitle("V-Tracker_Capstone")).toBe("V Tracker Capstone");
+  });
+
+  it("filters live sites, recent ones, and hides archived/forks unless asked", () => {
+    const now = Date.parse("2026-11-20T00:00:00Z");
+    const live = { name: "a", homepage: "https://x.com", pushedAt: "2026-11-10T00:00:00Z" };
+    const old = { name: "b", homepage: "", pushedAt: "2024-01-01T00:00:00Z", archived: true };
+    expect(matchesProject(live, { filter: "live", now })).toBe(true);
+    expect(matchesProject({ ...live, homepage: "" }, { filter: "live", now })).toBe(false);
+    expect(matchesProject(live, { filter: "recent", now })).toBe(true);
+    expect(matchesProject(old, { now })).toBe(false);
+    expect(matchesProject(old, { showOld: true, now })).toBe(true);
+    expect(matchesProject({ name: "sulysSweets", pushedAt: "" }, { query: "sulys sweets", now })).toBe(true);
+  });
+
+  it("says how long ago", () => {
+    const now = Date.parse("2026-11-20T12:00:00Z");
+    expect(updatedAgo("2026-11-20T01:00:00Z", now)).toBe("today");
+    expect(updatedAgo("2026-11-19T01:00:00Z", now)).toBe("yesterday");
+    expect(updatedAgo("2026-09-01T00:00:00Z", now)).toBe("2 months ago");
+    expect(updatedAgo("2023-01-01T00:00:00Z", now)).toBe("3 years ago");
+  });
+});

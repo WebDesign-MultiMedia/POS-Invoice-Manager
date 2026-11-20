@@ -13,7 +13,7 @@ const PAGE_TIPS = {
   "/pay": "Type an amount (or pick an invoice), then pay with the test card 4242 4242 4242 4242.",
   "/event": "Tap items, then Pay now (Card, QR pay, Cash or Zelle) or Save order to let them pay later. Open full screen hides everything else; employees get it automatically.",
   "/broadcast": "Write a specials message to see the preview. In the demo nothing is actually texted.",
-  "/webdesign": "A second business on the same app: a list of shops that might want a website. Try the No website filter, or add one.",
+  "/webdesign": "A second business on the same app: a list of shops that might want a website. Try the No website filter, or add one. The Projects tab lists GitHub projects.",
   "/updates": "A changelog of features added to the app over time.",
 };
 

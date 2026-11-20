@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
+import GitHubProjects from "../components/GitHubProjects.jsx";
 import { createLead, deleteLead, fetchLeads, restoreLead, updateLead } from "../api/leads.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { EMPTY_LEAD, LEAD_FIELDS, LEAD_FILTERS, YES_NO_FIELDS, businessTypes, linkFor, matchesFilter, matchesSearch, telLink, yesNo } from "../lib/leads.js";
@@ -18,7 +20,59 @@ const ALERT_BASE = { showDenyButton: false, showConfirmButton: false, theme: "da
 const byName = (a, b) => String(a.BusinessName).localeCompare(String(b.BusinessName));
 const chipClass = (on) => `${CHIP} ${on ? "bg-brand-teal text-white border-brand-teal" : "border-brand-navy/30 text-brand-navy"}`;
 
+const TABS = [
+  { key: "leads", label: "Leads", icon: "fa-address-book" },
+  { key: "projects", label: "Projects", icon: "fa-github", brand: true },
+];
+
+// Two tabs: Leads (the sheet) and Projects (GitHub). The tab is in the
+// link (?tab=projects) so it survives a refresh. Each tab loads the first
+// time it's opened and then stays loaded, so switching back and forth
+// doesn't spend SheetDB or GitHub requests.
 export default function WebDesignPage() {
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "projects" ? "projects" : "leads";
+  const [opened, setOpened] = useState(() => new Set([tab]));
+  const pick = (key) => {
+    setOpened((o) => new Set(o).add(key));
+    setParams(key === "leads" ? {} : { tab: key }, { replace: true });
+  };
+
+  return (
+    <Layout blobs={["bg-brand-teal w-72 h-72 -top-10 -left-10 animate-float-slow", "bg-brand-terracotta w-80 h-80 top-1/2 -right-16 animate-float"]}>
+      <SiteNav className="mb-6" />
+      <PageHeader logo={LOGO} logoSize="w-36 h-36 sm:w-44 sm:h-44" title="Web Design & MultiMedia" subtitle={tab === "projects" ? "My projects" : "Business leads"} />
+
+      <div role="tablist" aria-label="Web Design sections" className="glass-panel !rounded-full p-1 flex gap-1 mb-5 w-full max-w-xs">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${tab === t.key ? "bg-brand-teal text-white" : "text-brand-navy"}`}
+            onClick={() => pick(t.key)}
+          >
+            <i className={`${t.brand ? "fa-brands" : "fa-solid"} ${t.icon}`} aria-hidden="true"></i> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {(opened.has("leads") || tab === "leads") && (
+        <div className={tab === "leads" ? "w-full flex flex-col items-center" : "hidden"}>
+          <LeadsSection />
+        </div>
+      )}
+      {(opened.has("projects") || tab === "projects") && (
+        <div className={tab === "projects" ? "w-full flex flex-col items-center" : "hidden"}>
+          <GitHubProjects />
+        </div>
+      )}
+    </Layout>
+  );
+}
+
+function LeadsSection() {
   const [leads, setLeads] = useState([]);
   const [canEdit, setCanEdit] = useState(true);
   const [deleted, setDeleted] = useState([]);
@@ -123,10 +177,6 @@ export default function WebDesignPage() {
   };
 
   return (
-    <Layout blobs={["bg-brand-teal w-72 h-72 -top-10 -left-10 animate-float-slow", "bg-brand-terracotta w-80 h-80 top-1/2 -right-16 animate-float"]}>
-      <SiteNav className="mb-6" />
-      <PageHeader logo={LOGO} logoSize="w-36 h-36 sm:w-44 sm:h-44" title="Web Design & MultiMedia" subtitle="Business leads" />
-
       <section className="w-full max-w-3xl flex flex-col gap-4">
         {!canEdit && (
           <p role="status" className="glass-panel p-3 text-sm text-center">
@@ -227,7 +277,6 @@ export default function WebDesignPage() {
 
         {canDelete && !loading && !error && <RecentlyDeleted open={showDeleted} leads={deleted} onToggle={() => setShowDeleted((o) => !o)} onRestore={handleRestore} />}
       </section>
-    </Layout>
   );
 }
 

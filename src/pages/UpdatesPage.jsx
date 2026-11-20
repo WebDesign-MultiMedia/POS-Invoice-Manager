@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-code-branch",
+    title: "Web Design: your GitHub projects",
+    date: "2026-11-20",
+    body: "The Web Design page has a Projects tab next to Leads. It lists every GitHub project, newest first, with a Live site button (when the project has its website set on GitHub) and a Code button. Search them, or show only Live sites or the last 30 days. Archived projects and forks are hidden until you tap that button.",
+  },
+  {
     icon: "fa-trash-can-arrow-up",
     title: "Web Design: delete, Undo and Recently deleted",
     date: "2026-11-19",

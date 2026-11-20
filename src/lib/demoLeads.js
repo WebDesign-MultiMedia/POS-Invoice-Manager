@@ -99,3 +99,13 @@ export const DEMO_LEADS = [
     Deleted: "11/18/2026 3:20 PM by Demo",
   },
 ];
+
+// Made-up GitHub projects for the Projects tab in demo mode.
+const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+export const DEMO_PROJECTS = [
+  { name: "sunrise-sample-bakery", description: "Website for a sample bakery: menu, cake orders, hours.", url: "https://github.com/", homepage: "https://example.com", language: "JavaScript", topics: ["react", "vite"], pushedAt: daysAgo(1), stars: 2, fork: false, archived: false, private: false },
+  { name: "fresh-fade-booking", description: "Booking page for a demo barbershop.", url: "https://github.com/", homepage: "https://example.org", language: "TypeScript", topics: [], pushedAt: daysAgo(4), stars: 0, fork: false, archived: false, private: false },
+  { name: "green-leaf-menu", description: "Online menu with a QR code for tables.", url: "https://github.com/", homepage: "", language: "HTML", topics: [], pushedAt: daysAgo(20), stars: 1, fork: false, archived: false, private: false },
+  { name: "portfolio-template", description: "A simple portfolio starter.", url: "https://github.com/", homepage: "https://example.net", language: "CSS", topics: [], pushedAt: daysAgo(60), stars: 0, fork: false, archived: false, private: false },
+  { name: "old-practice-app", description: "Practice project.", url: "https://github.com/", homepage: "", language: "JavaScript", topics: [], pushedAt: daysAgo(400), stars: 0, fork: false, archived: true, private: false },
+];
