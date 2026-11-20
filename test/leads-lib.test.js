@@ -64,3 +64,14 @@ describe("GitHub project helpers", () => {
     expect(updatedAgo("2023-01-01T00:00:00Z", now)).toBe("3 years ago");
   });
 });
+
+import { isAnsweredWithWebsite } from "../src/lib/leads.js";
+
+describe("answered + has a website", () => {
+  it("needs both to be Yes, however it was typed", () => {
+    expect(isAnsweredWithWebsite({ AnswerPhone: "yes ", HasWebsite: "Y" })).toBe(true);
+    expect(isAnsweredWithWebsite({ AnswerPhone: "Yes", HasWebsite: "No" })).toBe(false);
+    expect(isAnsweredWithWebsite({ AnswerPhone: "", HasWebsite: "Yes" })).toBe(false);
+    expect(matchesFilter({ AnswerPhone: "Yes", HasWebsite: "Yes" }, "both")).toBe(true);
+  });
+});

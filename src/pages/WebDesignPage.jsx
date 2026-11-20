@@ -6,7 +6,7 @@ import { SiteNav } from "../components/NavFab.jsx";
 import GitHubProjects from "../components/GitHubProjects.jsx";
 import { createLead, deleteLead, fetchLeads, restoreLead, updateLead } from "../api/leads.js";
 import { friendlyMessage } from "../lib/errors.js";
-import { EMPTY_LEAD, LEAD_FIELDS, LEAD_FILTERS, YES_NO_FIELDS, businessTypes, linkFor, matchesFilter, matchesSearch, telLink, yesNo } from "../lib/leads.js";
+import { EMPTY_LEAD, LEAD_FIELDS, LEAD_FILTERS, YES_NO_FIELDS, businessTypes, isAnsweredWithWebsite, linkFor, matchesFilter, matchesSearch, telLink, yesNo } from "../lib/leads.js";
 
 // Web Design & MultiMedia: businesses that might want a website. Its own
 // Google Sheet and SheetDB API (api/_lib/leads.js); the Web Design login
@@ -17,6 +17,23 @@ const OUTLINE = "btn-3d !py-2 !px-3 text-sm justify-center !bg-none !bg-transpar
 const DANGER = "btn-3d !py-2 !px-3 text-sm justify-center !bg-none !bg-transparent border border-brand-error/60 text-brand-error disabled:opacity-60";
 const CHIP = "rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors";
 const ALERT_BASE = { showDenyButton: false, showConfirmButton: false, theme: "dark", backdrop: "rgba(9, 8, 9, 0.87) left top no-repeat" };
+// Per-phone conveniences (try/catch: storage can be blocked).
+const BOTH_OPEN_KEY = "pim-webdesign-both-open";
+function readFlag(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : v === "1";
+  } catch {
+    return fallback;
+  }
+}
+function writeFlag(key, value) {
+  try {
+    localStorage.setItem(key, value ? "1" : "0");
+  } catch {
+    // Storage blocked: it just won't be remembered.
+  }
+}
 const byName = (a, b) => String(a.BusinessName).localeCompare(String(b.BusinessName));
 const chipClass = (on) => `${CHIP} ${on ? "bg-brand-teal text-white border-brand-teal" : "border-brand-navy/30 text-brand-navy"}`;
 
@@ -115,6 +132,17 @@ function LeadsSection() {
     [leads, filter, query, type]
   );
 
+  // Answered the phone and already have a website: their own box, after
+  // the rest of the list. Open or closed stays how it was left.
+  const regular = shown.filter((l) => !isAnsweredWithWebsite(l));
+  const both = shown.filter(isAnsweredWithWebsite);
+  const [bothOpen, setBothOpen] = useState(() => readFlag(BOTH_OPEN_KEY, true));
+  const toggleBoth = () =>
+    setBothOpen((open) => {
+      writeFlag(BOTH_OPEN_KEY, !open);
+      return !open;
+    });
+
   // Puts a deleted business back, exactly as it was.
   const handleRestore = async (lead) => {
     try {
@@ -175,6 +203,25 @@ function LeadsSection() {
     setNotice(message);
     await load();
   };
+
+  const renderLead = (lead, i) =>
+    editing && editing === lead.Id ? (
+      <LeadForm key={lead.Id} lead={lead} types={types} onCancel={() => setEditing(null)} onSave={(data) => updateLead(lead.Id, data).then(() => saved(`Saved ${data.BusinessName || "the business"}.`))} />
+    ) : (
+      <LeadCard
+        key={lead.Id || `row-${i}`}
+        lead={lead}
+        onEdit={
+          canEdit && lead.Id
+            ? () => {
+                setNotice("");
+                setEditing(lead.Id);
+              }
+            : null
+        }
+        onDelete={canDelete && lead.Id ? () => handleDelete(lead) : null}
+      />
+    );
 
   return (
       <section className="w-full max-w-3xl flex flex-col gap-4">
@@ -255,24 +302,16 @@ function LeadsSection() {
           )
         )}
 
-        {shown.map((lead, i) =>
-          editing && editing === lead.Id ? (
-            <LeadForm key={lead.Id} lead={lead} types={types} onCancel={() => setEditing(null)} onSave={(data) => updateLead(lead.Id, data).then(() => saved(`Saved ${data.BusinessName || "the business"}.`))} />
-          ) : (
-            <LeadCard
-              key={lead.Id || `row-${i}`}
-              lead={lead}
-              onEdit={
-                canEdit && lead.Id
-                  ? () => {
-                      setNotice("");
-                      setEditing(lead.Id);
-                    }
-                  : null
-              }
-              onDelete={canDelete && lead.Id ? () => handleDelete(lead) : null}
-            />
-          )
+        {regular.map(renderLead)}
+
+        {both.length > 0 && (
+          <section className="glass-card w-full p-4 sm:p-5 flex flex-col gap-4 border border-brand-teal/40" aria-label="Answered and has a website">
+            <button type="button" className="field-label w-full justify-center !text-brand-teal !opacity-100" onClick={toggleBoth} aria-expanded={bothOpen}>
+              <i className="fa-solid fa-circle-check" aria-hidden="true"></i> Answered + has a website ({both.length})
+              <i className={`fa-solid ${bothOpen ? "fa-chevron-up" : "fa-chevron-down"}`} aria-hidden="true"></i>
+            </button>
+            {bothOpen && both.map(renderLead)}
+          </section>
         )}
 
         {canDelete && !loading && !error && <RecentlyDeleted open={showDeleted} leads={deleted} onToggle={() => setShowDeleted((o) => !o)} onRestore={handleRestore} />}

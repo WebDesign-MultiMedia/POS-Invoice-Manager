@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-circle-check",
+    title: "Web Design: Answered + has a website get their own box",
+    date: "2026-11-20",
+    body: "On the Web Design leads, businesses that answered the phone AND already have a website are kept in their own box under the list, so the main list shows the ones still to work on. Tap the box's title to open or close it; your phone remembers. There's also an Answered + website filter.",
+  },
+  {
     icon: "fa-code-branch",
     title: "Web Design: your GitHub projects",
     date: "2026-11-20",
