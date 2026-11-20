@@ -22,9 +22,10 @@ const demoList = () => (demoLeads ||= DEMO_LEADS.map((l) => ({ ...l })));
 if (typeof window !== "undefined") window.addEventListener(DEMO_RESET_EVENT, () => (demoLeads = null));
 const later = (v) => new Promise((resolve) => setTimeout(() => resolve(JSON.parse(JSON.stringify(v))), 250));
 
-// { leads: [...], canEdit } — canEdit is false until the sheet has an Id column.
+// { leads, deleted, canEdit, canDelete }: canEdit is false until the sheet
+// has an Id column, canDelete until it also has a Deleted column.
 export async function fetchLeads() {
-  if (isDemo()) return later({ leads: demoList(), canEdit: true });
+  if (isDemo()) return later({ leads: demoList().filter((l) => !l.Deleted), deleted: demoList().filter((l) => l.Deleted), canEdit: true, canDelete: true });
   return check(await fetch(`${SHEETS_API}?action=leads`));
 }
 
@@ -55,4 +56,26 @@ export function updateLead(id, data) {
     return later({ ok: true });
   }
   return post({ action: "updateLead", id, data });
+}
+
+// Deleting only hides it (the sheet's "Deleted" column says when and by
+// whom), so it can be brought back with Undo or from Recently deleted.
+export function deleteLead(id) {
+  if (isDemo()) {
+    const lead = demoList().find((l) => l.Id === id && !l.Deleted);
+    if (!lead) return Promise.reject(new ApiError(404, "That business isn't in the list any more."));
+    lead.Deleted = `${new Date().toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })} by Demo`;
+    return later({ deleted: 1, Deleted: lead.Deleted });
+  }
+  return post({ action: "deleteLead", id });
+}
+
+export function restoreLead(id) {
+  if (isDemo()) {
+    const lead = demoList().find((l) => l.Id === id && l.Deleted);
+    if (!lead) return Promise.reject(new ApiError(404, "That business isn't in Recently deleted any more."));
+    lead.Deleted = "";
+    return later({ restored: 1 });
+  }
+  return post({ action: "restoreLead", id });
 }

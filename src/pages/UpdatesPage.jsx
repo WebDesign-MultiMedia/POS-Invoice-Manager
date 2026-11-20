@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-trash-can-arrow-up",
+    title: "Web Design: delete, Undo and Recently deleted",
+    date: "2026-11-19",
+    body: "Each business on the Web Design page has a trash button. Deleted one by mistake? Tap Undo right after, or open Recently deleted at the bottom and tap Restore. It comes back exactly as it was; the row never leaves the Google Sheet.",
+  },
+  {
     icon: "fa-laptop-code",
     title: "Web Design & MultiMedia leads",
     date: "2026-11-19",

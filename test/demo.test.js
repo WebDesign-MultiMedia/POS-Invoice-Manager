@@ -169,4 +169,16 @@ describe("Web Design leads in the demo", () => {
     expect((await fetchLeads()).leads.some((l) => l.BusinessName === "Demo Test Shop")).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("can be deleted and restored without the server", async () => {
+    const { fetchLeads, deleteLead, restoreLead } = await import("../src/api/leads.js");
+    const before = await fetchLeads();
+    expect(before.deleted.length).toBeGreaterThan(0);
+    const id = before.leads[0].Id;
+    await deleteLead(id);
+    expect((await fetchLeads()).deleted.some((l) => l.Id === id)).toBe(true);
+    await restoreLead(id);
+    expect((await fetchLeads()).leads.some((l) => l.Id === id)).toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

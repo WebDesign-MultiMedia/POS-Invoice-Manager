@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
-import { createLead, fetchLeads, updateLead } from "../api/leads.js";
+import { createLead, deleteLead, fetchLeads, restoreLead, updateLead } from "../api/leads.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { EMPTY_LEAD, LEAD_FIELDS, LEAD_FILTERS, YES_NO_FIELDS, businessTypes, linkFor, matchesFilter, matchesSearch, telLink, yesNo } from "../lib/leads.js";
 
@@ -11,12 +12,18 @@ import { EMPTY_LEAD, LEAD_FIELDS, LEAD_FILTERS, YES_NO_FIELDS, businessTypes, li
 
 const LOGO = { src: "/imgs/WebDesignMultiMedia-logo.png", alt: "Web Design & MultiMedia logo", icon: "fa-laptop-code" };
 const OUTLINE = "btn-3d !py-2 !px-3 text-sm justify-center !bg-none !bg-transparent border border-brand-navy/40 text-brand-navy disabled:opacity-60";
+const DANGER = "btn-3d !py-2 !px-3 text-sm justify-center !bg-none !bg-transparent border border-brand-error/60 text-brand-error disabled:opacity-60";
 const CHIP = "rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors";
+const ALERT_BASE = { showDenyButton: false, showConfirmButton: false, theme: "dark", backdrop: "rgba(9, 8, 9, 0.87) left top no-repeat" };
+const byName = (a, b) => String(a.BusinessName).localeCompare(String(b.BusinessName));
 const chipClass = (on) => `${CHIP} ${on ? "bg-brand-teal text-white border-brand-teal" : "border-brand-navy/30 text-brand-navy"}`;
 
 export default function WebDesignPage() {
   const [leads, setLeads] = useState([]);
   const [canEdit, setCanEdit] = useState(true);
+  const [deleted, setDeleted] = useState([]);
+  const [canDelete, setCanDelete] = useState(true);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -32,6 +39,8 @@ export default function WebDesignPage() {
       const data = await fetchLeads();
       setLeads(Array.isArray(data?.leads) ? data.leads : []);
       setCanEdit(data?.canEdit !== false);
+      setDeleted(Array.isArray(data?.deleted) ? data.deleted : []);
+      setCanDelete(data?.canDelete !== false);
     } catch (err) {
       setError(friendlyMessage(err, "Couldn't load the businesses."));
     } finally {
@@ -48,9 +57,64 @@ export default function WebDesignPage() {
     () =>
       leads
         .filter((l) => matchesFilter(l, filter) && matchesSearch(l, query) && (!type || String(l.BusinessType).trim().toLowerCase() === type.toLowerCase()))
-        .sort((a, b) => String(a.BusinessName).localeCompare(String(b.BusinessName))),
+        .sort(byName),
     [leads, filter, query, type]
   );
+
+  // Puts a deleted business back, exactly as it was.
+  const handleRestore = async (lead) => {
+    try {
+      await restoreLead(lead.Id);
+    } catch (err) {
+      Swal.fire({ ...ALERT_BASE, showConfirmButton: true, title: "Not restored", text: friendlyMessage(err, "Couldn't restore the business."), icon: "error" });
+      if (err?.status === 404) load();
+      return;
+    }
+    const back = { ...lead, Deleted: "" };
+    setDeleted((d) => d.filter((l) => l.Id !== lead.Id));
+    setLeads((l) => [...l.filter((x) => x.Id !== lead.Id), back]);
+    Swal.fire({ ...ALERT_BASE, title: `${lead.BusinessName || "Business"} restored`, icon: "success", timer: 1500 });
+  };
+
+  const handleDelete = async (lead) => {
+    const name = lead.BusinessName || "This business";
+    const { isConfirmed } = await Swal.fire({
+      ...ALERT_BASE,
+      title: `Delete ${name}?`,
+      text: "It will be hidden from the list. You can bring it back with Undo or from Recently deleted. The row stays in the Google Sheet.",
+      icon: "warning",
+      showConfirmButton: true,
+      confirmButtonText: '<i class="fa-solid fa-trash"></i> Delete',
+      confirmButtonColor: "#dc2626",
+      showCancelButton: true,
+      cancelButtonText: "Keep it",
+      focusCancel: true,
+    });
+    if (!isConfirmed) return;
+    let result;
+    try {
+      result = await deleteLead(lead.Id);
+    } catch (err) {
+      Swal.fire({ ...ALERT_BASE, showConfirmButton: true, title: "Not deleted", text: friendlyMessage(err, "Couldn't delete the business."), icon: "error" });
+      if (err?.status === 404) load();
+      return;
+    }
+    const gone = { ...lead, Deleted: result?.Deleted || "Just now" };
+    if (editing === lead.Id) setEditing(null);
+    setNotice("");
+    setLeads((l) => l.filter((x) => x.Id !== lead.Id));
+    setDeleted((d) => [gone, ...d.filter((x) => x.Id !== lead.Id)]);
+    const { isConfirmed: undo } = await Swal.fire({
+      ...ALERT_BASE,
+      title: `${name} deleted`,
+      icon: "success",
+      showConfirmButton: true,
+      confirmButtonText: '<i class="fa-solid fa-rotate-left"></i> Undo',
+      showCancelButton: true,
+      cancelButtonText: "OK",
+    });
+    if (undo) await handleRestore(gone);
+  };
 
   const saved = async (message) => {
     setEditing(null);
@@ -67,6 +131,11 @@ export default function WebDesignPage() {
         {!canEdit && (
           <p role="status" className="glass-panel p-3 text-sm text-center">
             To add or edit businesses here, add a column named <b>Id</b> to the Web Design sheet (first row), and type 1, 2, 3… down it for the businesses already there.
+          </p>
+        )}
+        {canEdit && !canDelete && (
+          <p role="status" className="glass-panel p-3 text-sm text-center">
+            To delete businesses (with Undo and Restore), add a column named <b>Deleted</b> to the Web Design sheet (first row). Leave it empty.
           </p>
         )}
         {notice && (
@@ -151,9 +220,12 @@ export default function WebDesignPage() {
                     }
                   : null
               }
+              onDelete={canDelete && lead.Id ? () => handleDelete(lead) : null}
             />
           )
         )}
+
+        {canDelete && !loading && !error && <RecentlyDeleted open={showDeleted} leads={deleted} onToggle={() => setShowDeleted((o) => !o)} onRestore={handleRestore} />}
       </section>
     </Layout>
   );
@@ -179,7 +251,7 @@ function LinkButton({ href, icon, label }) {
   );
 }
 
-function LeadCard({ lead, onEdit }) {
+function LeadCard({ lead, onEdit, onDelete }) {
   const mapHref = linkFor("GoogleLocation", lead.GoogleLocation) || (lead.Location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.Location)}` : "");
   const email = String(lead.Email ?? "").trim();
   return (
@@ -191,11 +263,18 @@ function LeadCard({ lead, onEdit }) {
           {lead.Location && <p className="text-sm text-brand-navydeep/80 break-words">{lead.Location}</p>}
           {lead.Phone && <p className="text-sm text-brand-navydeep/80">{lead.Phone}</p>}
         </div>
-        {onEdit && (
-          <button type="button" className={OUTLINE} onClick={onEdit} aria-label={`Edit ${lead.BusinessName || "business"}`}>
-            <i className="fa-solid fa-pen" aria-hidden="true"></i>
-          </button>
-        )}
+        <div className="flex gap-2 shrink-0">
+          {onEdit && (
+            <button type="button" className={OUTLINE} onClick={onEdit} aria-label={`Edit ${lead.BusinessName || "business"}`} title="Edit">
+              <i className="fa-solid fa-pen" aria-hidden="true"></i>
+            </button>
+          )}
+          {onDelete && (
+            <button type="button" className={DANGER} onClick={onDelete} aria-label={`Delete ${lead.BusinessName || "business"}`} title="Delete">
+              <i className="fa-solid fa-trash" aria-hidden="true"></i>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -237,7 +316,7 @@ function LeadForm({ lead, types, onSave, onCancel }) {
     }
     setBusy(true);
     setError("");
-    const { Id: _id, ...data } = form;
+    const { Id: _id, Deleted: _deleted, ...data } = form;
     try {
       await onSave(data);
     } catch (err) {
@@ -310,5 +389,56 @@ function LeadForm({ lead, types, onSave, onCancel }) {
         </button>
       </div>
     </form>
+  );
+}
+
+// Businesses deleted from the list, each with Restore. They
+// come with the same sheet read as the list, so opening this is free.
+function RecentlyDeleted({ open, leads, onToggle, onRestore }) {
+  const [busyId, setBusyId] = useState(null);
+  const restore = async (lead) => {
+    setBusyId(lead.Id);
+    try {
+      await onRestore(lead);
+    } finally {
+      setBusyId(null);
+    }
+  };
+  return (
+    <section className="glass-card w-full p-5 sm:p-6" aria-label="Recently deleted businesses">
+      <button type="button" className="field-label w-full justify-center" onClick={onToggle} aria-expanded={open}>
+        <i className="fa-solid fa-trash-can-arrow-up" aria-hidden="true"></i> Recently deleted{leads.length ? ` (${leads.length})` : ""}
+        <i className={`fa-solid ${open ? "fa-chevron-up" : "fa-chevron-down"}`} aria-hidden="true"></i>
+      </button>
+      {open && (
+        <div className="mt-3">
+          {!leads.length && <p className="text-center text-sm text-brand-navydeep/80">No deleted businesses.</p>}
+          {leads.length > 0 && (
+            <ul className="flex flex-col divide-y divide-brand-navydeep/15">
+              {leads.map((lead) => (
+                <li key={lead.Id} className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between py-3 first:pt-0 last:pb-0">
+                  <div className="text-center sm:text-left min-w-0">
+                    <p className="font-semibold text-brand-navy break-words">{lead.BusinessName || "(No name)"}</p>
+                    <p className="text-sm text-brand-navydeep/80">
+                      Deleted {lead.Deleted}
+                      {lead.BusinessType ? ` · ${lead.BusinessType}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-3d !py-2 !px-4 text-sm justify-center shrink-0 disabled:opacity-60"
+                    onClick={() => restore(lead)}
+                    disabled={busyId !== null}
+                    aria-label={`Restore ${lead.BusinessName || "business"}`}
+                  >
+                    <i className="fa-solid fa-rotate-left" aria-hidden="true"></i> {busyId === lead.Id ? "Restoring…" : "Restore"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

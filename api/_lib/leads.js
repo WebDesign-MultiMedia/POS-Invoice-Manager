@@ -9,6 +9,8 @@
 //   GET  ?action=leads                         every row
 //   POST { action: "createLead", data }        add a row (gets a new Id)
 //   POST { action: "updateLead", id, data }    change the row with that Id
+//   POST { action: "deleteLead", id }          hide it (Undo / Recently deleted)
+//   POST { action: "restoreLead", id }         bring a deleted one back
 //
 // Only the owner's login and the Web Design login (role "web") may use it;
 // restaurant employees never can (they can't be given "webdesign").
@@ -18,12 +20,16 @@
 // letters and digits. The app always uses the clean names in FIELDS.
 // Editing needs an "Id" column, because SheetDB finds a row by a column's
 // value; rows typed in the sheet without an Id can be seen but not edited.
+//
+// Deleting only marks the row, like orders: its "Deleted" column gets when
+// and by whom, the app moves it to Recently deleted, and Restore clears it.
+// The row stays in the sheet. Needs a "Deleted" column.
 
 import { readSessionInfo, NO_ACCESS } from "./auth.js";
 import { can } from "./permissions.js";
 import { SHEETDB_LIMIT_MESSAGE, sheetdbFetch } from "./sheetdb.js";
 
-export const LEAD_ACTIONS = ["leads", "createLead", "updateLead"];
+export const LEAD_ACTIONS = ["leads", "createLead", "updateLead", "deleteLead", "restoreLead"];
 
 // Clean name → other ways the header may be spelled (after squash()).
 export const FIELDS = {
@@ -44,8 +50,10 @@ export const FIELDS = {
   AnswerPhone: ["answerphonecall", "answerphone", "answeredphonecall"],
   HasWebsite: ["website"],
   Notes: ["notes", "note"],
+  Deleted: ["deleted"],
 };
-const EDITABLE = Object.keys(FIELDS).filter((f) => f !== "Id");
+// Id is set once by the server; Deleted only by delete/restore.
+const EDITABLE = Object.keys(FIELDS).filter((f) => f !== "Id" && f !== "Deleted");
 
 export const squash = (header) => String(header ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -147,6 +155,26 @@ function newId() {
 }
 const VALID_ID = /^[A-Za-z0-9-]{1,40}$/;
 
+// "11/19/2026 5:42 PM", New York time, like the orders' Deleted column.
+function stamp(now = new Date()) {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: process.env.ORDER_TIME_ZONE || "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", minute: "2-digit", hour12: true })
+      .formatToParts(now)
+      .map((x) => [x.type, x.value])
+  );
+  return `${p.month}/${p.day}/${p.year} ${p.hour}:${p.minute} ${p.dayPeriod.toUpperCase()}`;
+}
+const NO_DELETED_COLUMN = 'Add a column named "Deleted" to the Web Design sheet (first row), then try again. It lets deleted businesses be restored.';
+
+async function patchRow(map, rowId, fields) {
+  if (!VALID_ID.test(rowId)) throw new LeadError(400, "Missing or invalid id");
+  const payload = await sheet(`/${encodeURIComponent(map.Id)}/${encodeURIComponent(rowId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ data: fields }),
+  });
+  if (!Number(payload?.updated)) throw new LeadError(404, "That business isn't in the sheet any more.");
+}
+
 export async function handleLeads(req, res) {
   res.setHeader("Cache-Control", "no-store");
   const session = await readSessionInfo(req);
@@ -161,8 +189,15 @@ export async function handleLeads(req, res) {
     if (req.method === "GET") {
       const [keys, rows] = await Promise.all([sheetHeaders(), sheet("")]);
       const map = headerMap(keys);
-      const leads = (Array.isArray(rows) ? rows : []).map((r) => cleanRow(r, map)).filter((r) => Object.values(r).some(Boolean));
-      return res.status(200).json({ leads, canEdit: Boolean(map.Id) });
+      const all = (Array.isArray(rows) ? rows : []).map((r) => cleanRow(r, map)).filter((r) => Object.values(r).some(Boolean));
+      // One read gives both lists, so opening Recently deleted costs no
+      // extra SheetDB request.
+      return res.status(200).json({
+        leads: all.filter((r) => !r.Deleted),
+        deleted: all.filter((r) => r.Deleted),
+        canEdit: Boolean(map.Id),
+        canDelete: Boolean(map.Id && map.Deleted),
+      });
     }
 
     if (req.method !== "POST") {
@@ -183,15 +218,15 @@ export async function handleLeads(req, res) {
     }
 
     if (action === "updateLead") {
-      const rowId = String(id ?? "").trim();
-      if (!VALID_ID.test(rowId)) throw new LeadError(400, "Missing or invalid id");
-      const fields = sheetFields(data, map);
-      const payload = await sheet(`/${encodeURIComponent(map.Id)}/${encodeURIComponent(rowId)}`, {
-        method: "PATCH",
-        body: JSON.stringify({ data: fields }),
-      });
-      if (!Number(payload?.updated)) throw new LeadError(404, "That business isn't in the sheet any more.");
+      await patchRow(map, String(id ?? "").trim(), sheetFields(data, map));
       return res.status(200).json({ ok: true });
+    }
+
+    if (action === "deleteLead" || action === "restoreLead") {
+      if (!map.Deleted) throw new LeadError(409, NO_DELETED_COLUMN);
+      const value = action === "deleteLead" ? `${stamp()} by ${session.name || session.login}` : "";
+      await patchRow(map, String(id ?? "").trim(), { [map.Deleted]: value });
+      return res.status(200).json(action === "deleteLead" ? { deleted: 1, Deleted: value } : { restored: 1 });
     }
 
     return res.status(400).json({ error: "Unknown action" });

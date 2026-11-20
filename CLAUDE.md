@@ -97,7 +97,8 @@ Products. If a save fails because a tab or column is missing, tell the owner wha
   (`WEB_ACCOUNTS` env, role "web", sees only that page, never restaurant data), own sheet
   (`WEB_SHEETDB_ID`), served by `api/_lib/leads.js` through `/api/sheets` (no new function
   file; the project already has 12). Hand-typed headers are matched loosely; editing needs an
-  "Id" column. Demo leads in `src/lib/demoLeads.js`.
+  "Id" column. Delete only marks the "Deleted" column (Undo / Recently deleted / Restore,
+  like orders). Demo leads in `src/lib/demoLeads.js`.
 - Adding catalog products: the owner pastes Restaurant Depot listings; add rows to the
   Products tab. Check Item # for duplicates first; recompute per-oz/per-count prices.
   Don't download RD photos without asking.

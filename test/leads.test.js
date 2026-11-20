@@ -21,7 +21,7 @@ const { forgetHeaders, headerMap, cleanRow } = await import("../api/_lib/leads.j
 const WEB_PASSWORD = "a long web design test password";
 const STAFF_PASSWORD = "a long staff test password";
 // The real sheet's headers, typed by hand (trailing spaces, "Tikto").
-const HEADERS = ["Id", "Business Type", "Business Name ", "Location ", "Email ", "Phone Number", "Google Location", "Business Website", "New Website", "Others", "Instagram ", "Yelp", "Tikto", "Facebook ", "Answer phone call ?", "Website?", "Notes"];
+const HEADERS = ["Id", "Business Type", "Business Name ", "Location ", "Email ", "Phone Number", "Google Location", "Business Website", "New Website", "Others", "Instagram ", "Yelp", "Tikto", "Facebook ", "Answer phone call ?", "Website?", "Notes", "Deleted"];
 let rows;
 let headers;
 const fetchMock = vi.fn();
@@ -146,6 +146,56 @@ describe("the Web Design login", () => {
     const res = await call(cookie, { method: "POST", url: "/api/sheets", body: { action: "createLead", data: { BusinessName: "X" } } });
     expect(res.statusCode).toBe(409);
     expect(res.body.error).toMatch(/Id/);
+  });
+});
+
+describe("deleting and restoring a business", () => {
+  const post = (cookie, body) => call(cookie, { method: "POST", url: "/api/sheets", body });
+
+  it("delete only marks the row (when and by whom); restore clears it", async () => {
+    const { cookie } = await loginAs("web@example.com", WEB_PASSWORD);
+    const res = await post(cookie, { action: "deleteLead", id: "1" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.Deleted).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{1,2}:\d{2} [AP]M by web@example.com$/);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].Deleted).toBe(res.body.Deleted);
+
+    const list = await call(cookie);
+    expect(list.body.leads).toHaveLength(0);
+    expect(list.body.deleted.map((l) => l.Id)).toEqual(["1"]);
+    expect(list.body.canDelete).toBe(true);
+
+    expect((await post(cookie, { action: "restoreLead", id: "1" })).statusCode).toBe(200);
+    expect(rows[0].Deleted).toBe("");
+    expect((await call(cookie)).body.leads.map((l) => l.Id)).toEqual(["1"]);
+  });
+
+  it("404s for an Id that isn't there", async () => {
+    const { cookie } = await loginAs("web@example.com", WEB_PASSWORD);
+    expect((await post(cookie, { action: "deleteLead", id: "99" })).statusCode).toBe(404);
+  });
+
+  it("an edit can't change Deleted", async () => {
+    const { cookie } = await loginAs("web@example.com", WEB_PASSWORD);
+    await post(cookie, { action: "updateLead", id: "1", data: { Notes: "x", Deleted: "sneaky" } });
+    expect(rows[0].Deleted).toBeUndefined();
+    expect(rows[0].Notes).toBe("x");
+  });
+
+  it("asks for a Deleted column first", async () => {
+    headers = HEADERS.filter((h) => h !== "Deleted");
+    const { cookie } = await loginAs("web@example.com", WEB_PASSWORD);
+    expect((await call(cookie)).body.canDelete).toBe(false);
+    const res = await post(cookie, { action: "deleteLead", id: "1" });
+    expect(res.statusCode).toBe(409);
+    expect(res.body.error).toMatch(/Deleted/);
+  });
+
+  it("restaurant employees can't delete leads", async () => {
+    const res = mockRes();
+    setSessionCookie(res, "3475550123", "event");
+    expect([401, 403]).toContain((await post(cookieFrom(res), { action: "deleteLead", id: "1" })).statusCode);
+    expect(rows[0].Deleted).toBeUndefined();
   });
 });
 
