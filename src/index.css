@@ -136,6 +136,65 @@
     --page-bg: 122 18 18;
   }
 
+  /* Developer themes (on the dark palette, like blue/green/red):
+     Terminal = green-on-black console; Code = a night-time code editor
+     (slate-purple with purple/pink/cyan); Logo = Web Design & MultiMedia's
+     logo: black with its green, white and red. */
+  .theme-terminal {
+    --brand-navy: 74 246 138;
+    --brand-navydeep: 220 255 230;
+    --brand-navylight: 22 163 74;
+    --brand-canvas: 6 14 9;
+    --brand-muted: 150 214 170;
+    --brand-gold: 74 246 138;
+    --brand-goldlight: 190 255 210;
+    --brand-coral: 250 204 21;
+    --brand-error: 255 107 107;
+    --brand-teal: 103 232 249;
+    --brand-cream: 6 14 9;
+    --brand-terracotta: 134 239 172;
+    --brand-cactus: 250 204 21;
+    --brand-pink: 167 243 208;
+    --surface: 10 22 14;
+    --page-bg: 2 6 4;
+  }
+  .theme-code {
+    --brand-navy: 248 248 242;
+    --brand-navydeep: 236 236 245;
+    --brand-navylight: 139 92 246;
+    --brand-canvas: 40 42 54;
+    --brand-muted: 180 186 214;
+    --brand-gold: 189 147 249;
+    --brand-goldlight: 255 255 255;
+    --brand-coral: 255 184 108;
+    --brand-error: 255 121 198;
+    --brand-teal: 139 233 253;
+    --brand-cream: 40 42 54;
+    --brand-terracotta: 255 121 198;
+    --brand-cactus: 80 250 123;
+    --brand-pink: 255 121 198;
+    --surface: 40 42 54;
+    --page-bg: 24 25 34;
+  }
+  .theme-logo {
+    --brand-navy: 255 255 255;
+    --brand-navydeep: 255 255 255;
+    --brand-navylight: 0 132 80;
+    --brand-canvas: 14 14 14;
+    --brand-muted: 214 214 214;
+    --brand-gold: 52 199 118;
+    --brand-goldlight: 255 255 255;
+    --brand-coral: 255 92 104;
+    --brand-error: 255 214 102;
+    --brand-teal: 72 214 136;
+    --brand-cream: 14 14 14;
+    --brand-terracotta: 255 92 104;
+    --brand-cactus: 52 199 118;
+    --brand-pink: 255 128 136;
+    --surface: 20 20 20;
+    --page-bg: 0 0 0;
+  }
+
   /* The printed invoice represents physical paper, so it always renders
      light/dark-ink regardless of the site theme — pin every brand token
      it relies on back to the light palette even inside `.dark`. */
@@ -327,6 +386,97 @@
     --ui-btn-edge: rgba(255, 255, 255, 0.16);
     --ui-title: #ffffff;
     --ui-title-shadow: 0 6px 24px rgba(30, 2, 2, 0.5);
+  }
+
+  .theme-terminal {
+    --ui-glow-top: rgba(255, 255, 255, 0.08);
+    --ui-glow-side: rgba(74, 246, 138, 0.18);
+    --ui-glow-low: rgba(0, 0, 0, 0.7);
+    --ui-page-fade: rgba(0, 0, 0, 0.7);
+    --ui-card-bg: #0a160e;
+    --ui-card-glow: rgba(74, 246, 138, 0.18);
+    --ui-card-border: rgba(74, 246, 138, 0.28);
+    --ui-card-highlight: rgba(255, 255, 255, 0.06);
+    --ui-card-shadow: 0 24px 50px -20px rgba(0, 0, 0, 0.85);
+    --ui-fab-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+    --ui-fab-bg-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.07));
+    --ui-fab-border: rgba(74, 246, 138, 0.28);
+    --ui-fab-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.9);
+    --ui-label: rgba(150, 214, 170, 0.9);
+    --ui-input-bg: rgba(255, 255, 255, 0.05);
+    --ui-input-bg-focus: rgba(255, 255, 255, 0.08);
+    --ui-input-border: rgba(74, 246, 138, 0.28);
+    --ui-input-text: #dcffe6;
+    --ui-placeholder: rgba(150, 214, 170, 0.45);
+    --ui-option-bg: #0a160e;
+    --ui-focus: #4af68a;
+    --ui-focus-ring: rgba(74, 246, 138, 0.18);
+    --ui-btn-from: #16a34a;
+    --ui-btn-to: #0f6b32;
+    --ui-btn-glow: rgba(74, 246, 138, 0.55);
+    --ui-btn-edge: rgba(255, 255, 255, 0.14);
+    --ui-title: #4af68a;
+    --ui-title-shadow: 0 0 18px rgba(74, 246, 138, 0.45);
+  }
+  .theme-code {
+    --ui-glow-top: rgba(255, 255, 255, 0.08);
+    --ui-glow-side: rgba(189, 147, 249, 0.22);
+    --ui-glow-low: rgba(16, 16, 24, 0.7);
+    --ui-page-fade: rgba(16, 16, 24, 0.7);
+    --ui-card-bg: #282a36;
+    --ui-card-glow: rgba(189, 147, 249, 0.22);
+    --ui-card-border: rgba(189, 147, 249, 0.28);
+    --ui-card-highlight: rgba(255, 255, 255, 0.06);
+    --ui-card-shadow: 0 24px 50px -20px rgba(0, 0, 0, 0.85);
+    --ui-fab-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+    --ui-fab-bg-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.07));
+    --ui-fab-border: rgba(189, 147, 249, 0.28);
+    --ui-fab-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.9);
+    --ui-label: rgba(255, 255, 255, 0.72);
+    --ui-input-bg: rgba(255, 255, 255, 0.05);
+    --ui-input-bg-focus: rgba(255, 255, 255, 0.08);
+    --ui-input-border: rgba(189, 147, 249, 0.28);
+    --ui-input-text: #f8f8f2;
+    --ui-placeholder: rgba(255, 255, 255, 0.4);
+    --ui-option-bg: #282a36;
+    --ui-focus: #bd93f9;
+    --ui-focus-ring: rgba(189, 147, 249, 0.22);
+    --ui-btn-from: #8b5cf6;
+    --ui-btn-to: #c2418f;
+    --ui-btn-glow: rgba(189, 147, 249, 0.6);
+    --ui-btn-edge: rgba(255, 255, 255, 0.14);
+    --ui-title: #f8f8f2;
+    --ui-title-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  }
+  .theme-logo {
+    --ui-glow-top: rgba(255, 255, 255, 0.08);
+    --ui-glow-side: rgba(52, 199, 118, 0.2);
+    --ui-glow-low: rgba(200, 16, 46, 0.18);
+    --ui-page-fade: rgba(0, 0, 0, 0.75);
+    --ui-card-bg: #141414;
+    --ui-card-glow: rgba(52, 199, 118, 0.18);
+    --ui-card-border: rgba(255, 255, 255, 0.2);
+    --ui-card-highlight: rgba(255, 255, 255, 0.06);
+    --ui-card-shadow: 0 24px 50px -20px rgba(0, 0, 0, 0.85);
+    --ui-fab-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+    --ui-fab-bg-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.07));
+    --ui-fab-border: rgba(255, 255, 255, 0.2);
+    --ui-fab-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.9);
+    --ui-label: rgba(255, 255, 255, 0.72);
+    --ui-input-bg: rgba(255, 255, 255, 0.05);
+    --ui-input-bg-focus: rgba(255, 255, 255, 0.08);
+    --ui-input-border: rgba(255, 255, 255, 0.2);
+    --ui-input-text: #ffffff;
+    --ui-placeholder: rgba(255, 255, 255, 0.4);
+    --ui-option-bg: #141414;
+    --ui-focus: #34c776;
+    --ui-focus-ring: rgba(52, 199, 118, 0.18);
+    --ui-btn-from: #0f8a4f;
+    --ui-btn-to: #c8102e;
+    --ui-btn-glow: rgba(200, 16, 46, 0.5);
+    --ui-btn-edge: rgba(255, 255, 255, 0.14);
+    --ui-title: #ffffff;
+    --ui-title-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
   }
 
   html {
@@ -1154,4 +1304,12 @@ input.input-3d::-webkit-datetime-edit {
     aspect-ratio: auto;
     height: clamp(2.75rem, 9dvh, 4.75rem);
   }
+}
+
+/* Terminal theme: headings and section labels in the code font, like a
+   console. (Body text stays Open Sans so forms keep their sizes.) */
+.theme-terminal .font-headings,
+.theme-terminal .shimmer-text,
+.theme-terminal .field-label {
+  font-family: "Iosevka Charon", ui-monospace, monospace;
 }

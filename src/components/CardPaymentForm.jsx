@@ -22,9 +22,8 @@ const CARD_ELEMENT_STYLE = {
     invalid: { color: "#fcd34d" },
   },
 };
-// Dark green and dark red use the same white-on-dark card text as blue.
-CARD_ELEMENT_STYLE.green = CARD_ELEMENT_STYLE.blue;
-CARD_ELEMENT_STYLE.red = CARD_ELEMENT_STYLE.blue;
+// The other dark tinted themes use the same white-on-dark card text as blue.
+for (const t of ["green", "red", "terminal", "code", "logo"]) CARD_ELEMENT_STYLE[t] = CARD_ELEMENT_STYLE.blue;
 
 // A problem with the card itself, with a message safe to show as-is.
 class CardError extends Error {}

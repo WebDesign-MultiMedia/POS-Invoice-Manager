@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-palette",
+    title: "New developer themes, and a theme menu",
+    date: "2026-11-20",
+    body: "The top-right button now opens a menu of every theme instead of switching one at a time. Three new ones under Developer: Terminal (black and neon green, code-style headings), Code Editor (dark slate with purple and pink) and Logo (black with the Web Design & MultiMedia logo's green and red). Each phone remembers its pick.",
+  },
+  {
     icon: "fa-thumbtack",
     title: "Web Design: your filters stay picked",
     date: "2026-11-20",

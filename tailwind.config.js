@@ -2,6 +2,10 @@
 export default {
   darkMode: "class",
   content: ["./index.html", "./src/**/*.{js,jsx}"],
+  // Theme classes are put on <html> by name from a list (src/lib/theme.js),
+  // so Tailwind can't find them written out and would drop their colours
+  // from the build. Keep every one.
+  safelist: ["theme-blue", "theme-green", "theme-red", "theme-gray", "theme-terminal", "theme-code", "theme-logo"],
   theme: {
     extend: {
       fontFamily: {

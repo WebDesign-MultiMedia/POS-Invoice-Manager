@@ -71,9 +71,11 @@ Products. If a save fails because a tab or column is missing, tell the owner wha
   header doesn't wrap; html2canvas capture width is 900.
 - Print CSS turns off all animations (otherwise the invoice prints blank). New entrance
   animations that start hidden must stay covered by that `@media print` rule.
-- Themes: blue (default), green, red, black, white, gray — CSS vars + classes on `<html>`,
+- Themes: blue (default), green, red, black, white, gray, plus developer themes terminal,
+  code, logo (picked from a menu) — CSS vars + classes on `<html>`,
   `src/lib/theme.js`, saved in localStorage `pim-theme`. Use the `brand.*`/`surface` Tailwind
   tokens, never new hex values. The invoice paper (`.paper-card`) always stays light.
+  Every theme class must be in `safelist` in `tailwind.config.js`, or the build drops its colours.
 - PWA icon = invoice + card on the login blue; never the restaurant logo.
 - Login screen: mobile must not scroll; the owner dislikes bold taglines; only use the owner's
   own images, never substitutes.

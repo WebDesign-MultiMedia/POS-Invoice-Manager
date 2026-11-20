@@ -1,10 +1,21 @@
-// The top-right toggle cycles blue → dark green → dark red → black → white
-// → gray. The choice is remembered on this device (localStorage), so the
-// login screen, logging in/out and reopening the app all keep the theme
-// that was picked. Blue is the default until one is picked.
-const THEME_ORDER = ["blue", "green", "red", "dark", "light", "gray"];
+// The top-right button opens a menu of these themes. The choice is
+// remembered on this device (localStorage), so the login screen, logging
+// in/out and reopening the app all keep the theme that was picked. Blue is
+// the default until one is picked. `swatch` colours the menu's dots.
+export const THEMES = [
+  { key: "blue", label: "Blue", swatch: ["#2447d6", "#00007d"] },
+  { key: "green", label: "Dark green", swatch: ["#0f5132", "#06331f"] },
+  { key: "red", label: "Dark red", swatch: ["#7a1212", "#3d0707"] },
+  { key: "dark", label: "Black", swatch: ["#000000", "#11141a"] },
+  { key: "light", label: "White", swatch: ["#ffffff", "#e5edff"] },
+  { key: "gray", label: "Gray", swatch: ["#d1d5db", "#f3f4f6"] },
+  { key: "terminal", label: "Terminal", swatch: ["#020604", "#4af68a"], group: "dev" },
+  { key: "code", label: "Code Editor", swatch: ["#181922", "#bd93f9"], group: "dev" },
+  { key: "logo", label: "Logo", swatch: ["#0f8a4f", "#c8102e"], group: "dev" },
+];
+const THEME_ORDER = THEMES.map((t) => t.key);
 // Themes built on the dark palette plus their own .theme-* colour overrides.
-const TINTED_DARK = ["blue", "green", "red"];
+const TINTED_DARK = ["blue", "green", "red", "terminal", "code", "logo"];
 const STORAGE_KEY = "pim-theme";
 let currentTheme = "blue";
 
@@ -19,8 +30,8 @@ export function nextTheme(theme) {
 // Applies the theme to the real <html> node directly (not through React
 // state) so it survives client-side route changes without a flash: Layout
 // remounts on every page navigation, but the DOM node does not. "gray" is
-// the light palette plus .theme-gray overrides; blue, green and red are the
-// dark palette plus .theme-blue / .theme-green / .theme-red (src/index.css).
+// the light palette plus .theme-gray overrides; the TINTED_DARK ones are
+// the dark palette plus their own .theme-* class (src/index.css).
 export function applyTheme(theme, { remember = true } = {}) {
   currentTheme = theme;
   if (remember) {

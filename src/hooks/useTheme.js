@@ -12,5 +12,11 @@ export function useTheme() {
     });
   }, []);
 
-  return { theme, toggle };
+  // Pick one theme from the menu.
+  const choose = useCallback((next) => {
+    applyTheme(next);
+    setTheme(next);
+  }, []);
+
+  return { theme, toggle, choose };
 }
