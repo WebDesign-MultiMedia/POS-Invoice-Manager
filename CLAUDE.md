@@ -93,6 +93,11 @@ Products. If a save fails because a tab or column is missing, tell the owner wha
   `/api/shopping`, read by Claude to prefill totals and update catalog prices
   (`priceUpdatesFromReceipt` in `api/_lib/products.js`). Regular stores in `REGULAR_STORES`
   (`src/lib/shopping.js`). Barcode scanning via `@zxing/browser`.
+- Web Design & MultiMedia (`/webdesign`): a second business's leads list. Own login
+  (`WEB_ACCOUNTS` env, role "web", sees only that page, never restaurant data), own sheet
+  (`WEB_SHEETDB_ID`), served by `api/_lib/leads.js` through `/api/sheets` (no new function
+  file; the project already has 12). Hand-typed headers are matched loosely; editing needs an
+  "Id" column. Demo leads in `src/lib/demoLeads.js`.
 - Adding catalog products: the owner pastes Restaurant Depot listings; add rows to the
   Products tab. Check Item # for duplicates first; recompute per-oz/per-count prices.
   Don't download RD photos without asking.

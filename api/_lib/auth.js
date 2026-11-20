@@ -10,6 +10,9 @@ import { ALL_ACCESS, canAny, can } from "./permissions.js";
 //   STAFF_ACCOUNTS  JSON map of login → password hash, e.g.
 //                   {"julio@example.com":"<salt>:<hash>","3475550100":"<salt>:<hash>"}
 //                   Make each hash with: npm run hash-password
+//   WEB_ACCOUNTS    same format, for the Web Design & MultiMedia business.
+//                   These logins open only the Web Design leads page
+//                   (api/_lib/leads.js) and never see restaurant data.
 //   Employees (phone + 4-digit PIN, Event Sales only) aren't env vars:
 //                   they live in the order sheet's "Employees" tab, managed
 //                   from the app's Employees page (api/_lib/employees.js).
@@ -49,6 +52,7 @@ function loadAccountMap(envName) {
 }
 
 const loadAccounts = () => loadAccountMap("STAFF_ACCOUNTS");
+const loadWebAccounts = () => loadAccountMap("WEB_ACCOUNTS");
 // An employee's { hash, name, access } from the sheet's Employees tab.
 // Undefined if they don't exist, are turned off, or the sheet can't be read
 // (fail closed).
@@ -62,8 +66,10 @@ async function employee(phone) {
 }
 
 // What each kind of login may use. "staff" is everything; "event" is an
-// employee who may only use Event Sales.
-export const ROLES = { STAFF: "staff", EVENT: "event" };
+// employee (the sections ticked for them); "web" is the Web Design &
+// MultiMedia business, which may only use its leads page.
+export const ROLES = { STAFF: "staff", EVENT: "event", WEB: "web" };
+export const WEB_ACCESS = ["webdesign"];
 
 
 // A throwaway hash so an unknown login takes as long to check as a known
@@ -73,6 +79,14 @@ const DUMMY_HASH = hashPassword(crypto.randomBytes(16).toString("hex"));
 export function checkCredentials(identifier, password) {
   const login = normalizeIdentifier(identifier);
   const stored = loadAccounts().get(login);
+  const ok = verifyPassword(password, stored || DUMMY_HASH);
+  return ok && stored ? login : null;
+}
+
+// Web Design & MultiMedia logins (WEB_ACCOUNTS). Returns the login, or null.
+export function checkWebCredentials(identifier, password) {
+  const login = normalizeIdentifier(identifier);
+  const stored = loadWebAccounts().get(login);
   const ok = verifyPassword(password, stored || DUMMY_HASH);
   return ok && stored ? login : null;
 }
@@ -143,7 +157,8 @@ function parseSession(req) {
     const { sub, exp, role: rawRole } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!sub || !Number.isFinite(exp) || exp < Date.now()) return null;
     // Sessions from before roles existed are staff sessions.
-    return { login: sub, role: rawRole === ROLES.EVENT ? ROLES.EVENT : ROLES.STAFF };
+    const role = rawRole === ROLES.EVENT || rawRole === ROLES.WEB ? rawRole : ROLES.STAFF;
+    return { login: sub, role };
   } catch {
     return null;
   }
@@ -171,6 +186,7 @@ export async function readSessionInfo(req) {
 // { login, role, name, access } for a login that still exists, or null.
 export async function sessionInfoFor(login, role) {
   if (role === ROLES.STAFF) return loadAccounts().has(login) ? { login, role, name: login, access: ALL_ACCESS } : null;
+  if (role === ROLES.WEB) return loadWebAccounts().has(login) ? { login, role, name: login, access: WEB_ACCESS } : null;
   const emp = await employee(login);
   return emp ? { login, role: ROLES.EVENT, name: emp.name, access: emp.access } : null;
 }
@@ -181,7 +197,8 @@ export async function sessionInfoFor(login, role) {
 export function requireStaff(req, res) {
   const login = readSession(req);
   if (login) return login;
-  if (parseSession(req)?.role === ROLES.EVENT) res.status(403).json({ error: "Only the owner's login can use this." });
+  const role = parseSession(req)?.role;
+  if (role === ROLES.EVENT || role === ROLES.WEB) res.status(403).json({ error: "Only the owner's login can use this." });
   else res.status(401).json({ error: "Please log in" });
   return null;
 }

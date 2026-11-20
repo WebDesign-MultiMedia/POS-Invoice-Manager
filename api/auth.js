@@ -2,6 +2,7 @@ import {
   ROLES,
   checkCredentials,
   checkEmployeeCredentials,
+  checkWebCredentials,
   clearSessionCookie,
   isAuthConfigured,
   normalizeIdentifier,
@@ -17,6 +18,8 @@ import {
 //   POST { action: "login", identifier, password } → sets the session cookie
 //        Staff log in with email/phone + password. Employees log in with
 //        their phone + PIN and get role "event" (Event Sales only).
+//        Web Design & MultiMedia logins (WEB_ACCOUNTS) get role "web":
+//        only the Web Design leads page.
 //   POST { action: "logout" }                      → clears it
 
 // Best-effort brute-force brake: counts failed logins per IP for each warm
@@ -89,9 +92,10 @@ export default async function handler(req, res) {
   // Both are always checked, so the time taken doesn't reveal which kind of
   // account a login is. A login that's in both lists is staff.
   const staff = checkCredentials(identifier, password);
+  const web = checkWebCredentials(identifier, password);
   const employee = await checkEmployeeCredentials(identifier, password);
-  const login = staff || employee;
-  const role = staff ? ROLES.STAFF : ROLES.EVENT;
+  const login = staff || web || employee;
+  const role = staff ? ROLES.STAFF : web ? ROLES.WEB : ROLES.EVENT;
   if (!login) {
     recordFailure(ip);
     recordFailure(loginKey);

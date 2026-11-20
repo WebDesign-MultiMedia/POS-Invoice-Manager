@@ -45,6 +45,7 @@ const SECTIONS = [
   { to: "/employees", title: "Team & permissions", icon: "fa-users", colorClass: "text-brand-teal", glowClass: "shadow-glow-teal" },
   { to: "/catering", title: "Catering calculator", icon: "fa-calculator", colorClass: "text-brand-gold", glowClass: "shadow-glow-gold" },
   { to: "/shopping", title: "Shopping lists", icon: "fa-cart-shopping", colorClass: "text-brand-cactus", glowClass: "shadow-glow-teal" },
+  { to: "/webdesign", title: "Web Design leads", icon: "fa-laptop-code", colorClass: "text-brand-teal", glowClass: "shadow-glow-teal" },
   { to: "/broadcast", title: "Text customers", icon: "fa-bullhorn", colorClass: "text-brand-pink", glowClass: "shadow-glow-pink" },
   { to: "/updates", title: "What's new", icon: "fa-wand-magic-sparkles", colorClass: "text-brand-pink", glowClass: "shadow-glow-pink" },
 ];
@@ -56,14 +57,14 @@ const SECTIONS = [
 // Employee logins see only the sections the owner gave them (Team page).
 export function SiteNav({ className = "" }) {
   const { pathname } = useLocation();
-  const { isEmployee, can } = useAuth() || {};
+  const { isEmployee, isWebDesign, can } = useAuth() || {};
   const allowed = (to) => !can || canOpen(can, to);
   return (
     <NavRow className={className}>
       {SECTIONS.filter((s) => s.to !== pathname && allowed(s.to)).map((s) => (
         <NavFab key={s.to} {...s} />
       ))}
-      {!isDemo() && !isEmployee && <NavFab href="/api/sheet-link" external title="Open spreadsheet" icon="fa-file-excel" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />}
+      {!isDemo() && !isEmployee && !isWebDesign && <NavFab href="/api/sheet-link" external title="Open spreadsheet" icon="fa-file-excel" colorClass="text-brand-teal" glowClass="shadow-glow-teal" />}
       <RefreshFab />
     </NavRow>
   );

@@ -43,7 +43,9 @@ export default function Layout({ blobs = [], children, mainClassName = "" }) {
   );
 }
 
-export function PageHeader({ logoSize = "w-28 h-28 sm:w-32 sm:h-32", title, subtitle, marginBottom = "mb-6" }) {
+// logo: { src, alt, icon } to show another business's logo (e.g. Web
+// Design & MultiMedia) instead of the restaurant's; icon is its demo mark.
+export function PageHeader({ logoSize = "w-28 h-28 sm:w-32 sm:h-32", title, subtitle, marginBottom = "mb-6", logo }) {
   const { isEmployee, name } = useAuth() || {};
   return (
     <div className={`flex flex-col items-center ${marginBottom} stagger-in`}>
@@ -58,8 +60,10 @@ export function PageHeader({ logoSize = "w-28 h-28 sm:w-32 sm:h-32", title, subt
           instead of the restaurant's logo. */}
       {isDemo() ? (
         <span className={`${logoSize} glass-panel !rounded-full flex items-center justify-center`} aria-hidden="true">
-          <i className="fa-solid fa-mug-saucer text-4xl sm:text-5xl text-brand-gold"></i>
+          <i className={`fa-solid ${logo?.icon || "fa-mug-saucer"} text-4xl sm:text-5xl text-brand-gold`}></i>
         </span>
+      ) : logo ? (
+        <img src={logo.src} alt={logo.alt} className={`${logoSize} object-contain drop-shadow-lg`} />
       ) : (
         <img src="/imgs/BLFM-logo.PNG" alt="Buffet Lucia Fiesta Mexicana logo" className={`${logoSize} object-contain drop-shadow-lg`} />
       )}

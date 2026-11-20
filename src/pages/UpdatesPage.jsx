@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-laptop-code",
+    title: "Web Design & MultiMedia leads",
+    date: "2026-11-19",
+    body: "A separate login for the Web Design & MultiMedia business. It opens only its own list of businesses (from its own Google Sheet): search, filter by No website or Didn't answer, tap to call or open their Instagram, Google map and website, and add or edit a business. It never sees restaurant orders or sales. The owner's login can open it too.",
+  },
+  {
     icon: "fa-rotate-left",
     title: "Undo a deleted order",
     date: "2026-11-19",

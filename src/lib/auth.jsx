@@ -16,6 +16,8 @@ export function reportIfLoggedOut(res) {
   if (res.status === 401) window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
 }
 
+const roleFrom = (raw) => (raw === "event" || raw === "web" ? raw : "staff");
+
 async function postAuth(body) {
   const res = await fetch("/api/auth", {
     method: "POST",
@@ -31,9 +33,10 @@ export function AuthProvider({ children }) {
   // or "demo" while someone is trying the app on sample data (lib/demo.js).
   const [status, setStatus] = useState(() => (isDemo() ? "demo" : "loading"));
   const [user, setUser] = useState(() => (isDemo() ? "Demo" : null));
-  // "staff" sees everything; "event" is an employee who may only use Event
-  // Sales. The server enforces this on every request; the app just hides
-  // what an employee can't use.
+  // "staff" sees everything; "event" is an employee (the sections ticked
+  // for them); "web" is the Web Design & MultiMedia login (leads only).
+  // The server enforces this on every request; the app just hides what a
+  // login can't use.
   const [role, setRole] = useState("staff");
   // Who sales are credited to: an employee's name, or the staff login.
   const [name, setName] = useState(() => (isDemo() ? "Demo" : ""));
@@ -57,7 +60,7 @@ export function AuthProvider({ children }) {
       .then((payload) => {
         if (cancelled) return;
         setUser(payload?.user || null);
-        setRole(payload?.role === "event" ? "event" : "staff");
+        setRole(roleFrom(payload?.role));
         setName(payload?.name || payload?.user || "");
         setAccess(Array.isArray(payload?.access) ? payload.access : ALL_ACCESS);
         setStatus(payload?.user ? "in" : "out");
@@ -103,7 +106,7 @@ export function AuthProvider({ children }) {
     endDemo();
     setSessionExpired(false);
     setUser(login);
-    setRole(loginRole === "event" ? "event" : "staff");
+    setRole(roleFrom(loginRole));
     setName(loginName || login);
     setAccess(Array.isArray(loginAccess) ? loginAccess : ALL_ACCESS);
     setStatus("in");
@@ -136,9 +139,13 @@ export function AuthProvider({ children }) {
 
   // can("pay"), can("manage"), can("staff"): what this login may use.
   // Staff (and the demo) can use everything; "staff" itself is owner-only.
-  const can = useCallback((key) => role !== "event" || (key !== "staff" && access.includes(key)), [role, access]);
+  const can = useCallback((key) => role === "staff" || (key !== "staff" && access.includes(key)), [role, access]);
 
-  return <AuthContext.Provider value={{ status, user, name, role, access, can, isEmployee: role === "event", sessionExpired, login, logout, enterDemo }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ status, user, name, role, access, can, isEmployee: role === "event", isWebDesign: role === "web", sessionExpired, login, logout, enterDemo }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

@@ -16,6 +16,10 @@ export const PRICES_INFO = { key: "prices", label: "See shopping prices", icon: 
 export const MANAGE_INFO = { key: "manage", label: "Can edit & delete", icon: "fa-pen-to-square", note: "In the sections above: change or remove orders, sales and payments; make and delete shopping lists" };
 export const ALL_ACCESS = [...SECTION_INFO.map((s) => s.key), PRICES_INFO.key, MANAGE_INFO.key];
 
+// Web Design & MultiMedia's leads page. Not an employee section (the Team
+// page never offers it): only the owner and the Web Design login open it.
+export const WEB_DESIGN_INFO = { key: "webdesign", label: "Web Design leads", icon: "fa-laptop-code", route: "/webdesign" };
+
 // Which access keys open each page ("staff" = the owner's login only).
 const ROUTE_ACCESS = {
   "/": ["orders"],
@@ -26,8 +30,10 @@ const ROUTE_ACCESS = {
   "/catering": ["catering"],
   "/broadcast": ["broadcast"],
   "/shopping": ["shopping"],
+  "/webdesign": ["webdesign"],
   "/employees": ["staff"],
-  "/updates": null, // anyone logged in
+  // Restaurant logins (not the Web Design one).
+  "/updates": SECTION_INFO.map((s) => s.key),
 };
 
 export function canOpen(can, pathname) {
@@ -39,5 +45,5 @@ export function canOpen(can, pathname) {
 
 // Where to send an employee who opens a page they can't use.
 export function homeFor(can) {
-  return SECTION_INFO.find((s) => can(s.key))?.route || null;
+  return [...SECTION_INFO, WEB_DESIGN_INFO].find((s) => can(s.key))?.route || null;
 }

@@ -155,3 +155,18 @@ describe("outside demo mode", () => {
     expect(String(fetchSpy.mock.calls[0][0])).toMatch(/^\/api\/sheets\?/);
   });
 });
+
+describe("Web Design leads in the demo", () => {
+  it("are made-up businesses and never call the server", async () => {
+    const { fetchLeads, createLead } = await import("../src/api/leads.js");
+    const { leads } = await fetchLeads();
+    expect(leads.length).toBeGreaterThan(0);
+    for (const l of leads) {
+      expect(l.Phone).toMatch(/555-01/);
+      expect(JSON.stringify(l)).not.toMatch(/Buffet|Lucia|Fiesta|Bronx|BLFM/i);
+    }
+    await createLead({ BusinessName: "Demo Test Shop" });
+    expect((await fetchLeads()).leads.some((l) => l.BusinessName === "Demo Test Shop")).toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});

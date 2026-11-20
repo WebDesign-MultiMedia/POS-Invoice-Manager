@@ -18,12 +18,13 @@ const CateringCalcPage = lazy(() => import("./pages/CateringCalcPage.jsx"));
 const EventSalesPage = lazy(() => import("./pages/EventSalesPage.jsx"));
 const EmployeesPage = lazy(() => import("./pages/EmployeesPage.jsx"));
 const ShoppingPage = lazy(() => import("./pages/ShoppingPage.jsx"));
+const WebDesignPage = lazy(() => import("./pages/WebDesignPage.jsx"));
 
 // Every page is staff-only, except a customer's read-only invoice link
 // (/invoice?id=…&token=…&share=1) and the Catering Calculator's employee
 // link (/catering?share=1&token=…), which the server checks on their own.
 function StaffGate({ children }) {
-  const { status, isEmployee, can, logout, name } = useAuth();
+  const { status, isEmployee, isWebDesign, can, logout, name } = useAuth();
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
 
@@ -33,9 +34,10 @@ function StaffGate({ children }) {
   if (pathname === "/catering" && searchParams.get("share") === "1") return children;
   if (status === "loading") return <AuthSplash />;
   if (status !== "in" && status !== "demo") return <LoginPage />;
-  // Employees only open the sections the owner gave them (Team page); any
-  // other page sends them to their first one. The server checks too.
-  if (isEmployee && !canOpen(can, pathname)) {
+  // Employees only open the sections the owner gave them (Team page), and
+  // the Web Design login only its leads page; any other page sends them to
+  // their first one. The server checks too.
+  if ((isEmployee || isWebDesign) && !canOpen(can, pathname)) {
     const home = homeFor(can);
     if (home) return <Navigate to={home} replace />;
     return <NoAccess name={name} onLogout={logout} />;
@@ -77,6 +79,7 @@ export default function App() {
                 <Route path="/broadcast" element={<BroadcastPage />} />
                 <Route path="/catering" element={<CateringCalcPage />} />
                 <Route path="/shopping" element={<ShoppingPage />} />
+                <Route path="/webdesign" element={<WebDesignPage />} />
               </Routes>
             </Suspense>
           </StaffGate>

@@ -23,6 +23,8 @@
 //   GET  ?action=orders&deleted=1                 the deleted orders only
 //   POST { action: "payEventSale", id, data }   take payment on an Unpaid event sale
 //   POST { action: "editUnpaidSale", id, data } change an Unpaid event sale's order
+//   leads / createLead / updateLead: Web Design & MultiMedia's own sheet,
+//   handled by api/_lib/leads.js
 //
 // Every action needs a login. Staff may use them all; an employee only the
 // ones their ticked sections allow (ACTION_ACCESS below, sections in
@@ -34,6 +36,7 @@
 
 import { NO_ACCESS, isValidShareToken, readSessionInfo, sellerName, shareTokenFor } from "./_lib/auth.js";
 import { can, canAny } from "./_lib/permissions.js";
+import { LEAD_ACTIONS, handleLeads } from "./_lib/leads.js";
 import { SHEETDB_LIMIT_MESSAGE, sheetdbFetch, sheetdbHeaders } from "./_lib/sheetdb.js";
 import { saleToInvoice } from "../src/lib/saleToOrder.js";
 
@@ -445,6 +448,11 @@ async function sharedInvoice(base, params, res) {
 }
 
 export default async function handler(req, res) {
+  // Web Design & MultiMedia's leads: a different sheet and SheetDB API,
+  // its own login check (api/_lib/leads.js).
+  const requested = req.method === "GET" ? new URL(req.url, "http://localhost").searchParams.get("action") : req.body?.action;
+  if (LEAD_ACTIONS.includes(requested)) return handleLeads(req, res);
+
   const sheetId = process.env.SHEETDB_ID;
   if (!sheetId) {
     console.error("sheets: SHEETDB_ID is not set");
@@ -464,7 +472,8 @@ export default async function handler(req, res) {
 
     const session = await readSessionInfo(req);
     if (!session) return res.status(401).json({ error: "Please log in" });
-    if (!allowed(session, req, params)) return res.status(403).json({ error: NO_ACCESS });
+    // The Web Design login never touches restaurant data.
+    if (session.role === "web" || !allowed(session, req, params)) return res.status(403).json({ error: NO_ACCESS });
 
     if (req.method === "GET" && params.get("action") === "shareToken") {
       const id = cleanId(params.get("id"));
