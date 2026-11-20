@@ -8,7 +8,7 @@ vi.mock("twilio", () => ({ default: vi.fn(() => ({ messages: { create: vi.fn() }
 
 const { setSessionCookie } = await import("../api/_lib/auth.js");
 const sheets = (await import("../api/sheets.js")).default;
-const { forgetProjects, toProject } = await import("../api/_lib/projects.js");
+const { forgetProjects, toProject, liveDomain, mergeVercel } = await import("../api/_lib/projects.js");
 
 const fetchMock = vi.fn();
 const repo = (name, extra = {}) => ({ name, html_url: `https://github.com/someone/${name}`, description: "d", homepage: "", language: "JavaScript", pushed_at: "2026-11-01T00:00:00Z", fork: false, archived: false, private: false, stargazers_count: 0, ...extra });
@@ -108,6 +108,68 @@ describe("GitHub projects", () => {
   });
 
   it("only sends the fields the page shows", () => {
-    expect(Object.keys(toProject(repo("x", { owner: { secret: 1 } }))).sort()).toEqual(["archived", "description", "fork", "homepage", "language", "name", "private", "pushedAt", "stars", "topics", "url"]);
+    expect(Object.keys(toProject(repo("x", { owner: { secret: 1 } }))).sort()).toEqual(["archived", "description", "fork", "homepage", "language", "name", "private", "pushedAt", "stars", "topics", "url", "vercel"]);
+  });
+});
+
+describe("Vercel live sites", () => {
+  const vercelProject = (name, extra = {}) => ({ name, updatedAt: Date.parse("2026-11-10T00:00:00Z"), targets: { production: { alias: [`${name}.vercel.app`, `${name}-team.vercel.app`] } }, ...extra });
+
+  function withVercel(projects) {
+    vi.stubEnv("VERCEL_TOKEN", "test-vercel-token");
+    fetchMock.mockReset().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.startsWith("https://api.vercel.com/v2/teams")) return ok({ teams: [{ id: "team_1", slug: "my-team" }] });
+      if (u.startsWith("https://api.vercel.com/v9/projects")) return ok({ projects, pagination: { next: null } });
+      return ok([repo("POS-Invoice-Manager"), repo("SulysSweets"), repo("has-own-site", { homepage: "https://mine.example.com" })]);
+    });
+  }
+
+  it("fills in live sites from Vercel, by linked repo or same name", async () => {
+    withVercel([
+      vercelProject("pos-invoice-manager", { link: { type: "github", repo: "POS-Invoice-Manager", org: "someone" } }),
+      vercelProject("sulys-sweets"),
+      vercelProject("has-own-site", { link: { type: "github", repo: "has-own-site", org: "someone" } }),
+    ]);
+    const res = await get(cookie("web", "web@example.com"));
+    const by = Object.fromEntries(res.body.projects.map((p) => [p.name, p]));
+    expect(by["POS-Invoice-Manager"]).toMatchObject({ homepage: "https://pos-invoice-manager.vercel.app", vercel: "https://vercel.com/my-team/pos-invoice-manager" });
+    expect(by.SulysSweets.homepage).toBe("https://sulys-sweets.vercel.app");
+    // GitHub's own website setting wins.
+    expect(by["has-own-site"].homepage).toBe("https://mine.example.com");
+    const vercelCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes("api.vercel.com"));
+    expect(vercelCalls[0][1].headers.Authorization).toBe("Bearer test-vercel-token");
+  });
+
+  it("lists Vercel sites that aren't on GitHub", async () => {
+    withVercel([vercelProject("dream-stars-daycare")]);
+    const res = await get(cookie("web", "web@example.com"));
+    expect(res.body.projects.find((p) => p.name === "dream-stars-daycare")).toMatchObject({ vercelOnly: true, homepage: "https://dream-stars-daycare.vercel.app", url: "" });
+  });
+
+  it("if Vercel fails, the GitHub list still shows", async () => {
+    vi.stubEnv("VERCEL_TOKEN", "bad");
+    fetchMock.mockReset().mockImplementation(async (url) =>
+      String(url).includes("api.vercel.com") ? { ok: false, status: 403, json: async () => ({ error: { message: "forbidden" } }), headers: { get: () => null } } : ok([repo("one")])
+    );
+    const res = await get(cookie("web", "web@example.com"));
+    expect(res.statusCode).toBe(200);
+    expect(res.body.projects.map((p) => p.name)).toEqual(["one"]);
+  });
+
+  it("without a Vercel token, Vercel isn't asked", async () => {
+    await get(cookie("web", "web@example.com"));
+    expect(fetchMock.mock.calls.some(([u]) => String(u).includes("api.vercel.com"))).toBe(false);
+  });
+
+  it("picks a custom domain first, then <name>.vercel.app", () => {
+    expect(liveDomain({ name: "shop", targets: { production: { alias: ["shop-x.vercel.app", "www.shop.com", "shop.vercel.app"] } } })).toBe("https://www.shop.com");
+    expect(liveDomain({ name: "shop", targets: { production: { alias: ["shop-team.vercel.app", "shop.vercel.app"] } } })).toBe("https://shop.vercel.app");
+    expect(liveDomain({ name: "shop" })).toBe("");
+  });
+
+  it("a repo linked from another account still shows, with its code link", () => {
+    const merged = mergeVercel([], [{ name: "x", repo: "Other", org: "someone-else", url: "https://x.vercel.app", dashboard: "d", updatedAt: "" }]);
+    expect(merged[0]).toMatchObject({ url: "https://github.com/someone-else/Other", vercelOnly: true });
   });
 });

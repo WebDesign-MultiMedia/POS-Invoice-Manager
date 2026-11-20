@@ -3,8 +3,9 @@ import { fetchProjects } from "../api/projects.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { PROJECT_FILTERS, matchesProject, projectTitle, updatedAgo } from "../lib/leads.js";
 
-// Web Design & MultiMedia's GitHub projects: each one's live site and code,
-// newest first, so they open from here instead of another browser tab.
+// Web Design & MultiMedia's projects: GitHub repos plus what Vercel knows
+// (live site, dashboard, and Vercel sites not on GitHub), newest first, so
+// they open from here instead of another browser tab.
 
 const OUTLINE = "btn-3d !py-2 !px-3 text-sm justify-center !bg-none !bg-transparent border border-brand-navy/40 text-brand-navy";
 const CHIP = "rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors";
@@ -118,6 +119,7 @@ function ProjectCard({ project: p }) {
           {p.private && <span className="text-brand-terracotta font-semibold">Private</span>}
           {p.archived && <span className="font-semibold">Archived</span>}
           {p.fork && <span className="font-semibold">Fork</span>}
+          {p.vercelOnly && <span className="text-brand-teal font-semibold">Vercel only</span>}
         </p>
         {p.description && <p className="text-sm text-brand-navydeep/90 mt-2 break-words">{p.description}</p>}
       </div>
@@ -130,6 +132,11 @@ function ProjectCard({ project: p }) {
         {p.url && (
           <a href={p.url} className={OUTLINE} target="_blank" rel="noopener noreferrer">
             <i className="fa-brands fa-github" aria-hidden="true"></i> Code
+          </a>
+        )}
+        {p.vercel && (
+          <a href={p.vercel} className={OUTLINE} target="_blank" rel="noopener noreferrer">
+            <i className="fa-solid fa-caret-up" aria-hidden="true"></i> Vercel
           </a>
         )}
       </div>
