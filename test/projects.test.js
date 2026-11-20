@@ -95,6 +95,18 @@ describe("GitHub projects", () => {
     expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer test-token");
   });
 
+  it("an expired token falls back to the public list", async () => {
+    vi.stubEnv("GITHUB_TOKEN", "expired-token");
+    fetchMock.mockReset().mockImplementation(async (url, init) => {
+      if (init.headers.Authorization) return { ok: false, status: 401, json: async () => ({ message: "Bad credentials" }), headers: { get: () => null } };
+      return ok([repo("public-one")]);
+    });
+    const res = await get(cookie("web", "web@example.com"));
+    expect(res.statusCode).toBe(200);
+    expect(res.body.projects.map((p) => p.name)).toEqual(["public-one"]);
+    expect(String(fetchMock.mock.calls.at(-1)[0])).toContain("/users/someone/repos");
+  });
+
   it("only sends the fields the page shows", () => {
     expect(Object.keys(toProject(repo("x", { owner: { secret: 1 } }))).sort()).toEqual(["archived", "description", "fork", "homepage", "language", "name", "private", "pushedAt", "stars", "topics", "url"]);
   });

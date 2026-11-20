@@ -45,9 +45,9 @@ export function toProject(repo) {
   };
 }
 
-async function githubGet(path) {
+async function githubGet(path, { token = "" } = {}) {
   const headers = { Accept: "application/vnd.github+json", "User-Agent": "pos-invoice-manager", "X-GitHub-Api-Version": "2022-11-28" };
-  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  if (token) headers.Authorization = `Bearer ${token}`;
   const response = await fetch(`https://api.github.com${path}`, { headers });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
@@ -67,11 +67,19 @@ async function githubGet(path) {
 }
 
 // With a token for this same account, /user/repos also lists private
-// repos; otherwise the public list.
+// repos; otherwise the public list. A token GitHub refuses (expired, or
+// typed wrong) is left out, so the public list still shows.
 async function listRepos(user) {
+  let token = String(process.env.GITHUB_TOKEN || "").trim();
   let ownToken = false;
-  if (process.env.GITHUB_TOKEN) {
-    const me = await githubGet("/user").catch(() => null);
+  if (token) {
+    const me = await githubGet("/user", { token }).catch((err) => {
+      if (err.status !== 429) {
+        console.error("projects: GITHUB_TOKEN was refused (expired?); listing public repos without it");
+        token = "";
+      }
+      return null;
+    });
     ownToken = String(me?.login || "").toLowerCase() === user.toLowerCase();
   }
   const repos = [];
@@ -79,7 +87,7 @@ async function listRepos(user) {
     const path = ownToken
       ? `/user/repos?affiliation=owner&sort=pushed&per_page=100&page=${page}`
       : `/users/${encodeURIComponent(user)}/repos?type=owner&sort=pushed&per_page=100&page=${page}`;
-    const batch = await githubGet(path);
+    const batch = await githubGet(path, { token });
     if (!Array.isArray(batch)) break;
     repos.push(...batch);
     if (batch.length < 100) break;
