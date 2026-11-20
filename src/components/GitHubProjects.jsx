@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchProjects } from "../api/projects.js";
+import useStoredState from "../hooks/useStoredState.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { PROJECT_FILTERS, matchesProject, projectTitle, updatedAgo } from "../lib/leads.js";
 
@@ -16,8 +17,9 @@ export default function GitHubProjects() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [showOld, setShowOld] = useState(false);
+  // Remembered on this phone, so a refresh keeps the same view.
+  const [filter, setFilter] = useStoredState("pim-webdesign-project-filter", "all", (v) => PROJECT_FILTERS.some((f) => f.key === v));
+  const [showOld, setShowOld] = useStoredState("pim-webdesign-show-old", false, (v) => typeof v === "boolean");
 
   const load = useCallback(async () => {
     setLoading(true);

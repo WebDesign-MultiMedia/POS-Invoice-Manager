@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
 import GitHubProjects from "../components/GitHubProjects.jsx";
+import useStoredState from "../hooks/useStoredState.js";
 import { createLead, deleteLead, fetchLeads, restoreLead, updateLead } from "../api/leads.js";
 import { friendlyMessage } from "../lib/errors.js";
 import { EMPTY_LEAD, LEAD_FIELDS, LEAD_FILTERS, YES_NO_FIELDS, businessTypes, isAnsweredWithWebsite, linkFor, matchesFilter, matchesSearch, telLink, yesNo } from "../lib/leads.js";
@@ -42,16 +43,20 @@ const TABS = [
   { key: "projects", label: "Projects", icon: "fa-github", brand: true },
 ];
 
-// Two tabs: Leads (the sheet) and Projects (GitHub). The tab is in the
-// link (?tab=projects) so it survives a refresh. Each tab loads the first
-// time it's opened and then stays loaded, so switching back and forth
-// doesn't spend SheetDB or GitHub requests.
+// Two tabs: Leads (the sheet) and Projects (GitHub). The phone remembers
+// the last one (a ?tab=projects link still opens Projects). Each tab loads
+// the first time it's opened and then stays loaded, so switching back and
+// forth doesn't spend SheetDB or GitHub requests.
+const TAB_KEYS = ["leads", "projects"];
 export default function WebDesignPage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "projects" ? "projects" : "leads";
+  const [savedTab, setSavedTab] = useStoredState("pim-webdesign-tab", "leads", (v) => TAB_KEYS.includes(v));
+  const linked = params.get("tab");
+  const tab = TAB_KEYS.includes(linked) ? linked : savedTab;
   const [opened, setOpened] = useState(() => new Set([tab]));
   const pick = (key) => {
     setOpened((o) => new Set(o).add(key));
+    setSavedTab(key);
     setParams(key === "leads" ? {} : { tab: key }, { replace: true });
   };
 
@@ -94,12 +99,13 @@ function LeadsSection() {
   const [canEdit, setCanEdit] = useState(true);
   const [deleted, setDeleted] = useState([]);
   const [canDelete, setCanDelete] = useState(true);
-  const [showDeleted, setShowDeleted] = useState(false);
+  const [showDeleted, setShowDeleted] = useStoredState("pim-webdesign-deleted-open", false, (v) => typeof v === "boolean");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [type, setType] = useState("");
+  // Remembered on this phone, so a refresh keeps the same view.
+  const [filter, setFilter] = useStoredState("pim-webdesign-filter", "all", (v) => LEAD_FILTERS.some((f) => f.key === v));
+  const [savedType, setType] = useStoredState("pim-webdesign-type", "", (v) => typeof v === "string");
   // null, "new", or the Id being edited.
   const [editing, setEditing] = useState(null);
   const [notice, setNotice] = useState("");
@@ -124,6 +130,8 @@ function LeadsSection() {
   }, [load]);
 
   const types = useMemo(() => businessTypes(leads), [leads]);
+  // A remembered type that's no longer in the sheet counts as "every type".
+  const type = types.find((t) => t.toLowerCase() === savedType.toLowerCase()) || "";
   const shown = useMemo(
     () =>
       leads

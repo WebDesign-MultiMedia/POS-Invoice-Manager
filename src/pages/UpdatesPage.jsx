@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-thumbtack",
+    title: "Web Design: your filters stay picked",
+    date: "2026-11-20",
+    body: "On the Web Design page, the filter you pick (No website, Didn't answer…), the business type, the Projects filters, and which tab you were on stay the same after a refresh or reopening the app. Each phone remembers its own.",
+  },
+  {
     icon: "fa-circle-check",
     title: "Web Design: Answered + has a website get their own box",
     date: "2026-11-20",
