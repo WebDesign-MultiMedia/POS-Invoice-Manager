@@ -33,7 +33,20 @@ export function forgetProjects() {
   cache = null;
 }
 
-// A GitHub repo → only what the page shows.
+// A repo published with GitHub Pages lives at owner.github.io/repo/ (or
+// at owner.github.io itself for the repo named that). GitHub doesn't copy
+// that into the repo's website setting, so it's worked out here.
+export function pagesUrl(repo) {
+  if (!repo?.has_pages) return "";
+  const owner = String(repo.owner?.login || "").toLowerCase();
+  if (!owner) return "";
+  const name = String(repo.name || "");
+  return name.toLowerCase() === `${owner}.github.io` ? `https://${owner}.github.io/` : `https://${owner}.github.io/${name}/`;
+}
+
+// A GitHub repo → only what the page shows. Live site: the repo's own
+// website setting, else its GitHub Pages address (Vercel's comes later,
+// in mergeVercel, and goes before Pages).
 export function toProject(repo) {
   const homepage = String(repo.homepage ?? "").trim();
   return {
@@ -41,6 +54,7 @@ export function toProject(repo) {
     description: String(repo.description ?? ""),
     url: String(repo.html_url ?? ""),
     homepage: /^https?:\/\//i.test(homepage) ? homepage : homepage ? `https://${homepage}` : "",
+    pages: pagesUrl(repo),
     language: String(repo.language ?? ""),
     topics: Array.isArray(repo.topics) ? repo.topics.map(String) : [],
     pushedAt: String(repo.pushed_at ?? repo.updated_at ?? ""),
@@ -173,6 +187,8 @@ export function mergeVercel(projects, vercelProjects) {
     used.add(match);
     return { ...p, homepage: p.homepage || match.url, vercel: match.dashboard };
   });
+  // No website setting and not on Vercel: the GitHub Pages site, if any.
+  for (const p of merged) if (!p.homepage && p.pages) p.homepage = p.pages;
   for (const v of vercelProjects) {
     if (used.has(v)) continue;
     // Linked to a repo that isn't in the list (another account, or private

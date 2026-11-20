@@ -108,7 +108,7 @@ describe("GitHub projects", () => {
   });
 
   it("only sends the fields the page shows", () => {
-    expect(Object.keys(toProject(repo("x", { owner: { secret: 1 } }))).sort()).toEqual(["archived", "description", "fork", "homepage", "language", "name", "private", "pushedAt", "stars", "topics", "url", "vercel"]);
+    expect(Object.keys(toProject(repo("x", { owner: { secret: 1 } }))).sort()).toEqual(["archived", "description", "fork", "homepage", "language", "name", "pages", "private", "pushedAt", "stars", "topics", "url", "vercel"]);
   });
 });
 
@@ -171,5 +171,26 @@ describe("Vercel live sites", () => {
   it("a repo linked from another account still shows, with its code link", () => {
     const merged = mergeVercel([], [{ name: "x", repo: "Other", org: "someone-else", url: "https://x.vercel.app", dashboard: "d", updatedAt: "" }]);
     expect(merged[0]).toMatchObject({ url: "https://github.com/someone-else/Other", vercelOnly: true });
+  });
+});
+
+describe("GitHub Pages sites", () => {
+  it("a repo with Pages turned on gets its github.io address", async () => {
+    fetchMock.mockReset().mockImplementation(async () => ok([repo("Tracker_World", { has_pages: true, owner: { login: "Some-One" } }), repo("no-site")]));
+    const res = await get(cookie("web", "web@example.com"));
+    const by = Object.fromEntries(res.body.projects.map((p) => [p.name, p]));
+    expect(by.Tracker_World.homepage).toBe("https://some-one.github.io/Tracker_World/");
+    expect(by["no-site"].homepage).toBe("");
+  });
+
+  it("the repo's own website setting and Vercel come before Pages", () => {
+    const own = toProject(repo("a", { homepage: "https://mine.example.com", has_pages: true, owner: { login: "x" } }));
+    expect(mergeVercel([own], [])[0].homepage).toBe("https://mine.example.com");
+    const onVercel = toProject(repo("b", { has_pages: true, owner: { login: "x" } }));
+    expect(mergeVercel([onVercel], [{ name: "b", repo: "b", org: "x", url: "https://b.vercel.app", dashboard: "d", updatedAt: "" }])[0].homepage).toBe("https://b.vercel.app");
+  });
+
+  it("the account's own user-site repo is the root address", () => {
+    expect(toProject(repo("x.github.io", { has_pages: true, owner: { login: "X" } })).pages).toBe("https://x.github.io/");
   });
 });
