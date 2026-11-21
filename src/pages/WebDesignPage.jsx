@@ -7,7 +7,7 @@ import GitHubProjects from "../components/GitHubProjects.jsx";
 import useStoredState from "../hooks/useStoredState.js";
 import { createLead, deleteLead, fetchLeads, restoreLead, updateLead } from "../api/leads.js";
 import { friendlyMessage } from "../lib/errors.js";
-import { EMPTY_LEAD, LEAD_FIELDS, LEAD_FILTERS, YES_NO_FIELDS, businessTypes, isAnsweredWithWebsite, linkFor, matchesFilter, matchesSearch, telLink, yesNo } from "../lib/leads.js";
+import { EMPTY_LEAD, LEAD_FIELDS, LEAD_FILTERS, YES_NO_FIELDS, businessTypes, isAnsweredWithWebsite, isNoAnswerNoWebsite, linkFor, matchesFilter, matchesSearch, telLink, yesNo } from "../lib/leads.js";
 
 // Web Design & MultiMedia: businesses that might want a website. Its own
 // Google Sheet and SheetDB API (api/_lib/leads.js); the Web Design login
@@ -19,10 +19,12 @@ const DANGER = "btn-3d !py-2 !px-3 text-sm justify-center !bg-none !bg-transpare
 const CHIP = "rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors";
 const ALERT_BASE = { showDenyButton: false, showConfirmButton: false, theme: "dark", backdrop: "rgba(9, 8, 9, 0.87) left top no-repeat" };
 // The Leads tab's own tabs: the list to work on, the ones that answered
-// and already have a website, and recently deleted. Remembered per phone.
+// and already have a website, the ones that didn't answer and have no
+// website, and recently deleted. Remembered per phone.
 const VIEWS = [
   { key: "list", label: "Leads", icon: "fa-address-book" },
   { key: "both", label: "Answered + website", icon: "fa-circle-check" },
+  { key: "none", label: "No answer + no website", icon: "fa-phone-slash" },
   { key: "deleted", label: "Deleted", icon: "fa-trash-can-arrow-up" },
 ];
 const VIEW_KEYS = VIEWS.map((v) => v.key);
@@ -128,16 +130,18 @@ function LeadsSection() {
   // No Deleted column: no Deleted tab (a saved one falls back to Leads).
   const view = savedView === "deleted" && !canDelete ? "list" : savedView;
   // Search and business type work in both lists; the filter chips only in
-  // Leads (they'd mostly empty the Answered + website tab).
+  // Leads (they'd mostly empty the other two lists).
   const searched = useMemo(
     () => leads.filter((l) => matchesSearch(l, query) && (!type || String(l.BusinessType).trim().toLowerCase() === type.toLowerCase())).sort(byName),
     [leads, query, type]
   );
-  // Answered the phone and already have a website: their own tab.
-  const regular = useMemo(() => searched.filter((l) => !isAnsweredWithWebsite(l) && matchesFilter(l, filter)), [searched, filter]);
+  // Answered + has a website, and no answer + no website: their own tabs.
+  const inList = (l) => !isAnsweredWithWebsite(l) && !isNoAnswerNoWebsite(l);
+  const regular = useMemo(() => searched.filter((l) => inList(l) && matchesFilter(l, filter)), [searched, filter]);
   const both = useMemo(() => searched.filter(isAnsweredWithWebsite), [searched]);
-  const total = { list: leads.filter((l) => !isAnsweredWithWebsite(l)).length, both: leads.filter(isAnsweredWithWebsite).length, deleted: deleted.length };
-  const shown = view === "both" ? both : regular;
+  const none = useMemo(() => searched.filter(isNoAnswerNoWebsite), [searched]);
+  const total = { list: leads.filter(inList).length, both: leads.filter(isAnsweredWithWebsite).length, none: leads.filter(isNoAnswerNoWebsite).length, deleted: deleted.length };
+  const shown = view === "both" ? both : view === "none" ? none : regular;
 
   // Puts a deleted business back, exactly as it was.
   const handleRestore = async (lead) => {
@@ -330,7 +334,7 @@ function LeadsSection() {
           view !== "deleted" && (
             <p className="text-center text-sm text-brand-navydeep/80">
               {shown.length} of {total[view]} {total[view] === 1 ? "business" : "businesses"}
-              {view === "both" ? " that answered and already have a website" : ""}
+              {view === "both" ? " that answered and already have a website" : view === "none" ? " that didn't answer and have no website" : ""}
             </p>
           )
         )}

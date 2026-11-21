@@ -65,9 +65,15 @@ describe("GitHub project helpers", () => {
   });
 });
 
-import { isAnsweredWithWebsite } from "../src/lib/leads.js";
+import { isAnsweredWithWebsite, isNoAnswerNoWebsite } from "../src/lib/leads.js";
 
 describe("answered + has a website", () => {
+  it("no answer + no website needs both to be No", () => {
+    expect(isNoAnswerNoWebsite({ AnswerPhone: "no ", HasWebsite: "N" })).toBe(true);
+    expect(isNoAnswerNoWebsite({ AnswerPhone: "No", HasWebsite: "" })).toBe(false);
+    expect(isNoAnswerNoWebsite({ AnswerPhone: "Yes", HasWebsite: "No" })).toBe(false);
+  });
+
   it("needs both to be Yes, however it was typed", () => {
     expect(isAnsweredWithWebsite({ AnswerPhone: "yes ", HasWebsite: "Y" })).toBe(true);
     expect(isAnsweredWithWebsite({ AnswerPhone: "Yes", HasWebsite: "No" })).toBe(false);

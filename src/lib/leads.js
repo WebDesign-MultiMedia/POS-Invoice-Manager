@@ -65,6 +65,8 @@ export const LEAD_FILTERS = [
 // Answered the phone AND already has a website: kept in their own box on
 // the page, apart from the rest of the list.
 export const isAnsweredWithWebsite = (lead) => yesNo(lead.AnswerPhone) === "Yes" && yesNo(lead.HasWebsite) === "Yes";
+// Didn't answer AND has no website: their own tab too.
+export const isNoAnswerNoWebsite = (lead) => yesNo(lead.AnswerPhone) === "No" && yesNo(lead.HasWebsite) === "No";
 
 export function matchesFilter(lead, filter) {
   switch (filter) {

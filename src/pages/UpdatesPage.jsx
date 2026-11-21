@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-phone-slash",
+    title: "Web Design: a tab for no answer + no website",
+    date: "2026-11-21",
+    body: "Businesses that didn't answer the phone and have no website now have their own tab, next to Answered + website, so they're easy to find and call back.",
+  },
+  {
     icon: "fa-wand-magic-sparkles",
     title: "Web Design: an AI website prompt on every business",
     date: "2026-11-21",

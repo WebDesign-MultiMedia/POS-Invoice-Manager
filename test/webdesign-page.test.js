@@ -50,10 +50,14 @@ describe("Web Design leads page", () => {
     expect(sub("Leads").getAttribute("aria-selected")).toBe("true");
     expect(sub("Answered + website").textContent).toMatch(/\(1\)/);
     expect(names()).not.toContain("Green Leaf Test Kitchen");
+    expect(names()).not.toContain("Fresh Fade Demo Barbers");
     expect(names()).toContain("Sunrise Sample Bakery");
 
     act(() => sub("Answered + website").click());
     expect(names()).toEqual(["Green Leaf Test Kitchen"]);
+
+    act(() => sub("No answer + no website").click());
+    expect(names()).toEqual(["Fresh Fade Demo Barbers"]);
 
     act(() => sub("Deleted").click());
     expect(names()).toEqual([]);
@@ -68,7 +72,7 @@ describe("Web Design leads page", () => {
   it("pastes and saves an AI website prompt right on a card", async () => {
     act(() => root.render(page()));
     await wait(400);
-    const card = [...el.querySelectorAll("article")].find((a) => a.querySelector("h2").textContent === "Fresh Fade Demo Barbers");
+    const card = [...el.querySelectorAll("article")].find((a) => a.querySelector("h2").textContent === "Main Street Mock Motors");
     const box = card.querySelector('textarea[id^="prompt-"]');
     expect(box).not.toBeNull();
     act(() => {
@@ -78,7 +82,7 @@ describe("Web Design leads page", () => {
     });
     act(() => [...card.querySelectorAll("button")].find((b) => /Save prompt/.test(b.textContent)).click());
     await wait(400);
-    const saved = [...el.querySelectorAll("article")].find((a) => a.querySelector("h2").textContent === "Fresh Fade Demo Barbers");
+    const saved = [...el.querySelectorAll("article")].find((a) => a.querySelector("h2").textContent === "Main Street Mock Motors");
     expect(saved.textContent).toMatch(/online booking/);
     expect([...saved.querySelectorAll("button")].some((b) => /Copy/.test(b.textContent))).toBe(true);
     expect(saved.querySelector('textarea[id^="prompt-"]')).toBeNull();
@@ -91,15 +95,15 @@ describe("Web Design leads page", () => {
     act(() => {
       const select = el.querySelector('select[aria-label="Business type"]');
       const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set;
-      setter.call(select, "Barber");
+      setter.call(select, "Bakery");
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(names()).toEqual(["Fresh Fade Demo Barbers"]);
+    expect(names()).toEqual(["Sunrise Sample Bakery"]);
 
     await reload();
     expect(chip("No website").getAttribute("aria-pressed")).toBe("true");
-    expect(el.querySelector('select[aria-label="Business type"]').value).toBe("Barber");
-    expect(names()).toEqual(["Fresh Fade Demo Barbers"]);
+    expect(el.querySelector('select[aria-label="Business type"]').value).toBe("Bakery");
+    expect(names()).toEqual(["Sunrise Sample Bakery"]);
   });
 
   it("forgets a saved choice that no longer exists", async () => {
