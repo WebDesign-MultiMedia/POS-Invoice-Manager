@@ -18,23 +18,14 @@ const OUTLINE = "btn-3d !py-2 !px-3 text-sm justify-center !bg-none !bg-transpar
 const DANGER = "btn-3d !py-2 !px-3 text-sm justify-center !bg-none !bg-transparent border border-brand-error/60 text-brand-error disabled:opacity-60";
 const CHIP = "rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors";
 const ALERT_BASE = { showDenyButton: false, showConfirmButton: false, theme: "dark", backdrop: "rgba(9, 8, 9, 0.87) left top no-repeat" };
-// Per-phone conveniences (try/catch: storage can be blocked).
-const BOTH_OPEN_KEY = "pim-webdesign-both-open";
-function readFlag(key, fallback) {
-  try {
-    const v = localStorage.getItem(key);
-    return v === null ? fallback : v === "1";
-  } catch {
-    return fallback;
-  }
-}
-function writeFlag(key, value) {
-  try {
-    localStorage.setItem(key, value ? "1" : "0");
-  } catch {
-    // Storage blocked: it just won't be remembered.
-  }
-}
+// The Leads tab's own tabs: the list to work on, the ones that answered
+// and already have a website, and recently deleted. Remembered per phone.
+const VIEWS = [
+  { key: "list", label: "Leads", icon: "fa-address-book" },
+  { key: "both", label: "Answered + website", icon: "fa-circle-check" },
+  { key: "deleted", label: "Deleted", icon: "fa-trash-can-arrow-up" },
+];
+const VIEW_KEYS = VIEWS.map((v) => v.key);
 const byName = (a, b) => String(a.BusinessName).localeCompare(String(b.BusinessName));
 const chipClass = (on) => `${CHIP} ${on ? "bg-brand-teal text-white border-brand-teal" : "border-brand-navy/30 text-brand-navy"}`;
 
@@ -99,7 +90,7 @@ function LeadsSection() {
   const [canEdit, setCanEdit] = useState(true);
   const [deleted, setDeleted] = useState([]);
   const [canDelete, setCanDelete] = useState(true);
-  const [showDeleted, setShowDeleted] = useStoredState("pim-webdesign-deleted-open", false, (v) => typeof v === "boolean");
+  const [savedView, setView] = useStoredState("pim-webdesign-view", "list", (v) => VIEW_KEYS.includes(v));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -132,24 +123,19 @@ function LeadsSection() {
   const types = useMemo(() => businessTypes(leads), [leads]);
   // A remembered type that's no longer in the sheet counts as "every type".
   const type = types.find((t) => t.toLowerCase() === savedType.toLowerCase()) || "";
-  const shown = useMemo(
-    () =>
-      leads
-        .filter((l) => matchesFilter(l, filter) && matchesSearch(l, query) && (!type || String(l.BusinessType).trim().toLowerCase() === type.toLowerCase()))
-        .sort(byName),
-    [leads, filter, query, type]
+  // No Deleted column: no Deleted tab (a saved one falls back to Leads).
+  const view = savedView === "deleted" && !canDelete ? "list" : savedView;
+  // Search and business type work in both lists; the filter chips only in
+  // Leads (they'd mostly empty the Answered + website tab).
+  const searched = useMemo(
+    () => leads.filter((l) => matchesSearch(l, query) && (!type || String(l.BusinessType).trim().toLowerCase() === type.toLowerCase())).sort(byName),
+    [leads, query, type]
   );
-
-  // Answered the phone and already have a website: their own box, after
-  // the rest of the list. Open or closed stays how it was left.
-  const regular = shown.filter((l) => !isAnsweredWithWebsite(l));
-  const both = shown.filter(isAnsweredWithWebsite);
-  const [bothOpen, setBothOpen] = useState(() => readFlag(BOTH_OPEN_KEY, true));
-  const toggleBoth = () =>
-    setBothOpen((open) => {
-      writeFlag(BOTH_OPEN_KEY, !open);
-      return !open;
-    });
+  // Answered the phone and already have a website: their own tab.
+  const regular = useMemo(() => searched.filter((l) => !isAnsweredWithWebsite(l) && matchesFilter(l, filter)), [searched, filter]);
+  const both = useMemo(() => searched.filter(isAnsweredWithWebsite), [searched]);
+  const total = { list: leads.filter((l) => !isAnsweredWithWebsite(l)).length, both: leads.filter(isAnsweredWithWebsite).length, deleted: deleted.length };
+  const shown = view === "both" ? both : regular;
 
   // Puts a deleted business back, exactly as it was.
   const handleRestore = async (lead) => {
@@ -171,7 +157,7 @@ function LeadsSection() {
     const { isConfirmed } = await Swal.fire({
       ...ALERT_BASE,
       title: `Delete ${name}?`,
-      text: "It will be hidden from the list. You can bring it back with Undo or from Recently deleted. The row stays in the Google Sheet.",
+      text: "It will be hidden from the list. You can bring it back with Undo or from the Deleted tab. The row stays in the Google Sheet.",
       icon: "warning",
       showConfirmButton: true,
       confirmButtonText: '<i class="fa-solid fa-trash"></i> Delete',
@@ -265,11 +251,32 @@ function LeadsSection() {
           </button>
         )}
 
+        <div role="tablist" aria-label="Lead lists" className="flex flex-wrap gap-2 justify-center">
+          {VIEWS.filter((v) => v.key !== "deleted" || canDelete).map((v) => (
+            <button
+              key={v.key}
+              type="button"
+              role="tab"
+              aria-selected={view === v.key}
+              className={chipClass(view === v.key)}
+              onClick={() => {
+                setView(v.key);
+                setEditing((e) => (e === "new" ? e : null));
+              }}
+            >
+              <i className={`fa-solid ${v.icon}`} aria-hidden="true"></i> {v.label}
+              {loading ? "" : ` (${total[v.key]})`}
+            </button>
+          ))}
+        </div>
+
+        {view !== "deleted" && (
         <div className="glass-card p-4 flex flex-col gap-3">
           <label htmlFor="lead-search" className="sr-only">
             Search businesses
           </label>
           <input id="lead-search" type="search" className="input-3d" placeholder="Search name, type, location, phone, notes" value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
+          {view === "list" && (
           <div className="flex flex-wrap gap-2" role="group" aria-label="Show">
             {LEAD_FILTERS.map((f) => (
               <button key={f.key} type="button" className={chipClass(filter === f.key)} aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}>
@@ -277,6 +284,7 @@ function LeadsSection() {
               </button>
             ))}
           </div>
+          )}
           {types.length > 0 && (
             <select aria-label="Business type" className="input-3d" value={type} onChange={(e) => setType(e.target.value)}>
               <option value="">Every business type</option>
@@ -288,6 +296,7 @@ function LeadsSection() {
             </select>
           )}
         </div>
+        )}
 
         {error && (
           <div role="alert" className="glass-panel p-4 text-center text-sm flex flex-col gap-3 items-center">
@@ -303,26 +312,18 @@ function LeadsSection() {
             <i className="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading businesses…
           </p>
         ) : (
-          !error && (
+          !error &&
+          view !== "deleted" && (
             <p className="text-center text-sm text-brand-navydeep/80">
-              {shown.length} of {leads.length} {leads.length === 1 ? "business" : "businesses"}
+              {shown.length} of {total[view]} {total[view] === 1 ? "business" : "businesses"}
+              {view === "both" ? " that answered and already have a website" : ""}
             </p>
           )
         )}
 
-        {regular.map(renderLead)}
+        {view !== "deleted" && shown.map(renderLead)}
 
-        {both.length > 0 && (
-          <section className="glass-card w-full p-4 sm:p-5 flex flex-col gap-4 border border-brand-teal/40" aria-label="Answered and has a website">
-            <button type="button" className="field-label w-full justify-center !text-brand-teal !opacity-100" onClick={toggleBoth} aria-expanded={bothOpen}>
-              <i className="fa-solid fa-circle-check" aria-hidden="true"></i> Answered + has a website ({both.length})
-              <i className={`fa-solid ${bothOpen ? "fa-chevron-up" : "fa-chevron-down"}`} aria-hidden="true"></i>
-            </button>
-            {bothOpen && both.map(renderLead)}
-          </section>
-        )}
-
-        {canDelete && !loading && !error && <RecentlyDeleted open={showDeleted} leads={deleted} onToggle={() => setShowDeleted((o) => !o)} onRestore={handleRestore} />}
+        {view === "deleted" && !loading && !error && <RecentlyDeleted leads={deleted} onRestore={handleRestore} />}
       </section>
   );
 }
@@ -490,7 +491,7 @@ function LeadForm({ lead, types, onSave, onCancel }) {
 
 // Businesses deleted from the list, each with Restore. They
 // come with the same sheet read as the list, so opening this is free.
-function RecentlyDeleted({ open, leads, onToggle, onRestore }) {
+function RecentlyDeleted({ leads, onRestore }) {
   const [busyId, setBusyId] = useState(null);
   const restore = async (lead) => {
     setBusyId(lead.Id);
@@ -502,12 +503,10 @@ function RecentlyDeleted({ open, leads, onToggle, onRestore }) {
   };
   return (
     <section className="glass-card w-full p-5 sm:p-6" aria-label="Recently deleted businesses">
-      <button type="button" className="field-label w-full justify-center" onClick={onToggle} aria-expanded={open}>
-        <i className="fa-solid fa-trash-can-arrow-up" aria-hidden="true"></i> Recently deleted{leads.length ? ` (${leads.length})` : ""}
-        <i className={`fa-solid ${open ? "fa-chevron-up" : "fa-chevron-down"}`} aria-hidden="true"></i>
-      </button>
-      {open && (
-        <div className="mt-3">
+      <p className="field-label w-full justify-center">
+        <i className="fa-solid fa-trash-can-arrow-up" aria-hidden="true"></i> Recently deleted
+      </p>
+      <div className="mt-3">
           {!leads.length && <p className="text-center text-sm text-brand-navydeep/80">No deleted businesses.</p>}
           {leads.length > 0 && (
             <ul className="flex flex-col divide-y divide-brand-navydeep/15">
@@ -533,8 +532,7 @@ function RecentlyDeleted({ open, leads, onToggle, onRestore }) {
               ))}
             </ul>
           )}
-        </div>
-      )}
+      </div>
     </section>
   );
 }

@@ -60,7 +60,6 @@ export const LEAD_FILTERS = [
   { key: "noAnswer", label: "Didn't answer" },
   { key: "answered", label: "Answered" },
   { key: "newSite", label: "Has our site" },
-  { key: "both", label: "Answered + website" },
 ];
 
 // Answered the phone AND already has a website: kept in their own box on

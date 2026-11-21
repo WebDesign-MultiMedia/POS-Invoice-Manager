@@ -7,8 +7,8 @@ import { startDemo, endDemo } from "../src/lib/demo.js";
 import { AuthProvider } from "../src/lib/auth.jsx";
 import WebDesignPage from "../src/pages/WebDesignPage.jsx";
 
-// Renders the Web Design page on demo data: businesses that answered AND
-// have a website sit in their own box, not in the main list.
+// Renders the Web Design page on demo data: Leads, Answered + website and
+// Deleted are tabs, and picked tabs and filters survive a refresh.
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let root;
 let el;
@@ -43,23 +43,26 @@ async function reload() {
 const wait = (ms) => act(() => new Promise((r) => setTimeout(r, ms)));
 
 describe("Web Design leads page", () => {
-  it("puts answered + has a website in its own box", async () => {
-    act(() =>
-      root.render(h(MemoryRouter, { initialEntries: ["/webdesign"] }, h(AuthProvider, null, h(WebDesignPage))))
-    );
+  it("splits Leads, Answered + website and Deleted into tabs", async () => {
+    act(() => root.render(page()));
     await wait(400);
-    const box = el.querySelector('section[aria-label="Answered and has a website"]');
-    expect(box).not.toBeNull();
-    expect(box.textContent).toMatch(/Answered \+ has a website \(1\)/);
-    expect(box.textContent).toMatch(/Green Leaf Test Kitchen/);
-    const outside = [...el.querySelectorAll("article h2")].filter((h) => !box.contains(h)).map((h) => h.textContent);
-    expect(outside).not.toContain("Green Leaf Test Kitchen");
-    expect(outside).toContain("Sunrise Sample Bakery");
+    const sub = (label) => [...el.querySelectorAll('[role="tablist"][aria-label="Lead lists"] [role="tab"]')].find((t) => t.textContent.includes(label));
+    expect(sub("Leads").getAttribute("aria-selected")).toBe("true");
+    expect(sub("Answered + website").textContent).toMatch(/\(1\)/);
+    expect(names()).not.toContain("Green Leaf Test Kitchen");
+    expect(names()).toContain("Sunrise Sample Bakery");
 
-    // Closing it is remembered on this phone.
-    act(() => box.querySelector("button[aria-expanded]").click());
-    expect(box.querySelector("article")).toBeNull();
-    expect(localStorage.getItem("pim-webdesign-both-open")).toBe("0");
+    act(() => sub("Answered + website").click());
+    expect(names()).toEqual(["Green Leaf Test Kitchen"]);
+
+    act(() => sub("Deleted").click());
+    expect(names()).toEqual([]);
+    expect(el.querySelector('section[aria-label="Recently deleted businesses"] button[aria-label^="Restore"]')).not.toBeNull();
+
+    // The picked tab is remembered on this phone.
+    await reload();
+    expect(sub("Deleted").getAttribute("aria-selected")).toBe("true");
+    expect(JSON.parse(localStorage.getItem("pim-webdesign-view"))).toBe("deleted");
   });
 
   it("keeps the picked filter and business type after a refresh", async () => {

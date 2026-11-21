@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-folder-tree",
+    title: "Web Design: lead lists are tabs now",
+    date: "2026-11-21",
+    body: "Answered + website and Deleted are no longer at the bottom of the page. They're tabs next to Leads, each with its count, so one tap opens them instead of scrolling all the way down. Search and business type work in Leads and Answered + website. The phone remembers which tab was open.",
+  },
+  {
     icon: "fa-palette",
     title: "New developer themes, and a theme menu",
     date: "2026-11-20",
