@@ -50,6 +50,8 @@ export const FIELDS = {
   AnswerPhone: ["answerphonecall", "answerphone", "answeredphonecall"],
   HasWebsite: ["website"],
   Notes: ["notes", "note"],
+  // The AI prompt pasted in to build this business's website later.
+  AiPrompt: ["aiprompt", "aiwebsiteprompt", "websiteprompt", "prompt"],
   Deleted: ["deleted"],
 };
 // Id is set once by the server; Deleted only by delete/restore.
@@ -85,7 +87,8 @@ function sheetFields(data, map) {
   const missing = [];
   for (const field of EDITABLE) {
     if (!Object.hasOwn(data, field)) continue;
-    const value = String(data[field] ?? "").trim().slice(0, 2000);
+    // A Google Sheets cell holds up to 50,000 characters; AI prompts run long.
+    const value = String(data[field] ?? "").trim().slice(0, field === "AiPrompt" ? 45000 : 2000);
     if (!map[field]) {
       if (value) missing.push(field);
       continue;
@@ -197,6 +200,7 @@ export async function handleLeads(req, res) {
         deleted: all.filter((r) => r.Deleted),
         canEdit: Boolean(map.Id),
         canDelete: Boolean(map.Id && map.Deleted),
+        canPrompt: Boolean(map.Id && map.AiPrompt),
       });
     }
 

@@ -100,7 +100,8 @@ Products. If a save fails because a tab or column is missing, tell the owner wha
   (`WEB_SHEETDB_ID`), served by `api/_lib/leads.js` through `/api/sheets` (no new function
   file; the project already has 12). Hand-typed headers are matched loosely; editing needs an
   "Id" column. Delete only marks the "Deleted" column (Undo / Restore,
-  like orders). Leads has its own tabs: Leads, Answered + website, Deleted. Projects tab: GitHub repos via `api/_lib/projects.js` (GET ?action=projects on
+  like orders). Leads has its own tabs: Leads, Answered + website, Deleted. Each lead has an AI website prompt
+  (sheet column "AI Prompt", up to 45,000 characters; saved from the card or the form). Projects tab: GitHub repos via `api/_lib/projects.js` (GET ?action=projects on
   /api/sheets; optional `GITHUB_USERNAME` / `GITHUB_TOKEN`; optional `VERCEL_TOKEN` adds live
   sites + Vercel-only projects; cached 10 min). Demo leads and
   projects in `src/lib/demoLeads.js`.

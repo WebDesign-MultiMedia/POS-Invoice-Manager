@@ -23,7 +23,7 @@ export const YES_NO_FIELDS = [
   { key: "HasWebsite", label: "Has a website?" },
 ];
 
-export const EMPTY_LEAD = Object.fromEntries([...LEAD_FIELDS, ...YES_NO_FIELDS, { key: "Notes" }].map((f) => [f.key, ""]));
+export const EMPTY_LEAD = Object.fromEntries([...LEAD_FIELDS, ...YES_NO_FIELDS, { key: "Notes" }, { key: "AiPrompt" }].map((f) => [f.key, ""]));
 
 // "Yes", "yes ", "Y", "si" → "Yes"; "No", "n" → "No"; anything else → "".
 export function yesNo(value) {

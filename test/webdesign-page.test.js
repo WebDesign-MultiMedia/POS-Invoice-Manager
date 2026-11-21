@@ -65,6 +65,25 @@ describe("Web Design leads page", () => {
     expect(JSON.parse(localStorage.getItem("pim-webdesign-view"))).toBe("deleted");
   });
 
+  it("pastes and saves an AI website prompt right on a card", async () => {
+    act(() => root.render(page()));
+    await wait(400);
+    const card = [...el.querySelectorAll("article")].find((a) => a.querySelector("h2").textContent === "Fresh Fade Demo Barbers");
+    const box = card.querySelector('textarea[id^="prompt-"]');
+    expect(box).not.toBeNull();
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set;
+      setter.call(box, "Build a modern barber shop website with online booking.");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => [...card.querySelectorAll("button")].find((b) => /Save prompt/.test(b.textContent)).click());
+    await wait(400);
+    const saved = [...el.querySelectorAll("article")].find((a) => a.querySelector("h2").textContent === "Fresh Fade Demo Barbers");
+    expect(saved.textContent).toMatch(/online booking/);
+    expect([...saved.querySelectorAll("button")].some((b) => /Copy/.test(b.textContent))).toBe(true);
+    expect(saved.querySelector('textarea[id^="prompt-"]')).toBeNull();
+  });
+
   it("keeps the picked filter and business type after a refresh", async () => {
     act(() => root.render(page()));
     await wait(400);

@@ -199,6 +199,29 @@ describe("deleting and restoring a business", () => {
   });
 });
 
+describe("the AI website prompt", () => {
+  const post = (cookie, body) => call(cookie, { method: "POST", url: "/api/sheets", body });
+
+  it("saves a long pasted prompt into the AI Prompt column", async () => {
+    headers = [...HEADERS, "AI Prompt "];
+    const { cookie } = await loginAs("web@example.com", WEB_PASSWORD);
+    expect((await call(cookie)).body.canPrompt).toBe(true);
+    const prompt = "Build a website for a bakery. ".repeat(300);
+    expect((await post(cookie, { action: "updateLead", id: "1", data: { AiPrompt: prompt } })).statusCode).toBe(200);
+    expect(rows[0]["AI Prompt "]).toBe(prompt.trim());
+    expect((await call(cookie)).body.leads[0].AiPrompt).toBe(prompt.trim());
+  });
+
+  it("without that column: says so, and other saves still work", async () => {
+    const { cookie } = await loginAs("web@example.com", WEB_PASSWORD);
+    expect((await call(cookie)).body.canPrompt).toBe(false);
+    expect((await post(cookie, { action: "createLead", data: { BusinessName: "No Prompt Shop", AiPrompt: "" } })).statusCode).toBe(200);
+    const res = await post(cookie, { action: "updateLead", id: "1", data: { AiPrompt: "Build a site" } });
+    expect(res.statusCode).toBe(409);
+    expect(res.body.error).toMatch(/AiPrompt/);
+  });
+});
+
 describe("who else can open the leads", () => {
   it("the owner's login can", async () => {
     const { cookie } = await loginAs("staff@example.com", STAFF_PASSWORD);

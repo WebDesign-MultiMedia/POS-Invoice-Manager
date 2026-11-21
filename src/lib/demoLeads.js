@@ -19,6 +19,7 @@ export const DEMO_LEADS = [
     AnswerPhone: "Yes",
     HasWebsite: "No",
     Notes: "Owner wants online cake orders. Call back Monday.",
+    AiPrompt: "Build a one-page website for Sunrise Sample Bakery, a neighborhood bakery in Anytown. Warm colors, big photos of cakes, a menu section, and a form to order custom cakes for pickup.",
   },
   {
     Id: "WD-DEMO-2",

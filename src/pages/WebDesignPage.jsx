@@ -90,6 +90,7 @@ function LeadsSection() {
   const [canEdit, setCanEdit] = useState(true);
   const [deleted, setDeleted] = useState([]);
   const [canDelete, setCanDelete] = useState(true);
+  const [canPrompt, setCanPrompt] = useState(true);
   const [savedView, setView] = useStoredState("pim-webdesign-view", "list", (v) => VIEW_KEYS.includes(v));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -109,6 +110,7 @@ function LeadsSection() {
       setCanEdit(data?.canEdit !== false);
       setDeleted(Array.isArray(data?.deleted) ? data.deleted : []);
       setCanDelete(data?.canDelete !== false);
+      setCanPrompt(data?.canPrompt !== false);
     } catch (err) {
       setError(friendlyMessage(err, "Couldn't load the businesses."));
     } finally {
@@ -192,6 +194,12 @@ function LeadsSection() {
     if (undo) await handleRestore(gone);
   };
 
+  // Saving just the prompt from a card: one write, no re-read of the sheet.
+  const savePrompt = async (lead, text) => {
+    await updateLead(lead.Id, { AiPrompt: text });
+    setLeads((l) => l.map((x) => (x.Id === lead.Id ? { ...x, AiPrompt: text.trim() } : x)));
+  };
+
   const saved = async (message) => {
     setEditing(null);
     setNotice(message);
@@ -200,7 +208,7 @@ function LeadsSection() {
 
   const renderLead = (lead, i) =>
     editing && editing === lead.Id ? (
-      <LeadForm key={lead.Id} lead={lead} types={types} onCancel={() => setEditing(null)} onSave={(data) => updateLead(lead.Id, data).then(() => saved(`Saved ${data.BusinessName || "the business"}.`))} />
+      <LeadForm key={lead.Id} lead={lead} types={types} canPrompt={canPrompt} onCancel={() => setEditing(null)} onSave={(data) => updateLead(lead.Id, data).then(() => saved(`Saved ${data.BusinessName || "the business"}.`))} />
     ) : (
       <LeadCard
         key={lead.Id || `row-${i}`}
@@ -214,6 +222,7 @@ function LeadsSection() {
             : null
         }
         onDelete={canDelete && lead.Id ? () => handleDelete(lead) : null}
+        onSavePrompt={canEdit && canPrompt && lead.Id ? (text) => savePrompt(lead, text) : null}
       />
     );
 
@@ -229,6 +238,11 @@ function LeadsSection() {
             To delete businesses (with Undo and Restore), add a column named <b>Deleted</b> to the Web Design sheet (first row). Leave it empty.
           </p>
         )}
+        {canEdit && !canPrompt && (
+          <p role="status" className="glass-panel p-3 text-sm text-center">
+            To paste an AI website prompt on each business, add a column named <b>AI Prompt</b> to the Web Design sheet (first row). Leave it empty.
+          </p>
+        )}
         {notice && (
           <p role="status" className="glass-panel p-3 text-sm text-center text-brand-teal font-semibold">
             {notice}
@@ -236,7 +250,7 @@ function LeadsSection() {
         )}
 
         {editing === "new" ? (
-          <LeadForm lead={EMPTY_LEAD} types={types} onCancel={() => setEditing(null)} onSave={(data) => createLead(data).then(() => saved(`Added ${data.BusinessName}.`))} />
+          <LeadForm lead={EMPTY_LEAD} types={types} canPrompt={canPrompt} onCancel={() => setEditing(null)} onSave={(data) => createLead(data).then(() => saved(`Added ${data.BusinessName}.`))} />
         ) : (
           <button
             type="button"
@@ -348,7 +362,7 @@ function LinkButton({ href, icon, label }) {
   );
 }
 
-function LeadCard({ lead, onEdit, onDelete }) {
+function LeadCard({ lead, onEdit, onDelete, onSavePrompt }) {
   const mapHref = linkFor("GoogleLocation", lead.GoogleLocation) || (lead.Location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.Location)}` : "");
   const email = String(lead.Email ?? "").trim();
   return (
@@ -394,11 +408,95 @@ function LeadCard({ lead, onEdit, onDelete }) {
 
       {lead.Others && !linkFor("Others", lead.Others) && <p className="text-sm text-brand-navydeep/80 break-words">Others: {lead.Others}</p>}
       {lead.Notes && <p className="text-sm text-brand-navydeep/90 whitespace-pre-wrap break-words border-t border-brand-navy/10 pt-2">{lead.Notes}</p>}
+      {(onSavePrompt || lead.AiPrompt) && <PromptBox key={lead.AiPrompt} lead={lead} onSave={onSavePrompt} />}
     </article>
   );
 }
 
-function LeadForm({ lead, types, onSave, onCancel }) {
+// The AI prompt for building this business's website: paste it here,
+// Save, and later Copy it into the AI website builder. Long prompts show
+// a few lines until "Show all".
+function PromptBox({ lead, onSave }) {
+  const text = String(lead.AiPrompt ?? "");
+  const [editing, setEditing] = useState(!text);
+  const [draft, setDraft] = useState(text);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [full, setFull] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const id = `prompt-${lead.Id}`;
+
+  const save = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await onSave(draft);
+      if (draft.trim()) setEditing(false);
+    } catch (err) {
+      setError(friendlyMessage(err, "Couldn't save the prompt."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setError("Couldn't copy. Tap Show all, then press and hold the text to copy it.");
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-brand-teal/40 p-3 flex flex-col gap-2">
+      <label htmlFor={id} className="field-label !text-brand-teal !opacity-100">
+        <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> AI website prompt
+      </label>
+      {editing && onSave ? (
+        <>
+          <textarea id={id} className="input-3d min-h-[7rem] text-sm" placeholder="Paste the AI prompt for this business's website here" value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <div className="flex gap-2 justify-end">
+            {text && (
+              <button type="button" className={OUTLINE} disabled={busy} onClick={() => { setDraft(text); setEditing(false); setError(""); }}>
+                Cancel
+              </button>
+            )}
+            <button type="button" className="btn-3d !py-2 !px-3 text-sm justify-center disabled:opacity-60" disabled={busy || draft.trim() === text.trim()} onClick={save}>
+              {busy ? <i className="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> : <i className="fa-solid fa-check" aria-hidden="true"></i>} Save prompt
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p id={id} className={`text-sm text-brand-navydeep/90 whitespace-pre-wrap break-words ${full ? "" : "line-clamp-4"}`}>{text}</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn-3d !py-2 !px-3 text-sm justify-center" onClick={copy}>
+              <i className={`fa-solid ${copied ? "fa-check" : "fa-copy"}`} aria-hidden="true"></i> {copied ? "Copied" : "Copy"}
+            </button>
+            {text.length > 200 && (
+              <button type="button" className={OUTLINE} onClick={() => setFull((f) => !f)}>
+                {full ? "Show less" : "Show all"}
+              </button>
+            )}
+            {onSave && (
+              <button type="button" className={OUTLINE} onClick={() => setEditing(true)} aria-label={`Change the AI prompt for ${lead.BusinessName || "this business"}`}>
+                <i className="fa-solid fa-pen" aria-hidden="true"></i> Change
+              </button>
+            )}
+          </div>
+        </>
+      )}
+      {error && (
+        <p role="alert" className="text-sm font-semibold text-brand-error">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function LeadForm({ lead, types, canPrompt, onSave, onCancel }) {
   const [form, setForm] = useState(() => ({ ...EMPTY_LEAD, ...lead, AnswerPhone: yesNo(lead.AnswerPhone) || lead.AnswerPhone || "", HasWebsite: yesNo(lead.HasWebsite) || lead.HasWebsite || "" }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -414,6 +512,8 @@ function LeadForm({ lead, types, onSave, onCancel }) {
     setBusy(true);
     setError("");
     const { Id: _id, Deleted: _deleted, ...data } = form;
+    // No "AI Prompt" column yet: leave it out so the rest still saves.
+    if (!canPrompt) delete data.AiPrompt;
     try {
       await onSave(data);
     } catch (err) {
@@ -471,6 +571,15 @@ function LeadForm({ lead, types, onSave, onCancel }) {
         </label>
         <textarea id="lead-Notes" className="input-3d min-h-[6rem]" value={form.Notes} onChange={(e) => set("Notes", e.target.value)} />
       </div>
+
+      {canPrompt && (
+        <div className="field-group">
+          <label htmlFor="lead-AiPrompt" className="field-label">
+            <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> AI website prompt
+          </label>
+          <textarea id="lead-AiPrompt" className="input-3d min-h-[7rem]" placeholder="Paste the AI prompt for this business's website here (optional)" value={form.AiPrompt} onChange={(e) => set("AiPrompt", e.target.value)} />
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="text-sm font-semibold text-brand-error text-center">

@@ -4,6 +4,12 @@ import { SiteNav } from "../components/NavFab.jsx";
 
 const UPDATES = [
   {
+    icon: "fa-wand-magic-sparkles",
+    title: "Web Design: an AI website prompt on every business",
+    date: "2026-11-21",
+    body: "Each business card has an AI website prompt box. Paste the prompt, tap Save prompt, and later tap Copy to paste it into the AI website builder. Change edits it. It's also in the Add a business form. It's saved in the sheet's AI Prompt column.",
+  },
+  {
     icon: "fa-folder-tree",
     title: "Web Design: lead lists are tabs now",
     date: "2026-11-21",

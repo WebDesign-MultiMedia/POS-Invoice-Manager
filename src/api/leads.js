@@ -22,10 +22,11 @@ const demoList = () => (demoLeads ||= DEMO_LEADS.map((l) => ({ ...l })));
 if (typeof window !== "undefined") window.addEventListener(DEMO_RESET_EVENT, () => (demoLeads = null));
 const later = (v) => new Promise((resolve) => setTimeout(() => resolve(JSON.parse(JSON.stringify(v))), 250));
 
-// { leads, deleted, canEdit, canDelete }: canEdit is false until the sheet
-// has an Id column, canDelete until it also has a Deleted column.
+// { leads, deleted, canEdit, canDelete, canPrompt }: canEdit is false until
+// the sheet has an Id column, canDelete until it also has a Deleted column,
+// canPrompt until it also has an "AI Prompt" column.
 export async function fetchLeads() {
-  if (isDemo()) return later({ leads: demoList().filter((l) => !l.Deleted), deleted: demoList().filter((l) => l.Deleted), canEdit: true, canDelete: true });
+  if (isDemo()) return later({ leads: demoList().filter((l) => !l.Deleted), deleted: demoList().filter((l) => l.Deleted), canEdit: true, canDelete: true, canPrompt: true });
   return check(await fetch(`${SHEETS_API}?action=leads`));
 }
 
