@@ -54,8 +54,8 @@ describe("GitHub projects", () => {
     expect(String(fetchMock.mock.calls[0][0])).toBe("https://api.github.com/users/someone/repos?type=owner&sort=pushed&per_page=100&page=1");
   });
 
-  it("the owner's login can see them too", async () => {
-    expect((await get(cookie("staff", "staff@example.com"))).statusCode).toBe(200);
+  it("the restaurant owner's login can't (Web Design is its own account)", async () => {
+    expect((await get(cookie("staff", "staff@example.com"))).statusCode).toBe(403);
   });
 
   it("restaurant employees and visitors can't", async () => {

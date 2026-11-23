@@ -138,8 +138,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   // can("pay"), can("manage"), can("staff"): what this login may use.
-  // Staff (and the demo) can use everything; "staff" itself is owner-only.
-  const can = useCallback((key) => role === "staff" || (key !== "staff" && access.includes(key)), [role, access]);
+  // Staff (and the demo) can use every restaurant section; "staff" itself is
+  // owner-only. Web Design & MultiMedia is a separate account: only its own
+  // login ("web") opens it, never the restaurant's.
+  const can = useCallback(
+    (key) => (role === "staff" ? key !== "webdesign" : key !== "staff" && access.includes(key)),
+    [role, access]
+  );
 
   return (
     <AuthContext.Provider value={{ status, user, name, role, access, can, isEmployee: role === "event", isWebDesign: role === "web", sessionExpired, login, logout, enterDemo }}>

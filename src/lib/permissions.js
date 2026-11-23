@@ -17,7 +17,8 @@ export const MANAGE_INFO = { key: "manage", label: "Can edit & delete", icon: "f
 export const ALL_ACCESS = [...SECTION_INFO.map((s) => s.key), PRICES_INFO.key, MANAGE_INFO.key];
 
 // Web Design & MultiMedia's leads page. Not an employee section (the Team
-// page never offers it): only the owner and the Web Design login open it.
+// page never offers it): only the Web Design login opens it. The restaurant
+// owner's login doesn't; each business is its own account.
 export const WEB_DESIGN_INFO = { key: "webdesign", label: "Web Design leads", icon: "fa-laptop-code", route: "/webdesign" };
 
 // Which access keys open each page ("staff" = the owner's login only).
@@ -32,8 +33,8 @@ const ROUTE_ACCESS = {
   "/shopping": ["shopping"],
   "/webdesign": ["webdesign"],
   "/employees": ["staff"],
-  // Restaurant logins (not the Web Design one).
-  "/updates": SECTION_INFO.map((s) => s.key),
+  // Each business sees its own updates there (UpdatesPage).
+  "/updates": [...SECTION_INFO.map((s) => s.key), WEB_DESIGN_INFO.key],
 };
 
 export function canOpen(can, pathname) {

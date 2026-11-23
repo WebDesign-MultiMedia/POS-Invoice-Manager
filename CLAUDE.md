@@ -96,7 +96,10 @@ Products. If a save fails because a tab or column is missing, tell the owner wha
   (`priceUpdatesFromReceipt` in `api/_lib/products.js`). Regular stores in `REGULAR_STORES`
   (`src/lib/shopping.js`). Barcode scanning via `@zxing/browser`.
 - Web Design & MultiMedia (`/webdesign`): a second business's leads list. Own login
-  (`WEB_ACCOUNTS` env, role "web", sees only that page, never restaurant data), own sheet
+  (`WEB_ACCOUNTS` env, role "web", sees only that page + its own What's New, never restaurant
+  data). The two businesses are separate accounts: the restaurant owner's "staff" login can't
+  open Web Design (`can()` excludes "webdesign" for staff, client and server). Updates entries
+  carry `business: "web"` (Web Design), `"both"`, or nothing (restaurant). Own sheet
   (`WEB_SHEETDB_ID`), served by `api/_lib/leads.js` through `/api/sheets` (no new function
   file; the project already has 12). Hand-typed headers are matched loosely; editing needs an
   "Id" column. Delete only marks the "Deleted" column (Undo / Restore,
