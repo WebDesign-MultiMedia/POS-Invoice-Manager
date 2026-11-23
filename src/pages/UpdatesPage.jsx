@@ -1,61 +1,81 @@
 import Layout, { PageHeader } from "../components/Layout.jsx";
 import TiltCard from "../components/TiltCard.jsx";
 import { SiteNav } from "../components/NavFab.jsx";
+import { useAuth } from "../lib/auth.jsx";
 
-const UPDATES = [
+// Each entry belongs to one business: the restaurant (no "business" set),
+// Web Design & MultiMedia ("web"), or both ("both", e.g. themes). Each login
+// sees only its own business's updates.
+export const UPDATES = [
+  {
+    icon: "fa-user-lock",
+    title: "Web Design & MultiMedia is its own account",
+    business: "web",
+    date: "2026-11-23",
+    body: "Web Design & MultiMedia and the restaurant are now fully separate. This login opens only Web Design, and What's New shows only Web Design updates. The restaurant's login no longer shows the Web Design page, its button or its updates.",
+  },
   {
     icon: "fa-phone-slash",
     title: "Web Design: a tab for no answer + no website",
+    business: "web",
     date: "2026-11-21",
     body: "Businesses that didn't answer the phone and have no website now have their own tab, next to Answered + website, so they're easy to find and call back.",
   },
   {
     icon: "fa-wand-magic-sparkles",
     title: "Web Design: an AI website prompt on every business",
+    business: "web",
     date: "2026-11-21",
     body: "Each business card has an AI website prompt box. Paste the prompt, tap Save prompt, and later tap Copy to paste it into the AI website builder. Change edits it. It's also in the Add a business form. It's saved in the sheet's AI Prompt column.",
   },
   {
     icon: "fa-folder-tree",
     title: "Web Design: lead lists are tabs now",
+    business: "web",
     date: "2026-11-21",
     body: "Answered + website and Deleted are no longer at the bottom of the page. They're tabs next to Leads, each with its count, so one tap opens them instead of scrolling all the way down. Search and business type work in Leads and Answered + website. The phone remembers which tab was open.",
   },
   {
     icon: "fa-palette",
     title: "New developer themes, and a theme menu",
+    business: "both",
     date: "2026-11-20",
-    body: "The top-right button now opens a menu of every theme instead of switching one at a time. Three new ones under Developer: Terminal (black and neon green, code-style headings), Code Editor (dark slate with purple and pink) and Logo (black with the Web Design & MultiMedia logo's green and red). Each phone remembers its pick.",
+    body: "The top-right button now opens a menu of every theme instead of switching one at a time. Three new ones under Developer: Terminal (black and neon green, code-style headings), Code Editor (dark slate with purple and pink) and Logo (black with green and red). Each phone remembers its pick.",
   },
   {
     icon: "fa-thumbtack",
     title: "Web Design: your filters stay picked",
+    business: "web",
     date: "2026-11-20",
     body: "On the Web Design page, the filter you pick (No website, Didn't answer…), the business type, the Projects filters, and which tab you were on stay the same after a refresh or reopening the app. Each phone remembers its own.",
   },
   {
     icon: "fa-circle-check",
     title: "Web Design: Answered + has a website get their own box",
+    business: "web",
     date: "2026-11-20",
     body: "On the Web Design leads, businesses that answered the phone AND already have a website are kept in their own box under the list, so the main list shows the ones still to work on. Tap the box's title to open or close it; your phone remembers. There's also an Answered + website filter.",
   },
   {
     icon: "fa-code-branch",
     title: "Web Design: your GitHub projects",
+    business: "web",
     date: "2026-11-20",
     body: "The Web Design page has a Projects tab next to Leads. It lists every GitHub project, newest first, with a Live site button (when the project has its website set on GitHub) and a Code button. Search them, or show only Live sites or the last 30 days. Archived projects and forks are hidden until you tap that button. With Vercel connected, projects get their live site from Vercel, a Vercel button, and Vercel sites that aren't on GitHub show up too.",
   },
   {
     icon: "fa-trash-can-arrow-up",
     title: "Web Design: delete, Undo and Recently deleted",
+    business: "web",
     date: "2026-11-19",
     body: "Each business on the Web Design page has a trash button. Deleted one by mistake? Tap Undo right after, or open Recently deleted at the bottom and tap Restore. It comes back exactly as it was; the row never leaves the Google Sheet.",
   },
   {
     icon: "fa-laptop-code",
     title: "Web Design & MultiMedia leads",
+    business: "web",
     date: "2026-11-19",
-    body: "A separate login for the Web Design & MultiMedia business. It opens only its own list of businesses (from its own Google Sheet): search, filter by No website or Didn't answer, tap to call or open their Instagram, Google map and website, and add or edit a business. It never sees restaurant orders or sales. The owner's login can open it too.",
+    body: "A separate login for the Web Design & MultiMedia business. It opens only its own list of businesses (from its own Google Sheet): search, filter by No website or Didn't answer, tap to call or open their Instagram, Google map and website, and add or edit a business. It never sees restaurant orders or sales.",
   },
   {
     icon: "fa-rotate-left",
@@ -167,7 +187,13 @@ const UPDATES = [
   },
 ];
 
+export function updatesFor(isWebDesign) {
+  return UPDATES.filter((u) => u.business === "both" || (isWebDesign ? u.business === "web" : !u.business));
+}
+
 export default function UpdatesPage() {
+  const { isWebDesign } = useAuth() || {};
+  const updates = updatesFor(Boolean(isWebDesign));
   return (
     <Layout blobs={["bg-brand-pink w-72 h-72 -top-10 -right-10 animate-float-slow", "bg-brand-cactus w-64 h-64 bottom-0 -left-16 animate-float"]}>
       <PageHeader
@@ -177,13 +203,13 @@ export default function UpdatesPage() {
             <i className="fa-solid fa-wand-magic-sparkles"></i> What's New
           </>
         }
-        subtitle="POS-Invoice-Manager Updates"
+        subtitle={isWebDesign ? "Web Design & MultiMedia Updates" : "POS-Invoice-Manager Updates"}
       />
 
       <SiteNav className="mb-8" />
 
       <div className="w-full max-w-2xl flex flex-col gap-4">
-        {UPDATES.map((update, i) => (
+        {updates.map((update, i) => (
           <TiltCard key={update.title + update.date} maxDeg={3} className="glass-card p-6 stagger-in" delayMs={i * 70}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-brand-navy font-semibold">

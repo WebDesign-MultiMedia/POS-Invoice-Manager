@@ -39,6 +39,9 @@ export function formatAccess(list) {
   return keys.length ? keys.join(",") : "none";
 }
 
-// info: { role, access } from readSessionInfo.
-export const can = (info, key) => info?.role === "staff" || Boolean(info?.access?.includes(key));
+// info: { role, access } from readSessionInfo. The restaurant owner's login
+// may use every restaurant section, but never Web Design & MultiMedia's:
+// that business is its own account (the "web" login).
+export const can = (info, key) =>
+  info?.role === "staff" ? key !== "webdesign" : Boolean(info?.access?.includes(key));
 export const canAny = (info, keys) => keys.some((key) => can(info, key));

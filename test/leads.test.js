@@ -223,9 +223,9 @@ describe("the AI website prompt", () => {
 });
 
 describe("who else can open the leads", () => {
-  it("the owner's login can", async () => {
+  it("the restaurant owner's login can't: each business is its own account", async () => {
     const { cookie } = await loginAs("staff@example.com", STAFF_PASSWORD);
-    expect((await call(cookie)).statusCode).toBe(200);
+    expect((await call(cookie)).statusCode).toBe(403);
   });
 
   it("restaurant employees can't, whatever is ticked", async () => {
